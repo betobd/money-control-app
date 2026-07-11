@@ -1,31 +1,49 @@
 export const colors = {
   light: {
-    background: '#F5F7FB',
+    appBackground: '#F4F7FC',
     surface: '#FFFFFF',
-    surfaceRaised: '#FFFFFF',
-    border: '#DCE3EF',
-    text: '#17202A',
-    textMuted: '#667085',
-    primary: '#246BFD',
-    primaryStrong: '#0E3F91',
-    primarySoft: '#DCE9FF',
-    onPrimary: '#FFFFFF',
-    income: '#00A878',
-    expense: '#E46962',
+    elevatedSurface: '#E8EEF8',
+    primaryText: '#13213A',
+    secondaryText: '#40506B',
+    mutedText: '#647187',
+    border: '#CCD5E5',
+    primaryAction: '#135BC7',
+    onPrimaryAction: '#FFFFFF',
+    selectedNavigationBackground: '#D6E5FF',
+    selectedNavigationForeground: '#123B72',
+    navigationInactive: '#53627A',
+    income: '#007A58',
+    expense: '#B84A44',
+    transfer: '#3559B7',
+    warning: '#8A5900',
+    destructive: '#B42331',
+    disabledSurface: '#E2E7EF',
+    disabledText: '#727E91',
+    progressTrack: '#D8DFEB',
+    progressFill: '#246BFD',
   },
   dark: {
-    background: '#081225',
-    surface: '#111D35',
-    surfaceRaised: '#18243D',
-    border: '#273550',
-    text: '#DCE5FA',
-    textMuted: '#9DAAC4',
-    primary: '#4B8DFF',
-    primaryStrong: '#0A3B79',
-    primarySoft: '#A9C8FF',
-    onPrimary: '#06152C',
-    income: '#34D8A0',
-    expense: '#FF9A91',
+    appBackground: '#081225',
+    surface: '#101C33',
+    elevatedSurface: '#1A2741',
+    primaryText: '#E4EBFA',
+    secondaryText: '#BBC6DB',
+    mutedText: '#95A2BB',
+    border: '#35435F',
+    primaryAction: '#79A9FF',
+    onPrimaryAction: '#07182E',
+    selectedNavigationBackground: '#A9C8FF',
+    selectedNavigationForeground: '#06152C',
+    navigationInactive: '#AAB6CC',
+    income: '#45DDB0',
+    expense: '#FFA39B',
+    transfer: '#9CB7FF',
+    warning: '#F1C66D',
+    destructive: '#FF6673',
+    disabledSurface: '#202C44',
+    disabledText: '#8290AA',
+    progressTrack: '#35415C',
+    progressFill: '#A9C8FF',
   },
 } as const;
 
@@ -39,6 +57,11 @@ export const spacing = {
 } as const;
 
 export const typography = {
+  display: {
+    fontSize: 34,
+    fontWeight: '700',
+    lineHeight: 42,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
@@ -54,10 +77,30 @@ export const typography = {
     fontWeight: '600',
     lineHeight: 16,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
+  },
+  money: {
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+  caption: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
 } as const;
 
 export const borderRadii = {
   sm: 8,
   md: 12,
   lg: 20,
+  full: 999,
+} as const;
+
+export const borderWidths = {
+  thin: 1,
 } as const;

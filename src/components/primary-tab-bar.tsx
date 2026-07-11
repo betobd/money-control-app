@@ -63,14 +63,14 @@ export function PrimaryTabBar({ onHomePress }: { onHomePress: () => void }) {
         accessibilityRole="button"
         onPress={() => router.push('/add-transaction')}
         style={styles.addButton}>
-        <View style={[styles.addCircle, { backgroundColor: theme.primarySoft }]}>
+        <View style={[styles.addCircle, { backgroundColor: theme.primaryAction }]}>
           <SymbolView
             name={{ ios: 'plus', android: 'add', web: 'add' }}
             size={28}
-            tintColor={theme.onPrimary}
+            tintColor={theme.onPrimaryAction}
           />
         </View>
-        <Text style={[styles.addLabel, { color: theme.text }]}>Add</Text>
+        <Text style={[styles.addLabel, { color: theme.primaryText }]}>Add</Text>
       </Pressable>
       <TabButton item={tabs[2]} selected={pathname === tabs[2].pathname} />
       <TabButton item={tabs[3]} selected={pathname === tabs[3].pathname} />
@@ -88,7 +88,9 @@ function TabButton({
   selected: boolean;
 }) {
   const theme = useAppTheme();
-  const tintColor = selected ? theme.onPrimary : theme.textMuted;
+  const tintColor = selected
+    ? theme.selectedNavigationForeground
+    : theme.navigationInactive;
 
   return (
     <Pressable
@@ -106,7 +108,7 @@ function TabButton({
       <View
         style={[
           styles.tabPill,
-          selected && { backgroundColor: theme.primarySoft },
+          selected && { backgroundColor: theme.selectedNavigationBackground },
         ]}>
         <SymbolView name={item.icon} size={22} tintColor={tintColor} />
         <Text numberOfLines={1} style={[styles.tabLabel, { color: tintColor }]}>

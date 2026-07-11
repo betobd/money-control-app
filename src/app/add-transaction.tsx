@@ -15,7 +15,7 @@ export default function AddTransactionModal() {
       style={[
         styles.screen,
         {
-          backgroundColor: theme.background,
+          backgroundColor: theme.appBackground,
           paddingBottom: insets.bottom + spacing.lg,
           paddingTop: insets.top + spacing.md,
         },
@@ -30,16 +30,16 @@ export default function AddTransactionModal() {
           <SymbolView
             name={{ ios: 'xmark', android: 'close', web: 'close' }}
             size={24}
-            tintColor={theme.text}
+            tintColor={theme.primaryText}
           />
         </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
           Add Transaction
         </Text>
         <View style={styles.headerSpacer} />
       </View>
       <View style={[styles.placeholder, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.placeholderText, { color: theme.textMuted }]}>Transaction entry coming soon</Text>
+        <Text style={[styles.placeholderText, { color: theme.mutedText }]}>Transaction entry coming soon</Text>
       </View>
     </View>
   );

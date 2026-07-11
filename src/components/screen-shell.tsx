@@ -20,19 +20,19 @@ export function ScreenShell({ title, description, children }: ScreenShellProps) 
       style={[
         styles.screen,
         {
-          backgroundColor: theme.background,
+          backgroundColor: theme.appBackground,
           paddingTop: insets.top + spacing.lg,
         },
       ]}>
-      <Text style={[styles.brand, { color: theme.primarySoft }]}>Money Control</Text>
+      <Text style={[styles.brand, { color: theme.primaryAction }]}>Money Control</Text>
       <View style={styles.heading}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>
+        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
           {title}
         </Text>
-        <Text style={[styles.description, { color: theme.textMuted }]}>{description}</Text>
+        <Text style={[styles.description, { color: theme.secondaryText }]}>{description}</Text>
       </View>
       <View style={[styles.placeholder, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.placeholderText, { color: theme.textMuted }]}>Coming soon</Text>
+        <Text style={[styles.placeholderText, { color: theme.mutedText }]}>Coming soon</Text>
       </View>
       {children}
     </View>
