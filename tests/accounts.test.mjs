@@ -213,6 +213,15 @@ test('sums signed balances for assets, debt, and archived accounts', async () =>
   assert.equal(service.calculateNetWorth(accounts), 1100000);
 });
 
+test('calculates reported post-expense balances and net worth', () => {
+  const { service } = setup();
+  const accounts = [
+    { balance: 9850000, isArchived: false, type: 'checking' },
+    { balance: 5000000, isArchived: false, type: 'checking' },
+  ];
+  assert.equal(service.calculateNetWorth(accounts), 14850000);
+});
+
 test('a credit card with zero debt has no net-worth effect', () => {
   const { service } = setup();
   assert.equal(service.calculateNetWorth([{ balance: 0, isArchived: false, type: 'credit_card' }]), 0);

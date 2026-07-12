@@ -1,0 +1,4 @@
+import { useCallback, useState } from 'react';
+import { transactionService } from './transactions'; import type { TransactionListItem } from './transaction.types';
+import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+export function useTransactions() { const [transactions, setTransactions] = useState<TransactionListItem[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState<string>(); const reload = useCallback(async () => { setLoading(true); setError(undefined); try { setTransactions(await transactionService.list()); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load transactions.'); } finally { setLoading(false); } }, []); useFinancialDataRefresh(reload); return { transactions, loading, error, reload }; }

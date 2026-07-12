@@ -2,11 +2,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { spacing, typography } from '@/constants/theme';
 import { TransactionListItem } from '@/features/transactions/components/transaction-list-item';
-import type { TransactionSectionMock } from '@/features/transactions/transactions.mock';
+import type { TransactionSection as TransactionSectionModel } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type TransactionSectionProps = {
-  section: TransactionSectionMock;
+  section: TransactionSectionModel;
 };
 
 export function TransactionSection({ section }: TransactionSectionProps) {

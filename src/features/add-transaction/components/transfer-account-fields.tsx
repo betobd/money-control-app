@@ -18,11 +18,13 @@ export function TransferAccountFields({ source, destination }: TransferAccountFi
       <FormFieldButton
         icon={{ ios: 'arrow.up.circle.fill', android: 'arrow_circle_up', web: 'arrow_circle_up' }}
         label="Source account"
+        onPress={() => undefined}
         value={source}
       />
       <FormFieldButton
         icon={{ ios: 'arrow.down.circle.fill', android: 'arrow_circle_down', web: 'arrow_circle_down' }}
         label="Destination account"
+        onPress={() => undefined}
         value={destination}
       />
     </View>

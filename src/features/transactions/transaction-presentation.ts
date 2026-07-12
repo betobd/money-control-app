@@ -1,0 +1,5 @@
+import { formatCop } from '@/features/accounts/account-format'; import { getCategoryIcon } from '@/features/categories/category-icons'; import { formatTransactionDate } from './transaction-date'; import type { TransactionListItem, TransactionSection } from './transaction.types';
+export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount' | 'type'>) { return `${item.type === 'expense' ? '-' : '+'}${formatCop(item.amount)}`; }
+export function transactionTitle(item: Pick<TransactionListItem, 'note' | 'categoryName'>) { return item.note || item.categoryName; }
+export function groupTransactions(items: TransactionListItem[]): TransactionSection[] { const groups = new Map<string, TransactionListItem[]>(); for (const item of items) groups.set(item.transactionDate, [...(groups.get(item.transactionDate) ?? []), item]); return [...groups].map(([id, transactions]) => ({ id, label: formatTransactionDate(id), transactions })); }
+export function transactionIcon(item: Pick<TransactionListItem, 'categoryIcon'>) { return getCategoryIcon(item.categoryIcon); }

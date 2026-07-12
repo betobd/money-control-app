@@ -10,24 +10,28 @@ import { FinancialSummaryCard } from '@/features/home/components/financial-summa
 import { MoneyText } from '@/features/home/components/money-text';
 import { SectionHeader } from '@/features/home/components/section-header';
 import { TransactionListItem } from '@/features/home/components/transaction-list-item';
-import { homeDashboardMock } from '@/features/home/home-dashboard.mock';
+import { staticBudgetPreview } from '@/features/home/home-dashboard.mock';
+import { useHomeDashboard } from '@/features/home/use-home-dashboard';
+import { formatCop } from '@/features/accounts/account-format';
+import { signedTransactionAmount, transactionIcon, transactionTitle } from '@/features/transactions/transaction-presentation';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function HomeScreen() {
   const theme = useAppTheme();
-  const dashboard = homeDashboardMock;
+  const dashboard = useHomeDashboard();
+  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${dashboard.month}-01T00:00:00Z`));
 
   return (
     <ScreenContainer contentStyle={styles.content}>
       <PrimaryScreenHeader />
 
-      <View accessibilityLabel={`Selected month, ${dashboard.month}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
+      <View accessibilityLabel={`Selected month, ${monthLabel}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
         <SymbolView
           name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }}
           size={20}
           tintColor={theme.secondaryText}
         />
-        <Text style={[styles.month, { color: theme.primaryText }]}>{dashboard.month}</Text>
+        <Text style={[styles.month, { color: theme.primaryText }]}>{monthLabel}</Text>
         <SymbolView
           name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
           size={20}
@@ -38,18 +42,18 @@ export default function HomeScreen() {
       <View style={styles.balanceBlock}>
         <Text style={[styles.eyebrow, { color: theme.secondaryText }]}>Total balance</Text>
         <View style={styles.balanceRow}>
-          <MoneyText style={styles.totalBalance}>{dashboard.totalBalance}</MoneyText>
-          <Text style={[styles.currency, { color: theme.mutedText }]}>{dashboard.currency}</Text>
+          <MoneyText style={styles.totalBalance}>{formatCop(dashboard.totalBalance)}</MoneyText>
+          <Text style={[styles.currency, { color: theme.mutedText }]}>COP</Text>
         </View>
       </View>
 
       <FinancialSummaryCard
-        expenses={dashboard.expenses}
-        income={dashboard.income}
-        netBalance={dashboard.netBalance}
+        expenses={`-${formatCop(dashboard.summary.expenses)}`}
+        income={`+${formatCop(dashboard.summary.income)}`}
+        netBalance={`${dashboard.summary.net < 0 ? '-' : '+'}${formatCop(Math.abs(dashboard.summary.net))}`}
       />
 
-      <BudgetProgressCard label={dashboard.budget.label} percentage={dashboard.budget.percentage} />
+      <BudgetProgressCard label={staticBudgetPreview.label} percentage={staticBudgetPreview.percentage} />
 
       <SectionHeader
         action={
@@ -68,13 +72,18 @@ export default function HomeScreen() {
       />
 
       <View style={[styles.transactions, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {dashboard.recentTransactions.map((transaction, index) => (
+        {dashboard.recent.map((transaction, index) => (
           <TransactionListItem
             key={transaction.id}
-            {...transaction}
-            showDivider={index < dashboard.recentTransactions.length - 1}
+            amount={signedTransactionAmount(transaction)}
+            icon={transactionIcon(transaction)}
+            showDivider={index < dashboard.recent.length - 1}
+            subtitle={`${transaction.transactionDate} · ${transaction.type === 'expense' ? 'Expense' : 'Income'}`}
+            title={transactionTitle(transaction)}
+            tone={transaction.type}
           />
         ))}
+        {!dashboard.loading && !dashboard.error && dashboard.recent.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No recent transactions.</Text> : null}
       </View>
     </ScreenContainer>
   );
@@ -133,4 +142,5 @@ const styles = StyleSheet.create({
     borderWidth: borderWidths.thin,
     paddingHorizontal: spacing.md,
   },
+  empty: { ...typography.caption, padding: spacing.lg, textAlign: 'center' },
 });

@@ -18,26 +18,27 @@ function mapAccount(row: AccountRow): Account {
 export class SQLiteAccountRepository implements AccountRepository {
   async list(includeArchived: boolean): Promise<AccountWithBalance[]> {
     const balance = sql<number>`
-      ${accounts.openingBalance} + coalesce((
-        select sum(
-          case
-            when ${transactions.type} = 'income' and ${transactions.accountId} = ${accounts.id} then ${transactions.amount}
-            when ${transactions.type} = 'expense' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
-            when ${transactions.type} = 'transfer' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
-            when ${transactions.type} = 'transfer' and ${transactions.destinationAccountId} = ${accounts.id} then ${transactions.amount}
-            else 0
-          end
-        )
-        from ${transactions}
-        where ${transactions.status} = 'posted'
-          and (${transactions.accountId} = ${accounts.id} or ${transactions.destinationAccountId} = ${accounts.id})
+      ${accounts.openingBalance} + coalesce(sum(
+        case
+          when ${transactions.status} <> 'posted' then 0
+          when ${transactions.type} = 'income' and ${transactions.accountId} = ${accounts.id} then ${transactions.amount}
+          when ${transactions.type} = 'expense' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
+          when ${transactions.type} = 'transfer' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
+          when ${transactions.type} = 'transfer' and ${transactions.destinationAccountId} = ${accounts.id} then ${transactions.amount}
+          else 0
+        end
       ), 0)
     `.mapWith(Number);
 
     const rows = await database
       .select({ account: accounts, balance })
       .from(accounts)
+      .leftJoin(
+        transactions,
+        or(eq(transactions.accountId, accounts.id), eq(transactions.destinationAccountId, accounts.id)),
+      )
       .where(includeArchived ? undefined : eq(accounts.isArchived, false))
+      .groupBy(accounts.id)
       .orderBy(accounts.isArchived, accounts.createdAt);
 
     return rows.map(({ account, balance: currentBalance }) => ({

@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
-import type { TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function SuccessToast({ visible, type }: { visible: boolean; type: TransactionFormType }) {

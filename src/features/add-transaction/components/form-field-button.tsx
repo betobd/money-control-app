@@ -8,19 +8,20 @@ type FormFieldButtonProps = {
   icon: SymbolViewProps['name'];
   label: string;
   value: string;
+  onPress: () => void;
+  error?: string;
 };
 
-export function FormFieldButton({ icon, label, value }: FormFieldButtonProps) {
+export function FormFieldButton({ icon, label, value, onPress, error }: FormFieldButtonProps) {
   const theme = useAppTheme();
 
   return (
     <View style={styles.group}>
       <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
       <Pressable
-        accessibilityHint="Selection is not active in this preview"
         accessibilityLabel={`${label}, ${value}`}
         accessibilityRole="button"
-        onPress={() => undefined}
+        onPress={onPress}
         style={[styles.field, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
         <SymbolView name={icon} size={22} tintColor={theme.secondaryText} />
         <Text numberOfLines={1} style={[styles.value, { color: theme.primaryText }]}> 
@@ -32,6 +33,7 @@ export function FormFieldButton({ icon, label, value }: FormFieldButtonProps) {
           tintColor={theme.mutedText}
         />
       </Pressable>
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -58,4 +60,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontWeight: '600',
   },
+  error: { ...typography.caption },
 });

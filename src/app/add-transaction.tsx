@@ -1,207 +1,25 @@
-import { SymbolView } from 'expo-symbols';
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { spacing, typography } from '@/constants/theme';
-import { AmountInput } from '@/features/add-transaction/components/amount-input';
-import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
-import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar';
-import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
-import { SuccessToast } from '@/features/add-transaction/components/success-toast';
-import { TransactionTypeSelector } from '@/features/add-transaction/components/transaction-type-selector';
-import { TransferAccountFields } from '@/features/add-transaction/components/transfer-account-fields';
-import {
-  transactionFormMock,
-  type TransactionFormType,
-} from '@/features/add-transaction/add-transaction.mock';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { useCategories } from '@/features/categories/use-categories';
+import { SymbolView } from 'expo-symbols'; import { router } from 'expo-router'; import { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'; import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { spacing, typography, borderRadii, borderWidths } from '@/constants/theme'; import { useAccounts } from '@/features/accounts/use-accounts'; import { AmountInput } from '@/features/add-transaction/components/amount-input'; import { AccountPicker } from '@/features/add-transaction/components/account-picker'; import { CategoryGrid } from '@/features/add-transaction/components/category-grid'; import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar'; import { FormFieldButton } from '@/features/add-transaction/components/form-field-button'; import { SuccessToast } from '@/features/add-transaction/components/success-toast'; import { TransactionTypeSelector } from '@/features/add-transaction/components/transaction-type-selector'; import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types'; import { useCategories } from '@/features/categories/use-categories'; import { bogotaToday } from '@/features/transactions/transaction-date'; import { TransactionValidationError } from '@/features/transactions/transaction.service'; import { transactionService } from '@/features/transactions/transactions'; import type { TransactionValidationErrors } from '@/features/transactions/transaction.types'; import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function AddTransactionModal() {
-  const insets = useSafeAreaInsets();
-  const theme = useAppTheme();
-  const [type, setType] = useState<TransactionFormType>('expense');
-  const [amountDigits, setAmountDigits] = useState('125450000');
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>();
-  const expenseCategories = useCategories('expense', false).categories;
-  const incomeCategories = useCategories('income', false).categories;
-  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (successTimer.current) clearTimeout(successTimer.current);
-    };
-  }, []);
-
-  const handleTypeChange = (nextType: TransactionFormType) => {
-    setType(nextType);
-    setSelectedCategoryId(undefined);
-    setShowSuccess(false);
-  };
-
-  const handleMockSave = () => {
-    if (successTimer.current) clearTimeout(successTimer.current);
-    setShowSuccess(true);
-    successTimer.current = setTimeout(() => setShowSuccess(false), 1800);
-  };
-
-  const categories =
-    type === 'income' ? incomeCategories : expenseCategories;
-
-  const effectiveSelectedCategoryId = categories.some((category) => category.id === selectedCategoryId)
-    ? selectedCategoryId
-    : categories[0]?.id;
-
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}> 
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Close Add Transaction"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => router.back()}
-          style={styles.closeButton}>
-          <SymbolView
-            name={{ ios: 'xmark', android: 'close', web: 'close' }}
-            size={24}
-            tintColor={theme.primaryText}
-          />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}> 
-          Add Transaction
-        </Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <SuccessToast type={type} visible={showSuccess} />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-        style={styles.keyboardArea}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <AmountInput digits={amountDigits} onDigitsChange={setAmountDigits} type={type} />
-          <TransactionTypeSelector onChange={handleTypeChange} value={type} />
-
-          {type === 'transfer' ? (
-            <TransferAccountFields
-              destination={transactionFormMock.transferDestination}
-              source={transactionFormMock.transferSource}
-            />
-          ) : (
-            <>
-              <CategoryGrid
-                categories={categories}
-                onSelect={setSelectedCategoryId}
-                onViewAll={() => router.push({ pathname: '/categories', params: { type } })}
-                selectedId={effectiveSelectedCategoryId}
-                type={type}
-              />
-              <FormFieldButton
-                icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-                label={type === 'income' ? 'Destination account' : 'Source account'}
-                value={type === 'income' ? transactionFormMock.incomeAccount : transactionFormMock.expenseAccount}
-              />
-            </>
-          )}
-
-          <FormFieldButton
-            icon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
-            label="Date"
-            value={transactionFormMock.date}
-          />
-
-          <View style={styles.noteGroup}>
-            <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Note (optional)</Text>
-            <TextInput
-              accessibilityLabel="Transaction note, optional"
-              multiline
-              placeholder="Add a description…"
-              placeholderTextColor={theme.mutedText}
-              style={[
-                styles.noteInput,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  color: theme.primaryText,
-                },
-              ]}
-              textAlignVertical="top"
-            />
-          </View>
-        </ScrollView>
-
-        <FixedSaveBar
-          bottomInset={insets.bottom}
-          onPress={handleMockSave}
-          type={type}
-        />
-      </KeyboardAvoidingView>
-    </View>
-  );
+  const insets = useSafeAreaInsets(); const theme = useAppTheme(); const [type, setType] = useState<TransactionFormType>('expense'); const [amountDigits, setAmountDigits] = useState(''); const [selectedCategoryId, setSelectedCategoryId] = useState<string>(); const [selectedAccountId, setSelectedAccountId] = useState<string>(); const [transactionDate, setTransactionDate] = useState(bogotaToday); const [note, setNote] = useState(''); const [accountPicker, setAccountPicker] = useState(false); const [errors, setErrors] = useState<TransactionValidationErrors>({}); const [generalError, setGeneralError] = useState<string>(); const [saving, setSaving] = useState(false); const [showSuccess, setShowSuccess] = useState(false); const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { accounts } = useAccounts(); const activeAccounts = accounts.filter((account) => !account.isArchived); const expenseCategories = useCategories('expense', false).categories; const incomeCategories = useCategories('income', false).categories; const categories = type === 'income' ? incomeCategories : expenseCategories; const selectedAccount = activeAccounts.find((account) => account.id === selectedAccountId); const effectiveCategoryId = categories.some((category) => category.id === selectedCategoryId) ? selectedCategoryId : categories[0]?.id;
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  function changeType(next: TransactionFormType) { if (next === 'transfer') return; setType(next); setSelectedCategoryId(undefined); setErrors({}); }
+  async function save() {
+    if (saving) return;
+    const supportedType = type === 'expense' ? 'expense' : type === 'income' ? 'income' : undefined;
+    if (!supportedType) return;
+    setSaving(true); setErrors({}); setGeneralError(undefined);
+    try {
+      await transactionService.create({ type: supportedType, amount: amountDigits ? Number(amountDigits) : 0, accountId: selectedAccountId ?? '', categoryId: effectiveCategoryId ?? '', transactionDate, note });
+      setShowSuccess(true); closeTimer.current = setTimeout(() => router.back(), 650);
+    } catch (cause) {
+      if (cause instanceof TransactionValidationError) setErrors(cause.fields); else setGeneralError(cause instanceof Error ? cause.message : 'Unable to save transaction.');
+      setSaving(false);
+    }
+  }
+  return <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}><View style={styles.header}><Pressable accessibilityLabel="Close Add Transaction" accessibilityRole="button" onPress={() => router.back()} style={styles.closeButton}><SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} /></Pressable><Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Add Transaction</Text><View style={styles.closeButton} /></View><SuccessToast type={type} visible={showSuccess} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardArea}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><AmountInput digits={amountDigits} error={errors.amount} onDigitsChange={setAmountDigits} type={type} /><TransactionTypeSelector onChange={changeType} value={type} />{generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}<CategoryGrid categories={categories} error={errors.categoryId} onSelect={setSelectedCategoryId} onViewAll={() => router.push({ pathname: '/categories', params: { type } })} selectedId={effectiveCategoryId} type={type} />{categories.length === 0 ? <Pressable onPress={() => router.push({ pathname: '/categories', params: { type } })}><Text style={{ color: theme.primaryAction }}>Manage categories</Text></Pressable> : null}<FormFieldButton error={errors.accountId} icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }} label={type === 'income' ? 'Destination account' : 'Source account'} onPress={() => setAccountPicker(true)} value={selectedAccount?.name ?? 'Select account'} /><View style={styles.field}><Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Transaction date</Text><TextInput accessibilityLabel="Transaction date, YYYY-MM-DD" autoCapitalize="none" keyboardType="numbers-and-punctuation" maxLength={10} onChangeText={setTransactionDate} value={transactionDate} style={[styles.textInput, { backgroundColor: theme.surface, borderColor: errors.transactionDate ? theme.destructive : theme.border, color: theme.primaryText }]} />{errors.transactionDate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.transactionDate}</Text> : null}</View><View style={styles.field}><Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Note (optional)</Text><TextInput accessibilityLabel="Transaction note, optional" maxLength={200} multiline onChangeText={setNote} placeholder="Add a description…" placeholderTextColor={theme.mutedText} style={[styles.noteInput, { backgroundColor: theme.surface, borderColor: errors.note ? theme.destructive : theme.border, color: theme.primaryText }]} textAlignVertical="top" value={note} />{errors.note ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.note}</Text> : null}<Text style={[styles.limit, { color: theme.mutedText }]}>{note.length}/200</Text></View></ScrollView><FixedSaveBar bottomInset={insets.bottom} disabled={type === 'transfer'} onPress={() => void save()} saving={saving} type={type} /></KeyboardAvoidingView><AccountPicker accounts={activeAccounts} onClose={() => setAccountPicker(false)} onSelect={setSelectedAccountId} selectedId={selectedAccountId} visible={accountPicker} /></View>;
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 64,
-    paddingHorizontal: spacing.md,
-  },
-  closeButton: {
-    alignItems: 'center',
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  title: {
-    ...typography.title,
-    flex: 1,
-    fontSize: 26,
-    lineHeight: 34,
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 48,
-  },
-  keyboardArea: {
-    flex: 1,
-  },
-  content: {
-    gap: spacing.lg,
-    paddingBottom: spacing.xl,
-    paddingHorizontal: spacing.md,
-  },
-  noteGroup: {
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    ...typography.label,
-    textTransform: 'uppercase',
-  },
-  noteInput: {
-    ...typography.body,
-    borderRadius: 12,
-    borderWidth: 1,
-    minHeight: 104,
-    padding: spacing.md,
-  },
-});
+const styles = StyleSheet.create({ screen: { flex: 1 }, header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.md }, closeButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' }, keyboardArea: { flex: 1 }, content: { gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.md }, field: { gap: spacing.sm }, fieldLabel: { ...typography.label, textTransform: 'uppercase' }, textInput: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md }, noteInput: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 104, padding: spacing.md }, error: { ...typography.caption }, limit: { ...typography.label, textAlign: 'right' } });

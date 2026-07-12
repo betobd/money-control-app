@@ -2,33 +2,34 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import type { TransactionKind, TransactionMock } from '@/features/transactions/transactions.mock';
+import { signedTransactionAmount, transactionIcon, transactionTitle } from '@/features/transactions/transaction-presentation';
+import type { SupportedTransactionType, TransactionListItem as TransactionItem } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type TransactionListItemProps = {
-  transaction: TransactionMock;
+  transaction: TransactionItem;
 };
 
 export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
-  const tone = getTone(transaction.kind, theme);
+  const tone = getTone(transaction.type, theme);
 
   return (
     <View
-      accessibilityLabel={`${transaction.title}, ${kindLabel(transaction.kind)}, ${transaction.classification}, ${transaction.account}, ${transaction.time}, ${transaction.amount}`}
+      accessibilityLabel={`${transactionTitle(transaction)}, ${kindLabel(transaction.type)}, ${transaction.categoryName}, ${transaction.accountName}, ${signedTransactionAmount(transaction)}`}
       style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView name={transaction.icon} size={22} tintColor={tone} />
+        <SymbolView name={transactionIcon(transaction)} size={22} tintColor={tone} />
       </View>
       <View style={styles.copy}>
         <Text numberOfLines={1} style={[styles.title, { color: theme.primaryText }]}>
-          {transaction.title}
+          {transactionTitle(transaction)}
         </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.secondaryText }]}>
-          {transaction.account}
+          {transaction.accountName}
         </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.mutedText }]}>
-          {transaction.classification} · {transaction.time}
+          {transaction.categoryName} · {transaction.status}
         </Text>
       </View>
       <View style={styles.amountColumn}>
@@ -37,25 +38,23 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           minimumFontScale={0.65}
           numberOfLines={1}
           style={[styles.amount, { color: tone }]}>
-          {transaction.amount}
+          {signedTransactionAmount(transaction)}
         </Text>
         <Text style={[styles.kind, { color: theme.secondaryText }]}>
-          {kindLabel(transaction.kind)}
+          {kindLabel(transaction.type)}
         </Text>
       </View>
     </View>
   );
 }
 
-function getTone(kind: TransactionKind, theme: ReturnType<typeof useAppTheme>) {
+function getTone(kind: SupportedTransactionType, theme: ReturnType<typeof useAppTheme>) {
   if (kind === 'income') return theme.income;
-  if (kind === 'transfer') return theme.transfer;
   return theme.expense;
 }
 
-function kindLabel(kind: TransactionKind) {
+function kindLabel(kind: SupportedTransactionType) {
   if (kind === 'income') return 'Income';
-  if (kind === 'transfer') return 'Transfer';
   return 'Expense';
 }
 

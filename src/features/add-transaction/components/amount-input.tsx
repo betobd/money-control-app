@@ -2,16 +2,17 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
-import type { TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AmountInputProps = {
   digits: string;
   onDigitsChange: (digits: string) => void;
   type: TransactionFormType;
+  error?: string;
 };
 
-export function AmountInput({ digits, onDigitsChange, type }: AmountInputProps) {
+export function AmountInput({ digits, onDigitsChange, type, error }: AmountInputProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
   const formattedAmount = formatCopDigits(digits);
@@ -34,6 +35,7 @@ export function AmountInput({ digits, onDigitsChange, type }: AmountInputProps) 
         <Text style={[styles.currency, { color: theme.mutedText }]}>COP</Text>
       </View>
       <Text style={[styles.hint, { color: theme.mutedText }]}>Whole pesos only</Text>
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -83,4 +85,5 @@ const styles = StyleSheet.create({
     ...typography.label,
     textAlign: 'center',
   },
+  error: { ...typography.caption, textAlign: 'center' },
 });

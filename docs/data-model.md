@@ -45,6 +45,8 @@ The application seeds eight expense and five income defaults atomically only whe
 
 Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. The schema validates row shape, while services will validate category compatibility and archive state.
 
+Implemented Expense and Income writes store positive whole-COP magnitudes with `destination_account_id = NULL`; transaction type supplies the signed account effect. The application service revalidates active account/category state, category type, Bogotá-local date, safe-integer amount, and a trimmed optional note limited to 200 characters. Read models order by financial date and then creation timestamp, both descending.
+
 ### `transaction_splits`
 
 - `id`, `transaction_id`, `account_id`

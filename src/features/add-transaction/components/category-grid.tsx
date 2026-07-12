@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
-import type { TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import type { Category } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -11,12 +11,13 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 type CategoryGridProps = {
   categories: readonly Category[];
   selectedId?: string;
-  type: Exclude<TransactionFormType, 'transfer'>;
+  type: TransactionFormType;
   onSelect: (id: string) => void;
   onViewAll: () => void;
+  error?: string;
 };
 
-export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll }: CategoryGridProps) {
+export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll, error }: CategoryGridProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
 
@@ -32,6 +33,7 @@ export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll
           <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View All</Text>
         </Pressable>
       </View>
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.empty, { color: theme.destructive }]}>{error}</Text> : null}
       <View style={styles.grid}>
         {categories.map((category) => {
           const selected = category.id === selectedId;

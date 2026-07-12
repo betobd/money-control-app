@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import type { TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 const options: { label: string; value: TransactionFormType }[] = [
@@ -23,12 +23,14 @@ export function TransactionTypeSelector({ value, onChange }: TransactionTypeSele
       {options.map((option) => {
         const selected = option.value === value;
         const tone = getTypeTone(option.value, theme);
+        const disabled = option.value === 'transfer';
 
         return (
           <Pressable
             accessibilityLabel={option.label}
             accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
+            accessibilityState={{ checked: selected, disabled }}
+            disabled={disabled}
             key={option.value}
             onPress={() => onChange(option.value)}
             style={[
@@ -36,8 +38,8 @@ export function TransactionTypeSelector({ value, onChange }: TransactionTypeSele
               selected && { backgroundColor: tone, borderColor: tone },
               !selected && { borderColor: 'transparent' },
             ]}>
-            <Text style={[styles.label, { color: selected ? theme.onPrimaryAction : theme.secondaryText }]}> 
-              {option.label}
+            <Text style={[styles.label, { color: disabled ? theme.disabledText : selected ? theme.onPrimaryAction : theme.secondaryText }]}>
+              {disabled ? 'Transfer · Soon' : option.label}
             </Text>
           </Pressable>
         );
