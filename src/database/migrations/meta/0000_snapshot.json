@@ -1,0 +1,860 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "f5b05a76-8da5-4a4e-9198-0890022842fa",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "accounts": {
+      "name": "accounts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'COP'"
+        },
+        "opening_balance": {
+          "name": "opening_balance",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "credit_limit": {
+          "name": "credit_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_archived": {
+          "name": "is_archived",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "accounts_archived_idx": {
+          "name": "accounts_archived_idx",
+          "columns": [
+            "is_archived"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "accounts_name_not_empty": {
+          "name": "accounts_name_not_empty",
+          "value": "length(trim(\"accounts\".\"name\")) > 0"
+        },
+        "accounts_currency_cop": {
+          "name": "accounts_currency_cop",
+          "value": "\"accounts\".\"currency\" = 'COP'"
+        },
+        "accounts_type_valid": {
+          "name": "accounts_type_valid",
+          "value": "\"accounts\".\"type\" IN ('checking', 'savings', 'credit_card', 'cash', 'other')"
+        },
+        "accounts_created_at_utc": {
+          "name": "accounts_created_at_utc",
+          "value": "\"accounts\".\"created_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "accounts_updated_at_utc": {
+          "name": "accounts_updated_at_utc",
+          "value": "\"accounts\".\"updated_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "accounts_archived_at_utc": {
+          "name": "accounts_archived_at_utc",
+          "value": "\"accounts\".\"archived_at\" IS NULL OR \"accounts\".\"archived_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "accounts_opening_balance_safe": {
+          "name": "accounts_opening_balance_safe",
+          "value": "typeof(\"accounts\".\"opening_balance\") = 'integer' AND \"accounts\".\"opening_balance\" BETWEEN -9007199254740991 AND 9007199254740991"
+        },
+        "accounts_credit_limit_valid": {
+          "name": "accounts_credit_limit_valid",
+          "value": "\"accounts\".\"credit_limit\" IS NULL OR (typeof(\"accounts\".\"credit_limit\") = 'integer' AND \"accounts\".\"type\" = 'credit_card' AND \"accounts\".\"credit_limit\" >= 0 AND \"accounts\".\"credit_limit\" <= 9007199254740991)"
+        }
+      }
+    },
+    "budgets": {
+      "name": "budgets",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "month": {
+          "name": "month",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'COP'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "budgets_category_month_uidx": {
+          "name": "budgets_category_month_uidx",
+          "columns": [
+            "category_id",
+            "month"
+          ],
+          "isUnique": true
+        },
+        "budgets_month_idx": {
+          "name": "budgets_month_idx",
+          "columns": [
+            "month"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "budgets_category_id_categories_id_fk": {
+          "name": "budgets_category_id_categories_id_fk",
+          "tableFrom": "budgets",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "budgets_amount_positive": {
+          "name": "budgets_amount_positive",
+          "value": "typeof(\"budgets\".\"amount\") = 'integer' AND \"budgets\".\"amount\" > 0 AND \"budgets\".\"amount\" <= 9007199254740991"
+        },
+        "budgets_currency_cop": {
+          "name": "budgets_currency_cop",
+          "value": "\"budgets\".\"currency\" = 'COP'"
+        },
+        "budgets_month_format": {
+          "name": "budgets_month_format",
+          "value": "\"budgets\".\"month\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'"
+        },
+        "budgets_created_at_utc": {
+          "name": "budgets_created_at_utc",
+          "value": "\"budgets\".\"created_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "budgets_updated_at_utc": {
+          "name": "budgets_updated_at_utc",
+          "value": "\"budgets\".\"updated_at\" GLOB '????-??-??T??:??:??*Z'"
+        }
+      }
+    },
+    "categories": {
+      "name": "categories",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "icon": {
+          "name": "icon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_archived": {
+          "name": "is_archived",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "categories_archived_idx": {
+          "name": "categories_archived_idx",
+          "columns": [
+            "is_archived"
+          ],
+          "isUnique": false
+        },
+        "categories_type_idx": {
+          "name": "categories_type_idx",
+          "columns": [
+            "type"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "categories_name_not_empty": {
+          "name": "categories_name_not_empty",
+          "value": "length(trim(\"categories\".\"name\")) > 0"
+        },
+        "categories_type_valid": {
+          "name": "categories_type_valid",
+          "value": "\"categories\".\"type\" IN ('expense', 'income')"
+        },
+        "categories_created_at_utc": {
+          "name": "categories_created_at_utc",
+          "value": "\"categories\".\"created_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "categories_updated_at_utc": {
+          "name": "categories_updated_at_utc",
+          "value": "\"categories\".\"updated_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "categories_archived_at_utc": {
+          "name": "categories_archived_at_utc",
+          "value": "\"categories\".\"archived_at\" IS NULL OR \"categories\".\"archived_at\" GLOB '????-??-??T??:??:??*Z'"
+        }
+      }
+    },
+    "recurring_transactions": {
+      "name": "recurring_transactions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'COP'"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "destination_account_id": {
+          "name": "destination_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "interval": {
+          "name": "interval",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "next_transaction_date": {
+          "name": "next_transaction_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "recurring_next_date_idx": {
+          "name": "recurring_next_date_idx",
+          "columns": [
+            "is_active",
+            "next_transaction_date"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "recurring_transactions_account_id_accounts_id_fk": {
+          "name": "recurring_transactions_account_id_accounts_id_fk",
+          "tableFrom": "recurring_transactions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "recurring_transactions_destination_account_id_accounts_id_fk": {
+          "name": "recurring_transactions_destination_account_id_accounts_id_fk",
+          "tableFrom": "recurring_transactions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "destination_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "recurring_transactions_category_id_categories_id_fk": {
+          "name": "recurring_transactions_category_id_categories_id_fk",
+          "tableFrom": "recurring_transactions",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "recurring_type_valid": {
+          "name": "recurring_type_valid",
+          "value": "\"recurring_transactions\".\"type\" IN ('income', 'expense', 'transfer')"
+        },
+        "recurring_frequency_valid": {
+          "name": "recurring_frequency_valid",
+          "value": "\"recurring_transactions\".\"frequency\" IN ('daily', 'weekly', 'monthly', 'yearly')"
+        },
+        "recurring_amount_positive": {
+          "name": "recurring_amount_positive",
+          "value": "typeof(\"recurring_transactions\".\"amount\") = 'integer' AND \"recurring_transactions\".\"amount\" > 0 AND \"recurring_transactions\".\"amount\" <= 9007199254740991"
+        },
+        "recurring_currency_cop": {
+          "name": "recurring_currency_cop",
+          "value": "\"recurring_transactions\".\"currency\" = 'COP'"
+        },
+        "recurring_interval_positive": {
+          "name": "recurring_interval_positive",
+          "value": "\"recurring_transactions\".\"interval\" > 0"
+        },
+        "recurring_created_at_utc": {
+          "name": "recurring_created_at_utc",
+          "value": "\"recurring_transactions\".\"created_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "recurring_updated_at_utc": {
+          "name": "recurring_updated_at_utc",
+          "value": "\"recurring_transactions\".\"updated_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "recurring_shape_valid": {
+          "name": "recurring_shape_valid",
+          "value": "(\n        (\"recurring_transactions\".\"type\" IN ('income', 'expense') AND \"recurring_transactions\".\"destination_account_id\" IS NULL AND \"recurring_transactions\".\"category_id\" IS NOT NULL)\n        OR\n        (\"recurring_transactions\".\"type\" = 'transfer' AND \"recurring_transactions\".\"destination_account_id\" IS NOT NULL AND \"recurring_transactions\".\"account_id\" <> \"recurring_transactions\".\"destination_account_id\" AND \"recurring_transactions\".\"category_id\" IS NULL)\n      )"
+        }
+      }
+    },
+    "transaction_splits": {
+      "name": "transaction_splits",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "transaction_splits_transaction_position_uidx": {
+          "name": "transaction_splits_transaction_position_uidx",
+          "columns": [
+            "transaction_id",
+            "position"
+          ],
+          "isUnique": true
+        },
+        "transaction_splits_transaction_account_uidx": {
+          "name": "transaction_splits_transaction_account_uidx",
+          "columns": [
+            "transaction_id",
+            "account_id"
+          ],
+          "isUnique": true
+        },
+        "transaction_splits_account_idx": {
+          "name": "transaction_splits_account_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "transaction_splits_transaction_id_transactions_id_fk": {
+          "name": "transaction_splits_transaction_id_transactions_id_fk",
+          "tableFrom": "transaction_splits",
+          "tableTo": "transactions",
+          "columnsFrom": [
+            "transaction_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "restrict"
+        },
+        "transaction_splits_account_id_accounts_id_fk": {
+          "name": "transaction_splits_account_id_accounts_id_fk",
+          "tableFrom": "transaction_splits",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "transaction_splits_amount_nonzero_safe": {
+          "name": "transaction_splits_amount_nonzero_safe",
+          "value": "typeof(\"transaction_splits\".\"amount\") = 'integer' AND \"transaction_splits\".\"amount\" <> 0 AND \"transaction_splits\".\"amount\" BETWEEN -9007199254740991 AND 9007199254740991"
+        },
+        "transaction_splits_position_nonnegative": {
+          "name": "transaction_splits_position_nonnegative",
+          "value": "\"transaction_splits\".\"position\" >= 0"
+        }
+      }
+    },
+    "transactions": {
+      "name": "transactions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'posted'"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'COP'"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "destination_account_id": {
+          "name": "destination_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_id": {
+          "name": "category_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "transaction_date": {
+          "name": "transaction_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "transactions_date_idx": {
+          "name": "transactions_date_idx",
+          "columns": [
+            "transaction_date"
+          ],
+          "isUnique": false
+        },
+        "transactions_type_date_idx": {
+          "name": "transactions_type_date_idx",
+          "columns": [
+            "type",
+            "transaction_date"
+          ],
+          "isUnique": false
+        },
+        "transactions_account_idx": {
+          "name": "transactions_account_idx",
+          "columns": [
+            "account_id"
+          ],
+          "isUnique": false
+        },
+        "transactions_destination_account_idx": {
+          "name": "transactions_destination_account_idx",
+          "columns": [
+            "destination_account_id"
+          ],
+          "isUnique": false
+        },
+        "transactions_category_idx": {
+          "name": "transactions_category_idx",
+          "columns": [
+            "category_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "transactions_account_id_accounts_id_fk": {
+          "name": "transactions_account_id_accounts_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "transactions_destination_account_id_accounts_id_fk": {
+          "name": "transactions_destination_account_id_accounts_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "destination_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "transactions_category_id_categories_id_fk": {
+          "name": "transactions_category_id_categories_id_fk",
+          "tableFrom": "transactions",
+          "tableTo": "categories",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "transactions_type_valid": {
+          "name": "transactions_type_valid",
+          "value": "\"transactions\".\"type\" IN ('income', 'expense', 'transfer')"
+        },
+        "transactions_status_valid": {
+          "name": "transactions_status_valid",
+          "value": "\"transactions\".\"status\" IN ('posted', 'voided')"
+        },
+        "transactions_amount_positive": {
+          "name": "transactions_amount_positive",
+          "value": "typeof(\"transactions\".\"amount\") = 'integer' AND \"transactions\".\"amount\" > 0 AND \"transactions\".\"amount\" <= 9007199254740991"
+        },
+        "transactions_currency_cop": {
+          "name": "transactions_currency_cop",
+          "value": "\"transactions\".\"currency\" = 'COP'"
+        },
+        "transactions_date_valid": {
+          "name": "transactions_date_valid",
+          "value": "\"transactions\".\"transaction_date\" GLOB '????-??-??' AND date(\"transactions\".\"transaction_date\") = \"transactions\".\"transaction_date\""
+        },
+        "transactions_created_at_utc": {
+          "name": "transactions_created_at_utc",
+          "value": "\"transactions\".\"created_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "transactions_updated_at_utc": {
+          "name": "transactions_updated_at_utc",
+          "value": "\"transactions\".\"updated_at\" GLOB '????-??-??T??:??:??*Z'"
+        },
+        "transactions_shape_valid": {
+          "name": "transactions_shape_valid",
+          "value": "(\n        (\"transactions\".\"type\" IN ('income', 'expense') AND \"transactions\".\"account_id\" IS NOT NULL AND \"transactions\".\"destination_account_id\" IS NULL AND \"transactions\".\"category_id\" IS NOT NULL)\n        OR\n        (\"transactions\".\"type\" = 'transfer' AND \"transactions\".\"account_id\" IS NOT NULL AND \"transactions\".\"destination_account_id\" IS NOT NULL AND \"transactions\".\"account_id\" <> \"transactions\".\"destination_account_id\" AND \"transactions\".\"category_id\" IS NULL)\n      )"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

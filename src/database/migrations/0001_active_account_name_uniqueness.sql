@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `accounts_active_name_uidx` ON `accounts` (lower(trim("name"))) WHERE "accounts"."is_archived" = 0;

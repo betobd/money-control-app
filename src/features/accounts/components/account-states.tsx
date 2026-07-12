@@ -2,8 +2,6 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import { AccountCard } from '@/features/accounts/components/account-card';
-import { archivedAccountMock } from '@/features/accounts/accounts.mock';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function EmptyAccountsState() {
@@ -42,8 +40,15 @@ export function LoadingAccountCard() {
   );
 }
 
-export function ArchivedAccountState() {
-  return <AccountCard account={archivedAccountMock} />;
+export function AccountsErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const theme = useAppTheme();
+  return (
+    <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.destructive }]}>
+      <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>Unable to load accounts</Text>
+      <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>{message}</Text>
+      <Text accessibilityRole="button" onPress={onRetry} style={[styles.retry, { color: theme.primaryAction }]}>Retry</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -68,6 +73,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
   },
+  retry: { ...typography.body, fontWeight: '700', minHeight: 48, paddingVertical: spacing.sm },
   loading: {
     alignItems: 'flex-start',
     borderRadius: borderRadii.md,

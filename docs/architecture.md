@@ -12,13 +12,13 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - React Compiler is enabled.
 - A root Expo Router stack contains a shared tab navigator and a full-screen Add Transaction modal.
 - The shared custom tab bar serves Home, Transactions, Accounts, and Budgets, with a centered Add action that opens the modal instead of acting as a tab destination.
-- Primary screens and the Add Transaction modal currently contain presentation-only placeholder shells.
-- No persistence dependency, database schema, migration runner, domain layer, state/query layer, tests, lint configuration, CI, or feature-specific code exists.
-- `expo-sqlite` is not installed.
+- Home, Transactions, and Budgets remain presentation-focused. Accounts is the first functional vertical slice, backed by SQLite through a repository and account service.
+- Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
+- Migration 001 defines accounts, categories, posted/voided transactions, transaction-split foundation, budgets, and recurring transaction templates. Repositories and business-feature integration do not exist yet.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
 - The worktree already contains user changes and many untracked starter files; implementation work must preserve them.
 
-Expo SDK 57 documentation identifies `expo-sqlite` `~57.0.0` as the matching package and states that its database persists across restarts. It also documents parameter binding, prepared statements, transactions, and provider-based initialization. This is a recommendation only; no dependency is installed by this documentation task. See the [versioned Expo SQLite documentation](https://docs.expo.dev/versions/v57.0.0/sdk/sqlite/).
+Expo SDK 57 documentation identifies the installed `expo-sqlite` `~57.0.0` as the matching package and states that its database persists across restarts. It also documents parameter binding, prepared statements, transactions, and provider-based initialization. See the [versioned Expo SQLite documentation](https://docs.expo.dev/versions/v57.0.0/sdk/sqlite/).
 
 ## 2. Architectural goals
 
@@ -75,9 +75,9 @@ Route files should remain thin composition boundaries. Feature UI can depend on 
 
 ## 4. Persistence and migrations
 
-### Recommended engine
+### Selected engine
 
-Use SQLite through the SDK-57-compatible `expo-sqlite` package when implementation begins. A relational database fits foreign keys, atomic transfer writes, history filters, aggregate queries, and controlled migrations better than key-value storage.
+Use SQLite through SDK-57-compatible `expo-sqlite`, with Drizzle ORM's Expo SQLite driver and Drizzle Kit migrations. A relational database fits foreign keys, atomic transfer writes, history filters, aggregate queries, and controlled migrations better than key-value storage.
 
 ### Connection initialization
 
@@ -109,12 +109,14 @@ Use bound parameters or prepared statements for user data. Never interpolate use
 
 Application use cases validate input and execute a single repository transaction:
 
+Application services own history-dependent and cross-table rules: opening balances become immutable after posted activity, category type must match income/expense type, and persisted transactions are voided rather than deleted. SQLite constraints remain defense in depth for row-local invariants.
+
 - `createAccount`, `updateAccount`, `archiveAccount`, `restoreAccount`
 - `createCategory`, `updateCategory`, `archiveCategory`, `restoreCategory`
 - `recordIncome`, `recordExpense`, `recordTransfer`
 - `editTransaction`, and the chosen correction/deletion operation
 
-The transaction service constructs the exact posting shape defined in `financial-rules.md`. Transfer header and both postings commit or roll back together.
+When transaction services are implemented, they will construct the account effects defined in `financial-rules.md` atomically. Transaction-split creation and validation remain deferred in the current phase.
 
 ### Queries
 
@@ -125,7 +127,7 @@ Dedicated read queries return screen-oriented models:
 - Filtered history using parameterized predicates.
 - Monthly income, expense, net cash flow, and expense-by-category.
 
-Avoid persisted mutable balance columns in MVP. Add indexes for actual query patterns after measuring, starting with transaction effective time, posting account, transaction type, and category references.
+Avoid persisted mutable balance columns in MVP. Add indexes for actual query patterns after measuring, starting with transaction date/status, account effect, transaction type, and category references.
 
 ### UI refresh
 
@@ -175,7 +177,7 @@ The visible navigation order is Home, Transactions, Add, Accounts, Budgets. Add 
 
 ## 10. Unresolved decisions
 
-- Final persistence abstraction: direct typed repositories over `expo-sqlite` versus an ORM/query builder.
+- Repository API design over the selected Drizzle ORM persistence layer.
 - State/query mechanism and invalidation strategy.
 - Whether web/iOS remain buildable development targets or Android-only constraints may be introduced.
 - Database encryption and Android backup behavior.

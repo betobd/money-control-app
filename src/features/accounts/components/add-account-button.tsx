@@ -4,15 +4,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function AddAccountButton() {
+export function AddAccountButton({ onPress }: { onPress: () => void }) {
   const theme = useAppTheme();
 
   return (
     <Pressable
-      accessibilityHint="Account creation is not active in this preview"
+      accessibilityHint="Opens the account form"
       accessibilityLabel="Add account"
       accessibilityRole="button"
-      onPress={() => undefined}
+      onPress={onPress}
       style={[styles.button, { borderColor: theme.border }]}>
       <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
         <SymbolView

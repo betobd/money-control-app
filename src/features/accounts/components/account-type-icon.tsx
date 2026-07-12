@@ -2,22 +2,22 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
 import { borderRadii } from '@/constants/theme';
-import type { AccountKind } from '@/features/accounts/accounts.mock';
+import type { AccountType } from '@/features/accounts/account.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-const accountIcons: Record<AccountKind, SymbolViewProps['name']> = {
+const accountIcons: Record<AccountType, SymbolViewProps['name']> = {
   checking: { ios: 'building.columns.fill', android: 'account_balance', web: 'account_balance' },
   savings: { ios: 'banknote.fill', android: 'savings', web: 'savings' },
-  credit: { ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' },
+  credit_card: { ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' },
   cash: { ios: 'wallet.bifold.fill', android: 'payments', web: 'payments' },
 };
 
-export function AccountTypeIcon({ kind }: { kind: AccountKind }) {
+export function AccountTypeIcon({ kind }: { kind: AccountType }) {
   const theme = useAppTheme();
   const color =
     kind === 'savings'
       ? theme.income
-      : kind === 'credit'
+      : kind === 'credit_card'
         ? theme.expense
         : kind === 'checking'
           ? theme.primaryAction

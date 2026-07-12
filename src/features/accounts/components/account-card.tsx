@@ -2,70 +2,80 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { accountTypeLabels, formatCop } from '@/features/accounts/account-format';
+import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
-import type { AccountMock } from '@/features/accounts/accounts.mock';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function AccountCard({ account }: { account: AccountMock }) {
+type AccountCardProps = {
+  account: AccountWithBalance;
+  onActions: (account: AccountWithBalance) => void;
+};
+
+export function AccountCard({ account, onActions }: AccountCardProps) {
   const theme = useAppTheme();
-  const amountColor = account.balanceTone === 'debt' ? theme.expense : theme.primaryText;
+  const isDebt = account.type === 'credit_card' && account.balance < 0;
+  const balanceLabel = account.type === 'credit_card'
+    ? 'Amount owed'
+    : account.type === 'cash'
+      ? 'Current balance'
+      : 'Available balance';
+  const formattedBalance = formatCop(
+    account.type === 'credit_card' ? Math.abs(account.balance) : account.balance,
+  );
 
   return (
     <View
-      accessibilityLabel={`${account.name}, ${account.typeLabel}, ${account.balanceLabel}, ${account.amount} ${account.currency}${account.archived ? ', archived' : ''}`}
+      accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, ${balanceLabel}, ${formattedBalance} COP${account.isArchived ? ', archived' : ''}`}
       style={[
         styles.card,
         {
-          backgroundColor: account.archived ? theme.disabledSurface : theme.surface,
+          backgroundColor: account.isArchived ? theme.disabledSurface : theme.surface,
           borderColor: theme.border,
         },
       ]}>
       <View style={styles.header}>
-        <AccountTypeIcon kind={account.kind} />
+        <AccountTypeIcon kind={account.type} />
         <View style={styles.identity}>
           <Text numberOfLines={1} style={[styles.name, { color: theme.primaryText }]}>
             {account.name}
           </Text>
           <Text numberOfLines={1} style={[styles.type, { color: theme.secondaryText }]}>
-            {account.typeLabel}
+            {accountTypeLabels[account.type]}
           </Text>
         </View>
-        {account.archived ? (
+        {account.isArchived ? (
           <View style={[styles.archivedBadge, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.archivedText, { color: theme.secondaryText }]}>Archived</Text>
           </View>
-        ) : (
-          <Pressable
-            accessibilityHint="Account actions are not active in this preview"
-            accessibilityLabel={`More actions for ${account.name}`}
-            accessibilityRole="button"
-            hitSlop={4}
-            onPress={() => undefined}
-            style={styles.menuButton}>
-            <SymbolView
-              name={{ ios: 'ellipsis', android: 'more_vert', web: 'more_vert' }}
-              size={22}
-              tintColor={theme.secondaryText}
-            />
-          </Pressable>
-        )}
+        ) : null}
+        <Pressable
+          accessibilityLabel={`More actions for ${account.name}`}
+          accessibilityRole="button"
+          hitSlop={4}
+          onPress={() => onActions(account)}
+          style={styles.menuButton}>
+          <SymbolView
+            name={{ ios: 'ellipsis', android: 'more_vert', web: 'more_vert' }}
+            size={22}
+            tintColor={theme.secondaryText}
+          />
+        </Pressable>
       </View>
 
       <View style={styles.balance}>
-        <Text style={[styles.balanceLabel, { color: theme.secondaryText }]}>
-          {account.balanceLabel}
-        </Text>
+        <Text style={[styles.balanceLabel, { color: theme.secondaryText }]}>{balanceLabel}</Text>
         <View style={styles.amountRow}>
           <Text
             adjustsFontSizeToFit
             minimumFontScale={0.65}
             numberOfLines={1}
-            style={[styles.amount, { color: amountColor }]}>
-            {account.amount}
+            style={[styles.amount, { color: isDebt ? theme.expense : theme.primaryText }]}>
+            {formattedBalance}
           </Text>
-          <Text style={[styles.currency, { color: theme.mutedText }]}>{account.currency}</Text>
+          <Text style={[styles.currency, { color: theme.mutedText }]}>COP</Text>
         </View>
-        {account.balanceTone === 'debt' ? (
+        {isDebt ? (
           <Text style={[styles.debtNote, { color: theme.expense }]}>Debt · reduces net worth</Text>
         ) : null}
       </View>
@@ -74,67 +84,18 @@ export function AccountCard({ account }: { account: AccountMock }) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
-    gap: spacing.lg,
-    padding: spacing.md,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  identity: {
-    flex: 1,
-    minWidth: 0,
-  },
-  name: {
-    ...typography.body,
-    fontWeight: '700',
-  },
-  type: {
-    ...typography.caption,
-  },
-  menuButton: {
-    alignItems: 'center',
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  archivedBadge: {
-    borderRadius: borderRadii.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  archivedText: {
-    ...typography.label,
-  },
-  balance: {
-    gap: spacing.xs,
-  },
-  balanceLabel: {
-    ...typography.label,
-    textTransform: 'uppercase',
-  },
-  amountRow: {
-    alignItems: 'baseline',
-    flexDirection: 'row',
-    maxWidth: '100%',
-  },
-  amount: {
-    ...typography.display,
-    flexShrink: 1,
-    fontSize: 28,
-    fontVariant: ['tabular-nums'],
-    lineHeight: 34,
-  },
-  currency: {
-    ...typography.caption,
-    marginLeft: spacing.xs,
-  },
-  debtNote: {
-    ...typography.caption,
-    fontWeight: '600',
-  },
+  card: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.lg, padding: spacing.md },
+  header: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  identity: { flex: 1, minWidth: 0 },
+  name: { ...typography.body, fontWeight: '700' },
+  type: { ...typography.caption },
+  menuButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
+  archivedBadge: { borderRadius: borderRadii.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  archivedText: { ...typography.label },
+  balance: { gap: spacing.xs },
+  balanceLabel: { ...typography.label, textTransform: 'uppercase' },
+  amountRow: { alignItems: 'baseline', flexDirection: 'row', maxWidth: '100%' },
+  amount: { ...typography.display, flexShrink: 1, fontSize: 28, fontVariant: ['tabular-nums'], lineHeight: 34 },
+  currency: { ...typography.caption, marginLeft: spacing.xs },
+  debtNote: { ...typography.caption, fontWeight: '600' },
 });

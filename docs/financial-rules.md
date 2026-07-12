@@ -2,142 +2,114 @@
 
 ## 1. Status and terminology
 
-This document is the normative source for calculations and financial invariants.
+This document is the normative source for financial calculations and invariants.
 
-- **Minor unit**: the smallest integer unit stored by the application. Its COP scale is unresolved; see §8.
-- **Transaction**: the user-visible business event: income, expense, or transfer.
-- **Posting**: a signed change to one account produced by a transaction.
-- **Opening balance**: the starting signed amount assigned to an account before its postings.
-- **Effective time**: when the user says the transaction occurred; used for history and monthly reporting.
+- **Peso unit**: one whole Colombian peso. Fractional COP is unsupported in the initial version.
+- **Transaction date**: the user-selected local calendar date used for history and reporting.
+- **Transaction split**: a signed account effect reserved by the schema for future ledger behavior.
+- **Opening balance**: the account's starting signed amount before posted activity.
+- **Posted transaction**: an active transaction included in balances and reports.
+- **Voided transaction**: retained history excluded from balances and reports.
 
-## 2. Confirmed invariants
+## 2. Money representation
 
-1. Monetary values must never be stored or calculated with floating-point arithmetic.
-2. Every stored amount is an integer number of minor units.
-3. A transaction amount is strictly greater than zero. Direction is represented by transaction type and posting sign, not by a negative entered amount.
-4. Income creates one positive posting.
-5. Expense creates one negative posting.
-6. A transfer creates exactly two postings: one negative posting to the source and one equal positive posting to the destination.
-7. The signed sum of a transfer's postings is zero.
-8. Transfers contribute zero to income totals and zero to expense totals.
-9. An account balance is derived from its opening balance and postings; it is not an independently editable cached truth.
-10. Accounts and categories referenced by transactions are archived, not physically deleted.
-11. Schema evolution occurs only through ordered migrations.
+- All monetary values are integer counts of whole Colombian pesos stored in SQLite `INTEGER` columns.
+- `100000` means `$100.000 COP`.
+- Fractional values, decimal COP input, floating-point storage, `NaN`, infinity, and exponent notation are invalid.
+- JavaScript monetary values use `number` and must pass `Number.isSafeInteger()`. `BigInt` is not used in the Accounts phase.
+- Transaction amounts are positive magnitudes. Direction is represented by transaction type and, when implemented, signed account effects.
+- No rounding occurs in initial transaction entry, balances, or reports.
 
-## 3. Integer money representation
+## 3. Date and timezone policy
 
-### Storage and domain arithmetic
+- `transactionDate` is stored as a local calendar date in `YYYY-MM-DD` format.
+- The initial reporting timezone is `America/Bogota`.
+- `createdAt` and `updatedAt` are UTC ISO 8601 timestamps ending in `Z`.
+- Financial dates must never be derived by converting a UTC creation/update timestamp.
+- Monthly reporting compares `transactionDate` directly with Bogotá-local calendar boundaries.
 
-- Persist money in SQLite `INTEGER` columns.
-- Represent money at domain boundaries with a dedicated integer-money type or validated integer value, never a decimal JavaScript `number` resulting from arithmetic.
-- Parse user-entered decimal text deterministically into integer minor units using string operations.
-- Format integer minor units into COP display text using the configured scale.
-- Reject input with more fractional digits than the configured scale.
-- Reject `NaN`, infinity, exponent notation, and values outside the supported range.
+## 4. Transaction types and categories
 
-SQLite integers are signed 64-bit, but ordinary JavaScript numbers are only exact through `Number.MAX_SAFE_INTEGER`. The implementation must either enforce a lower safe-integer bound end-to-end or use `bigint` with a verified database binding/serialization strategy. No implicit conversion between `bigint` and `number` is allowed.
-
-### Rounding
-
-MVP operations do not require division or currency conversion. Therefore no rounding should occur in core transaction entry, balances, or monthly totals. If later features introduce division, their rounding mode must be specified before implementation.
-
-## 4. Posting rules
-
-For amount `A`, where `A` is a positive integer minor-unit amount:
-
-| Transaction type | Required postings | Category |
+| Type | Account effect when implemented | Category |
 |---|---|---|
-| Income | `(destination account, +A)` | Exactly one income category |
-| Expense | `(source account, -A)` | Exactly one expense category |
-| Transfer | `(source account, -A)` and `(destination account, +A)` | None |
+| Income | Increase one account by `A` | Exactly one income category |
+| Expense | Decrease one account by `A` | Exactly one expense category |
+| Transfer | Decrease source and increase destination by equal `A` | None |
 
-Additional constraints:
+- A transfer's source and destination accounts must differ.
+- Transfers contribute zero to income and expense totals.
+- Expense transactions may reference only expense categories; income transactions may reference only income categories.
+- Category compatibility is enforced by application validation and service-level logic, not cross-table SQL constraints.
+- Archived accounts and categories remain valid historical references but are unavailable for new transactions by default.
 
-- Source and destination accounts for a transfer must differ.
-- All postings for one transaction must be created, updated, or deleted in one database transaction.
-- A transaction type and its posting shape must agree; malformed shapes are invalid even if their sum happens to be correct.
-- Archived accounts/categories remain valid references for existing records but cannot be selected for new transactions by default.
-- Editing a transfer replaces both posting amounts and/or accounts atomically.
+## 5. Status, deletion, and correction
 
-## 5. Derived calculations
+- Persisted transactions must not be hard-deleted.
+- Status is either `posted` or `voided`.
+- Only posted transactions affect balances, monthly totals, and category totals.
+- Voiding retains the transaction and its historical metadata while removing its financial effect from derived results.
+- Explicit reversal transactions may be introduced later but are outside the initial implementation.
+- Future write services must perform status changes and related financial updates atomically.
+- Accounts with posted or voided transactions, transaction references, or any other financial history must never be permanently deleted. Foreign-key restrictions remain defense in depth and transaction history is never cascade-deleted through account actions.
 
-### Account balance
-
-For account `a` at effective cutoff `t`:
-
-```text
-balance(a, t) = opening_balance(a) + Σ posting.amount
-                                           where posting.account = a
-                                           and transaction.effective_at <= t
-```
-
-The current balance uses all non-voided/non-deleted transactions. If transaction deletion remains a hard delete, “all transactions” means all currently stored transactions.
-
-### Total balance across accounts
-
-```text
-total_balance = Σ opening_balance(active-or-included account)
-              + Σ all postings for those accounts
-```
-
-A transfer between included accounts changes this total by zero. Product views must explicitly define whether archived accounts are included; the recommended default is to exclude them from the headline while offering an “include archived” view.
-
-### Monthly totals
-
-For month interval `[start, end)` in the app's reporting timezone:
-
-```text
-income  = Σ transaction.amount where type = income
-expense = Σ transaction.amount where type = expense
-net_cash_flow = income - expense
-```
-
-- Transfers are excluded by transaction type, never inferred from category labels.
-- Expense totals are displayed as positive magnitudes even though expense postings are negative.
-- Monthly grouping uses effective time, not creation/update time.
-- Boundary logic uses a half-open interval to avoid double counting.
-
-### Category totals
-
-Category totals include only transactions whose type matches the category kind. Archived categories remain part of historical reports.
-
-## 6. Reproducibility and correction
-
-- The transaction/posting history and opening balances are the source of truth.
-- No write path may directly “set” a computed current balance.
-- A diagnostic recomputation from the complete ledger must equal every displayed balance.
-- Denormalized summaries may be added later only as disposable caches that can be rebuilt and verified.
-- Changing an opening balance changes every derived historical/current balance. The product must resolve whether to lock opening balances after activity or record corrections as explicit adjustment transactions.
-
-## 7. Validation and database enforcement
-
-Enforce invariants in both the domain layer (clear errors) and, where SQLite supports it cleanly, the schema (defense in depth):
-
-- `CHECK` constraints for transaction type, category kind, positive transaction amount, nonzero posting amount, and archive flags.
-- Foreign keys enabled on every connection.
-- Restricted deletion for referenced accounts/categories.
-- Unique/structural constraints where possible, plus transactional domain validation for the exact number and signs of postings.
-- Migration and transfer writes enclosed in SQLite transactions.
-- Post-migration integrity checks before normal use.
-
-Database constraints alone cannot conveniently express every cross-row posting invariant. The repository/service operation that writes a transaction owns those checks, and automated tests must cover them.
-
-## 8. Assumptions
+## 6. Opening balances
 
 - Opening balances may be positive, zero, or negative.
-- Income/expense transaction amounts are positive magnitudes.
-- Negative resulting account balances are permitted.
-- There are no fees or exchange-rate differences on MVP transfers because all accounts use COP.
-- The reporting timezone is the device's selected local timezone unless a fixed app timezone is later chosen.
-- Created and updated timestamps are audit metadata and do not affect financial totals.
+- Asset opening balances are positive. Credit-card debt is stored internally as a negative balance; the account form accepts the debt as a positive magnitude and normalizes it once when saving.
+- An opening balance may be edited only while the account has no non-voided transactions.
+- Once posted account activity exists, the opening balance is immutable.
+- Later corrections use an adjustment transaction; adjustment behavior is not implemented in the current phase.
+- This rule depends on transaction history and is enforced by application/service logic rather than a column constraint.
 
-## 9. Unresolved decisions
+## 7. Account lifecycle and net worth
 
-- Whether COP is stored as whole pesos (scale 0) or centavos (scale 2). This must be decided before the first production schema.
-- Whether the domain uses safe integer `number` with enforced limits or `bigint` throughout.
-- Whether transaction correction uses edit/delete, void-and-replace, or an immutable adjustment model.
-- Whether opening balances have an effective date and whether reports before that date are allowed.
-- Whether archived accounts are included in total-balance dashboard figures by default.
-- How device timezone changes affect transactions near month boundaries.
-- Whether future credit-card accounts need liability-specific presentation; the core signed-posting math need not change.
+- Archiving is reversible. Restoring an account preserves its ID, history, opening balance, and current derived balance, and makes it active again after active-name validation succeeds.
+- Permanent deletion is available only for an unused account whose opening and derived balances are both zero and which has no transaction or financial references.
+- Archived accounts cannot be selected for new transactions.
+- Archived accounts remain accessible through an archived filter or section.
+- Archived accounts remain included in net worth while they retain a balance; a zero-balance archived account has no numerical effect.
+- Net worth is the direct sum of signed internal balances. Credit-card debt reduces the total, and archiving never changes a balance's sign.
+- Account names are trimmed. Active names are case-insensitively unique, while archived historical accounts may retain duplicate names.
 
+## 8. Derived calculations
+
+For account `a` and date cutoff `d`:
+
+```text
+balance(a, d) = openingBalance(a)
+              + Σ implemented account effects
+                where transaction.status = posted
+                and transaction.transactionDate <= d
+```
+
+Monthly totals in `America/Bogota`:
+
+```text
+income  = Σ amount where type = income  and status = posted
+expense = Σ amount where type = expense and status = posted
+net     = income - expense
+```
+
+- Transfers are excluded by type, not inferred from category or sign.
+- Voided transactions are always excluded.
+- Balances and totals are derived; they are never independently editable cached truth.
+- Credit-card cards display the absolute debt magnitude under **Amount owed**. Absolute values are presentation-only and are never used in net-worth calculations.
+
+## 9. Transaction splits
+
+- The `transaction_splits` schema foundation remains, but split creation and validation are outside the current implementation phase.
+- Future income/expense splits must sum exactly to the signed parent effect.
+- Future transfer splits must contain equal-and-opposite source/destination effects and sum to zero.
+- All splits belonging to a transaction must eventually be written atomically.
+- No current screen, repository, or service may imply that split behavior is implemented.
+
+## 10. Database enforcement boundary
+
+The database enforces stable row-local rules such as integer ranges, valid enums, transaction shape, date format, foreign keys, and restricted deletion of referenced accounts/categories. Application services must enforce rules requiring other rows or tables, including category compatibility, opening-balance immutability, and future split sums.
+
+Every schema change uses an ordered migration. A released or externally applied migration is immutable.
+
+## 11. Decisions still unresolved
+
+- Adjustment transaction representation and category treatment.
+- Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.
