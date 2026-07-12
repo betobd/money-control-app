@@ -30,7 +30,7 @@ export default function TransactionsScreen() {
 
       {loading ? <ActivityIndicator color={theme.primaryAction} /> : null}
       {error ? <Text style={{ color: theme.destructive }}>{error}</Text> : null}
-      {!loading && !error && sections.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No transactions yet. Use Add to record an expense or income.</Text> : null}
+      {!loading && !error && sections.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No transactions yet. Use Add to record an expense, income, or transfer.</Text> : null}
       <View style={styles.sections}>
         {sections.map((section) => (
           <TransactionSection key={section.id} section={section} />

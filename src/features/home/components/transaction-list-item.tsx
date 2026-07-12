@@ -24,7 +24,7 @@ export function TransactionListItem({
   showDivider = false,
 }: TransactionListItemProps) {
   const theme = useAppTheme();
-  const iconColor = tone === 'income' ? theme.income : theme.expense;
+  const iconColor = tone === 'income' ? theme.income : tone === 'transfer' ? theme.transfer : theme.expense;
 
   return (
     <View style={[styles.row, showDivider && { borderBottomColor: theme.border, borderBottomWidth: borderWidths.thin }]}>

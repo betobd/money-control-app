@@ -17,7 +17,7 @@ This document is the normative source for financial calculations and invariants.
 - `100000` means `$100.000 COP`.
 - Fractional values, decimal COP input, floating-point storage, `NaN`, infinity, and exponent notation are invalid.
 - JavaScript monetary values use `number` and must pass `Number.isSafeInteger()`. `BigInt` is not used in the Accounts phase.
-- Transaction amounts are positive magnitudes. Direction is represented by transaction type and, when implemented, signed account effects.
+- Transaction amounts are positive magnitudes. Direction is represented by transaction type and signed account effects.
 - No rounding occurs in initial transaction entry, balances, or reports.
 - Expense and Income entry requires a strictly positive safe integer. Stored amounts remain positive; signed presentation and balance effects are derived from transaction type.
 
@@ -31,7 +31,7 @@ This document is the normative source for financial calculations and invariants.
 
 ## 4. Transaction types and categories
 
-| Type | Account effect when implemented | Category |
+| Type | Account effect | Category |
 |---|---|---|
 | Income | Increase one account by `A` | Exactly one income category |
 | Expense | Decrease one account by `A` | Exactly one expense category |
@@ -42,7 +42,10 @@ This document is the normative source for financial calculations and invariants.
 - Expense transactions may reference only expense categories; income transactions may reference only income categories.
 - Category compatibility is enforced by application validation and service-level logic, not cross-table SQL constraints.
 - Archived accounts and categories remain valid historical references but are unavailable for new transactions by default.
-- New Expense and Income transactions revalidate that both selected references are active at save time. Optional notes are trimmed, stored as `NULL` when blank, and limited to 200 characters.
+- New Expense and Income transactions revalidate that both selected references are active at save time. New transfers revalidate that both accounts exist, are active, and differ at save time. Optional notes are trimmed, stored as `NULL` when blank, and limited to 200 characters.
+- Checking, savings, and cash accounts may transfer at most their current derived available balance. The service rejects a larger transfer before persistence.
+- Credit-card sources are exempt from the insufficient-funds restriction because a negative signed card balance represents debt. A transfer into a credit card increases its signed balance toward zero and may create a positive credit balance when overpaid.
+- A credit-card payment is a normal transfer, not a separate transaction type. It does not affect income, expense, or monthly net cash flow.
 - Active category names are unique case-insensitively after trimming within their expense or income type. The same name may exist once in each type.
 - Category type may change only before the category has financial references. Archiving is reversible; restoring reruns active-name validation.
 

@@ -23,7 +23,7 @@ export function SuccessToast({ visible, type }: { visible: boolean; type: Transa
         size={22}
         tintColor={tone}
       />
-      <Text style={[styles.text, { color: theme.primaryText }]}>{typeLabel} preview saved</Text>
+      <Text style={[styles.text, { color: theme.primaryText }]}>{typeLabel} saved</Text>
     </View>
   );
 }

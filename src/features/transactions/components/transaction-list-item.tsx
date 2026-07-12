@@ -2,7 +2,13 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import { signedTransactionAmount, transactionIcon, transactionTitle } from '@/features/transactions/transaction-presentation';
+import {
+  signedTransactionAmount,
+  transactionAccountLabel,
+  transactionIcon,
+  transactionTitle,
+  transactionTypeLabel,
+} from '@/features/transactions/transaction-presentation';
 import type { SupportedTransactionType, TransactionListItem as TransactionItem } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -16,7 +22,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
 
   return (
     <View
-      accessibilityLabel={`${transactionTitle(transaction)}, ${kindLabel(transaction.type)}, ${transaction.categoryName}, ${transaction.accountName}, ${signedTransactionAmount(transaction)}`}
+      accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}`}
       style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
         <SymbolView name={transactionIcon(transaction)} size={22} tintColor={tone} />
@@ -26,10 +32,10 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           {transactionTitle(transaction)}
         </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.secondaryText }]}>
-          {transaction.accountName}
+          {transactionAccountLabel(transaction)}
         </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.mutedText }]}>
-          {transaction.categoryName} · {transaction.status}
+          {transaction.type === 'transfer' ? 'Transfer' : transaction.categoryName} · {transaction.status}
         </Text>
       </View>
       <View style={styles.amountColumn}>
@@ -41,7 +47,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           {signedTransactionAmount(transaction)}
         </Text>
         <Text style={[styles.kind, { color: theme.secondaryText }]}>
-          {kindLabel(transaction.type)}
+          {transactionTypeLabel(transaction)}
         </Text>
       </View>
     </View>
@@ -50,12 +56,8 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
 
 function getTone(kind: SupportedTransactionType, theme: ReturnType<typeof useAppTheme>) {
   if (kind === 'income') return theme.income;
+  if (kind === 'transfer') return theme.transfer;
   return theme.expense;
-}
-
-function kindLabel(kind: SupportedTransactionType) {
-  if (kind === 'income') return 'Income';
-  return 'Expense';
 }
 
 const styles = StyleSheet.create({

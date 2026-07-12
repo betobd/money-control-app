@@ -263,3 +263,17 @@ test('stores credit-card opening debt as negative without double-negating it', a
   assert.equal(positiveMagnitude.openingBalance, -1000000);
   assert.equal(alreadySigned.openingBalance, -500000);
 });
+
+test('credit-card payment transfer preserves net worth with equal and opposite effects', () => {
+  const { service } = setup();
+  const before = [
+    { balance: 3000000, type: 'checking' },
+    { balance: -1050000, type: 'credit_card' },
+  ];
+  const after = [
+    { balance: 2500000, type: 'checking' },
+    { balance: -550000, type: 'credit_card' },
+  ];
+  assert.equal(service.calculateNetWorth(before), 1950000);
+  assert.equal(service.calculateNetWorth(after), 1950000);
+});

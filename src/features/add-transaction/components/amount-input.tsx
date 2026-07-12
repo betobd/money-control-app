@@ -26,8 +26,8 @@ export function AmountInput({ digits, onDigitsChange, type, error }: AmountInput
           accessibilityLabel="Amount in Colombian pesos"
           autoFocus
           keyboardType="number-pad"
-          maxLength={19}
-          onChangeText={(value) => onDigitsChange(value.replace(/\D/g, '').slice(0, 15))}
+          maxLength={21}
+          onChangeText={(value) => onDigitsChange(value.replace(/\D/g, '').slice(0, 16))}
           selectionColor={tone}
           style={[styles.input, { color: theme.primaryText }]}
           value={formattedAmount}

@@ -13,7 +13,7 @@ import { TransactionListItem } from '@/features/home/components/transaction-list
 import { staticBudgetPreview } from '@/features/home/home-dashboard.mock';
 import { useHomeDashboard } from '@/features/home/use-home-dashboard';
 import { formatCop } from '@/features/accounts/account-format';
-import { signedTransactionAmount, transactionIcon, transactionTitle } from '@/features/transactions/transaction-presentation';
+import { signedTransactionAmount, transactionAccountLabel, transactionIcon, transactionTitle, transactionTypeLabel } from '@/features/transactions/transaction-presentation';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function HomeScreen() {
@@ -78,7 +78,7 @@ export default function HomeScreen() {
             amount={signedTransactionAmount(transaction)}
             icon={transactionIcon(transaction)}
             showDivider={index < dashboard.recent.length - 1}
-            subtitle={`${transaction.transactionDate} · ${transaction.type === 'expense' ? 'Expense' : 'Income'}`}
+            subtitle={`${transaction.transactionDate} · ${transactionTypeLabel(transaction)}${transaction.type === 'transfer' ? ` · ${transactionAccountLabel(transaction)}` : ''}`}
             title={transactionTitle(transaction)}
             tone={transaction.type}
           />

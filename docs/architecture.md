@@ -14,7 +14,7 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - The shared custom tab bar serves Home, Transactions, Accounts, and Budgets, with a centered Add action that opens the modal instead of acting as a tab destination.
 - Home, Transactions, and Budgets remain presentation-focused. Accounts is the first functional vertical slice, backed by SQLite through a repository and account service.
 - Categories is a functional vertical slice with its own repository, service, focus-refresh hook, management modal, and form modal. Add Transaction reads active categories from this slice.
-- Expense and Income transaction entry is functional through a transaction repository/service slice. Add Transaction validates active references and writes posted rows; Transactions and Home use focus-refreshed SQLite read models. Transfer remains disabled and outside this phase.
+- Expense, Income, and Transfer entry are functional through the transaction repository/service slice. Add Transaction validates active references and writes one posted row per transaction; Transactions and Home use focus-refreshed SQLite read models. Transfers reuse the account selector for distinct active source and destination accounts and never create paired income/expense rows.
 - Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
 - Migration 001 defines accounts, categories, posted/voided transactions, transaction-split foundation, budgets, and recurring transaction templates. Repositories and business-feature integration do not exist yet.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
@@ -118,7 +118,7 @@ Application services own history-dependent and cross-table rules: opening balanc
 - `recordIncome`, `recordExpense`, `recordTransfer`
 - `editTransaction`, and the chosen correction/deletion operation
 
-When transaction services are implemented, they will construct the account effects defined in `financial-rules.md` atomically. Transaction-split creation and validation remain deferred in the current phase.
+The transaction service constructs the account effects defined in `financial-rules.md`. A transfer is one atomic SQLite row whose source and destination effects are derived by balance queries. Transaction-split creation and validation remain deferred in the current phase.
 
 ### Queries
 
