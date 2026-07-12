@@ -2,6 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { BudgetCard } from '@/features/budgets/components/budget-card';
 import { BudgetSummaryCard } from '@/features/budgets/components/budget-summary-card';
@@ -14,9 +15,7 @@ export default function BudgetsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <Text accessibilityRole="header" style={[styles.brand, { color: theme.primaryText }]}>
-        Money Control
-      </Text>
+      <PrimaryScreenHeader />
 
       <View style={styles.headingRow}>
         <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
@@ -60,10 +59,6 @@ export default function BudgetsScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
-  },
-  brand: {
-    ...typography.sectionTitle,
-    textAlign: 'center',
   },
   headingRow: {
     alignItems: 'center',

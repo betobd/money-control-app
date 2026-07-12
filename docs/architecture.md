@@ -13,6 +13,7 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - A root Expo Router stack contains a shared tab navigator and a full-screen Add Transaction modal.
 - The shared custom tab bar serves Home, Transactions, Accounts, and Budgets, with a centered Add action that opens the modal instead of acting as a tab destination.
 - Home, Transactions, and Budgets remain presentation-focused. Accounts is the first functional vertical slice, backed by SQLite through a repository and account service.
+- Categories is a functional vertical slice with its own repository, service, focus-refresh hook, management modal, and form modal. Add Transaction reads active categories from this slice while transaction saving remains mocked.
 - Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
 - Migration 001 defines accounts, categories, posted/voided transactions, transaction-split foundation, budgets, and recurring transaction templates. Repositories and business-feature integration do not exist yet.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
@@ -150,6 +151,8 @@ add-transaction                 # Root full-screen modal
 ```
 
 The visible navigation order is Home, Transactions, Add, Accounts, Budgets. Add is not registered as a tab route; it pushes the root modal, which fully covers the tab navigator. Future detail routes should remain outside the tab bar and may be added to the appropriate stack when their feature is implemented.
+
+Every primary screen exposes the same More header action. The root `more` modal is intentionally minimal and links to the existing `categories` management modal; Add Transaction's contextual View All action links to that same route. Category icon identifiers are stable application strings mapped to platform symbols in the categories feature, with `other` as the documented fallback for unknown stored identifiers.
 
 ## 7. Error handling and observability
 

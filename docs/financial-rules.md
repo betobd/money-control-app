@@ -41,6 +41,8 @@ This document is the normative source for financial calculations and invariants.
 - Expense transactions may reference only expense categories; income transactions may reference only income categories.
 - Category compatibility is enforced by application validation and service-level logic, not cross-table SQL constraints.
 - Archived accounts and categories remain valid historical references but are unavailable for new transactions by default.
+- Active category names are unique case-insensitively after trimming within their expense or income type. The same name may exist once in each type.
+- Category type may change only before the category has financial references. Archiving is reversible; restoring reruns active-name validation.
 
 ## 5. Status, deletion, and correction
 
@@ -51,6 +53,7 @@ This document is the normative source for financial calculations and invariants.
 - Explicit reversal transactions may be introduced later but are outside the initial implementation.
 - Future write services must perform status changes and related financial updates atomically.
 - Accounts with posted or voided transactions, transaction references, or any other financial history must never be permanently deleted. Foreign-key restrictions remain defense in depth and transaction history is never cascade-deleted through account actions.
+- Categories with transaction, budget, recurring-template, or other financial references must never be permanently deleted.
 
 ## 6. Opening balances
 

@@ -27,6 +27,10 @@ The Accounts service trims names and enforces case-insensitive uniqueness among 
 
 Referenced categories cannot be physically deleted. Transaction/category compatibility is deliberately validated by application services rather than a fragile cross-table constraint.
 
+Active category names are unique after trimming and case folding within each category type; expense and income may each contain the same normalized name. Categories may change type only before financial use. Archived categories remain addressable for history and are excluded from new transaction selection. Permanent deletion is limited to categories with no transaction, budget, recurring-template, or other financial references.
+
+The application seeds eight expense and five income defaults atomically only when the category table is empty. Seeding is idempotent and does not track a separate `is_default` flag; an archived or renamed category keeps the table non-empty and is not recreated.
+
 ### `transactions`
 
 - `id`

@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { BudgetProgressCard } from '@/features/home/components/budget-progress-card';
 import { FinancialSummaryCard } from '@/features/home/components/financial-summary-card';
@@ -18,9 +19,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <Text accessibilityRole="header" style={[styles.brand, { color: theme.primaryText }]}>
-        Money Control
-      </Text>
+      <PrimaryScreenHeader />
 
       <View accessibilityLabel={`Selected month, ${dashboard.month}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
         <SymbolView
@@ -84,10 +83,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
-  },
-  brand: {
-    ...typography.sectionTitle,
-    textAlign: 'center',
   },
   monthSelector: {
     alignItems: 'center',

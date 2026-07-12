@@ -70,6 +70,9 @@ export const categories = sqliteTable(
     check('categories_archived_at_utc', sql`${table.archivedAt} IS NULL OR ${table.archivedAt} GLOB '????-??-??T??:??:??*Z'`),
     index('categories_archived_idx').on(table.isArchived),
     index('categories_type_idx').on(table.type),
+    uniqueIndex('categories_active_type_name_uidx')
+      .on(table.type, sql`lower(trim(${table.name}))`)
+      .where(sql`${table.isArchived} = 0`),
   ],
 );
 

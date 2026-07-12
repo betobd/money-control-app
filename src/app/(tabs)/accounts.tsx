@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View, type AlertButton } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
+import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { AccountActionError } from '@/features/accounts/account.service';
@@ -103,7 +104,7 @@ export default function AccountsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <Text accessibilityRole="header" style={[styles.brand, { color: theme.primaryText }]}>Money Control</Text>
+      <PrimaryScreenHeader />
       <View style={styles.heading}>
         <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Accounts</Text>
         <Text style={[styles.description, { color: theme.secondaryText }]}>Manage your balances across all accounts.</Text>
@@ -155,7 +156,6 @@ export default function AccountsScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: spacing.lg },
-  brand: { ...typography.sectionTitle, textAlign: 'center' },
   heading: { gap: spacing.xs },
   title: { ...typography.title },
   description: { ...typography.body },

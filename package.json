@@ -44,7 +44,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:accounts": "node --import tsx --test tests/accounts.test.mjs && python tests/accounts_database_test.py"
+    "test:accounts": "node --import tsx --test tests/accounts.test.mjs && python tests/accounts_database_test.py",
+    "test:categories": "node --import tsx --test tests/categories.test.mjs && python tests/categories_database_test.py"
   },
   "private": true
 }

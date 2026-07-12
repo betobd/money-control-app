@@ -1,21 +1,17 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ScreenContainer } from '@/components/screen-container';
-import { spacing, typography } from '@/constants/theme';
+import { PrimaryScreenHeader } from '@/components/primary-screen-header';
+import { spacing } from '@/constants/theme';
 import { FilterChip } from '@/features/transactions/components/filter-chip';
 import { SearchField } from '@/features/transactions/components/search-field';
 import { TransactionSection } from '@/features/transactions/components/transaction-section';
 import { transactionHistoryMock } from '@/features/transactions/transactions.mock';
-import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function TransactionsScreen() {
-  const theme = useAppTheme();
-
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <Text accessibilityRole="header" style={[styles.brand, { color: theme.primaryText }]}>
-        Money Control
-      </Text>
+      <PrimaryScreenHeader />
 
       <View style={styles.controls}>
         <SearchField />
@@ -38,10 +34,6 @@ export default function TransactionsScreen() {
 const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
-  },
-  brand: {
-    ...typography.sectionTitle,
-    textAlign: 'center',
   },
   controls: {
     gap: spacing.md,

@@ -22,6 +22,13 @@
       "when": 1783869000000,
       "tag": "0002_credit_card_debt_sign",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783872000000,
+      "tag": "0003_active_category_type_name_uniqueness",
+      "breakpoints": true
     }
   ]
 }

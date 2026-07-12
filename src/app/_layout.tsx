@@ -35,6 +35,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="account-form" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="more" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

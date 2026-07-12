@@ -3,16 +3,20 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
-import type { CategoryOptionMock, TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import type { TransactionFormType } from '@/features/add-transaction/add-transaction.mock';
+import { getCategoryIcon } from '@/features/categories/category-icons';
+import type { Category } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type CategoryGridProps = {
-  categories: readonly CategoryOptionMock[];
-  selectedId: string;
+  categories: readonly Category[];
+  selectedId?: string;
   type: Exclude<TransactionFormType, 'transfer'>;
+  onSelect: (id: string) => void;
+  onViewAll: () => void;
 };
 
-export function CategoryGrid({ categories, selectedId, type }: CategoryGridProps) {
+export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll }: CategoryGridProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
 
@@ -21,10 +25,9 @@ export function CategoryGrid({ categories, selectedId, type }: CategoryGridProps
       <View style={styles.heading}>
         <Text style={[styles.title, { color: theme.secondaryText }]}>Category</Text>
         <Pressable
-          accessibilityHint="All categories are not active in this preview"
           accessibilityLabel="View all categories"
           accessibilityRole="button"
-          onPress={() => undefined}
+          onPress={onViewAll}
           style={styles.viewAll}>
           <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View All</Text>
         </Pressable>
@@ -32,13 +35,14 @@ export function CategoryGrid({ categories, selectedId, type }: CategoryGridProps
       <View style={styles.grid}>
         {categories.map((category) => {
           const selected = category.id === selectedId;
+          const icon = getCategoryIcon(category.icon);
           return (
             <Pressable
-              accessibilityLabel={`${category.label} category`}
+              accessibilityLabel={`${category.name} category`}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               key={category.id}
-              onPress={() => undefined}
+              onPress={() => onSelect(category.id)}
               style={[
                 styles.category,
                 {
@@ -47,18 +51,19 @@ export function CategoryGrid({ categories, selectedId, type }: CategoryGridProps
                 },
               ]}>
               <SymbolView
-                name={category.icon}
+                name={icon}
                 size={24}
                 tintColor={selected ? tone : theme.secondaryText}
               />
               <Text
                 numberOfLines={1}
                 style={[styles.categoryLabel, { color: selected ? tone : theme.secondaryText }]}> 
-                {category.label}
+                {category.name}
               </Text>
             </Pressable>
           );
         })}
+        {categories.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No active categories.</Text> : null}
       </View>
     </View>
   );
@@ -106,4 +111,5 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '700',
   },
+  empty: { ...typography.caption, paddingVertical: spacing.md },
 });

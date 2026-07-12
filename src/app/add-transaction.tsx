@@ -26,6 +26,7 @@ import {
   type TransactionFormType,
 } from '@/features/add-transaction/add-transaction.mock';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useCategories } from '@/features/categories/use-categories';
 
 export default function AddTransactionModal() {
   const insets = useSafeAreaInsets();
@@ -33,6 +34,9 @@ export default function AddTransactionModal() {
   const [type, setType] = useState<TransactionFormType>('expense');
   const [amountDigits, setAmountDigits] = useState('125450000');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>();
+  const expenseCategories = useCategories('expense', false).categories;
+  const incomeCategories = useCategories('income', false).categories;
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -43,6 +47,7 @@ export default function AddTransactionModal() {
 
   const handleTypeChange = (nextType: TransactionFormType) => {
     setType(nextType);
+    setSelectedCategoryId(undefined);
     setShowSuccess(false);
   };
 
@@ -53,7 +58,11 @@ export default function AddTransactionModal() {
   };
 
   const categories =
-    type === 'income' ? transactionFormMock.incomeCategories : transactionFormMock.expenseCategories;
+    type === 'income' ? incomeCategories : expenseCategories;
+
+  const effectiveSelectedCategoryId = categories.some((category) => category.id === selectedCategoryId)
+    ? selectedCategoryId
+    : categories[0]?.id;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}> 
@@ -96,7 +105,13 @@ export default function AddTransactionModal() {
             />
           ) : (
             <>
-              <CategoryGrid categories={categories} selectedId={categories[0].id} type={type} />
+              <CategoryGrid
+                categories={categories}
+                onSelect={setSelectedCategoryId}
+                onViewAll={() => router.push({ pathname: '/categories', params: { type } })}
+                selectedId={effectiveSelectedCategoryId}
+                type={type}
+              />
               <FormFieldButton
                 icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
                 label={type === 'income' ? 'Destination account' : 'Source account'}
