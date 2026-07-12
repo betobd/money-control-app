@@ -34,6 +34,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="transactions/[id]" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="account-form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
         <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />

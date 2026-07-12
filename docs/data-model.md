@@ -43,7 +43,7 @@ The application seeds eight expense and five income defaults atomically only whe
 - local `transaction_date` in `YYYY-MM-DD`
 - UTC `created_at`, `updated_at`
 
-Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. The schema validates row shape, while services will validate category compatibility and archive state.
+Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. Posted transactions may be edited in place while preserving `id` and `created_at`; edits and voiding advance `updated_at`. Voided transactions cannot be edited or restored to posted. The schema validates row shape, while services validate category compatibility and archive state.
 
 Implemented Expense and Income writes store positive whole-COP magnitudes with `destination_account_id = NULL`; transaction type supplies the signed account effect. An implemented transfer is one row with its source in `account_id`, destination in `destination_account_id`, and `category_id = NULL`; it is not duplicated as income and expense rows. The application service revalidates active references, distinct transfer accounts, Bogotá-local date, safe-integer amount, the asset-account available balance, and a trimmed optional note limited to 200 characters. Read models order by financial date and then creation timestamp, both descending.
 
@@ -86,6 +86,7 @@ The initial schema indexes transaction date, `(type, transaction_date)`, account
 - Archiving is reversible and preserves accounts/categories and their history. Restoring an account preserves its ID, references, and derived balance.
 - Permanent account deletion is limited to unused accounts with zero opening and derived balances and no references in transactions, transaction splits, recurring templates, or other financial history. Referenced accounts are retained, and existing `ON DELETE RESTRICT` foreign keys are not weakened.
 - Persisted transactions transition from posted to voided; they are not deleted.
+- The implemented lifecycle has no `voided → posted` transition. Corrections to a voided record require a future new transaction workflow rather than unvoiding.
 - Opening balance becomes immutable after the first posted account transaction.
 - Corrections after activity use a future adjustment transaction.
 - Budgets, recurrence, and split behavior remain outside this implementation phase.

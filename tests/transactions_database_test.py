@@ -121,6 +121,53 @@ history = connection.execute(
 payment_history = next(row for row in history if row[0] == 'card-payment')
 assert payment_history == ('card-payment', 'Checking', 'Credit card', None)
 
+# Editing mutates the existing row, preserves identity/creation metadata, and changes derived effects.
+later = '2026-07-12T18:00:00.000Z'
+connection.execute(
+    'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',
+    ('expense-2', 'Utilities', 'expense', 'bills', 0, None, utc, utc),
+)
+connection.execute(
+    '''UPDATE transactions
+       SET amount = ?, account_id = ?, category_id = ?, note = ?, updated_at = ?
+       WHERE id = ? AND status = 'posted' ''',
+    (200_000, 'checking', 'expense-2', ' edited expense ', later, 'expense'),
+)
+edited_expense = connection.execute(
+    '''SELECT id, amount, account_id, category_id, note, created_at, updated_at
+       FROM transactions WHERE id = 'expense' ''',
+).fetchone()
+assert edited_expense == (
+    'expense', 200_000, 'checking', 'expense-2', ' edited expense ', utc, later,
+)
+
+connection.execute(
+    "UPDATE transactions SET amount = 300000, updated_at = ? WHERE id = 'checking-to-savings' AND status = 'posted'",
+    (later,),
+)
+after_edits = dict(connection.execute(balance_sql))
+assert after_edits['checking'] == 2_000_000, after_edits
+assert after_edits['card'] == -650_000, after_edits
+assert after_edits['savings'] == 1_700_000, after_edits
+assert sum(after_edits.values()) == sum(before.values()) - 50_000
+assert connection.execute(summary_sql).fetchone() == (300_000, 200_000)
+
+# Voiding changes status in place and removes expense, income, and transfer effects.
+voided_at = '2026-07-12T19:00:00.000Z'
+for transaction_id in ('expense', 'income', 'card-payment'):
+    connection.execute(
+        "UPDATE transactions SET status = 'voided', updated_at = ? WHERE id = ? AND status = 'posted'",
+        (voided_at, transaction_id),
+    )
+after_voids = dict(connection.execute(balance_sql))
+assert after_voids['checking'] == 2_700_000, after_voids
+assert after_voids['card'] == -1_150_000, after_voids
+assert after_voids['savings'] == 1_400_000, after_voids
+assert connection.execute(summary_sql).fetchone() == (0, 0)
+assert sum(after_voids.values()) == 3_150_000
+assert connection.execute("SELECT count(*) FROM transactions WHERE id IN ('expense','income','card-payment')").fetchone()[0] == 3
+assert connection.execute("SELECT count(*) FROM transactions WHERE status = 'voided'").fetchone()[0] == 4
+
 try:
     connection.execute(
         'INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -130,6 +177,17 @@ try:
 except sqlite3.IntegrityError:
     pass
 
+assert connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+connection.commit()
+connection.close()
+
+# Edited and voided lifecycle state survives restart.
+connection = open_database()
+assert connection.execute(
+    "SELECT status, amount, account_id, category_id, created_at, updated_at FROM transactions WHERE id = 'expense'"
+).fetchone() == ('voided', 200_000, 'checking', 'expense-2', utc, voided_at)
+assert dict(connection.execute(balance_sql)) == after_voids
+assert connection.execute(summary_sql).fetchone() == (0, 0)
 assert connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
 connection.close()
 db_file.unlink()

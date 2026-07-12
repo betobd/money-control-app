@@ -59,7 +59,7 @@ These assumptions make the scope implementable but are not yet confirmed product
 - An account has a name, opening balance, optional visual metadata, and active/archived state.
 - A category is classified as either income or expense; transfer records do not use categories.
 - A transaction has an amount, effective date/time, optional note, type, and account posting(s).
-- Users can edit and delete ordinary transactions. Deletion is a physical delete of the transaction and its postings because the archive requirement was stated only for accounts and categories. This assumption needs confirmation because it affects audit expectations.
+- Users can edit posted transactions and void them with confirmation. Transactions are never physically deleted; voided records remain in history and are excluded from balances and reports.
 - Archived accounts and categories are hidden from normal creation forms and active lists, but remain visible on historical records and can be restored.
 - An account cannot be archived if doing so would make an existing transfer invalid; existing history remains readable regardless of archive state.
 - History defaults to newest first and supports filters for date range, transaction type, account, and category.
@@ -135,4 +135,3 @@ Unless later promoted into scope:
 | Dashboard month navigation | Defines whether “monthly” means current month only | Support previous/next month, defaulting to current month |
 | Filter persistence | Affects return behavior | Keep filters only for the current app session |
 | Backup/export | Local-only data is vulnerable to uninstall/device loss | Explicitly warn users until a later backup feature exists |
-

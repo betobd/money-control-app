@@ -56,7 +56,9 @@ This document is the normative source for financial calculations and invariants.
 - Only posted transactions affect balances, monthly totals, and category totals.
 - Voiding retains the transaction and its historical metadata while removing its financial effect from derived results.
 - Explicit reversal transactions may be introduced later but are outside the initial implementation.
-- Future write services must perform status changes and related financial updates atomically.
+- Transaction edits update the existing posted row and preserve its ID and original `createdAt`. Voiding atomically changes the existing row to `voided`; neither operation creates compensating rows.
+- Editing a voided transaction and transitioning a voided transaction back to posted are not supported.
+- Editing a transfer validates projected balances by first removing the original posted effect and then applying the proposed effect.
 - Accounts with posted or voided transactions, transaction references, or any other financial history must never be permanently deleted. Foreign-key restrictions remain defense in depth and transaction history is never cascade-deleted through account actions.
 - Categories with transaction, budget, recurring-template, or other financial references must never be permanently deleted.
 

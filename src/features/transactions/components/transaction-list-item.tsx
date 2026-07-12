@@ -1,5 +1,6 @@
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import {
@@ -19,11 +20,15 @@ type TransactionListItemProps = {
 export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
   const tone = getTone(transaction.type, theme);
+  const voided = transaction.status === 'voided';
 
   return (
-    <View
-      accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}`}
-      style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Pressable
+      accessibilityHint="Opens transaction details"
+      accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}, ${voided ? 'voided' : 'posted'}`}
+      accessibilityRole="button"
+      onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: transaction.id } })}
+      style={[styles.card, voided && styles.voidedCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
         <SymbolView name={transactionIcon(transaction)} size={22} tintColor={tone} />
       </View>
@@ -35,7 +40,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           {transactionAccountLabel(transaction)}
         </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.mutedText }]}>
-          {transaction.type === 'transfer' ? 'Transfer' : transaction.categoryName} · {transaction.status}
+          {transaction.type === 'transfer' ? 'Transfer' : transaction.categoryName} · {voided ? 'Voided' : 'Posted'}
         </Text>
       </View>
       <View style={styles.amountColumn}>
@@ -43,14 +48,14 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           adjustsFontSizeToFit
           minimumFontScale={0.65}
           numberOfLines={1}
-          style={[styles.amount, { color: tone }]}>
+          style={[styles.amount, voided && styles.voidedAmount, { color: voided ? theme.mutedText : tone }]}>
           {signedTransactionAmount(transaction)}
         </Text>
         <Text style={[styles.kind, { color: theme.secondaryText }]}>
-          {transactionTypeLabel(transaction)}
+          {voided ? 'Voided' : transactionTypeLabel(transaction)}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -104,4 +109,6 @@ const styles = StyleSheet.create({
     ...typography.label,
     marginTop: spacing.xs,
   },
+  voidedCard: { opacity: 0.72 },
+  voidedAmount: { textDecorationLine: 'line-through' },
 });

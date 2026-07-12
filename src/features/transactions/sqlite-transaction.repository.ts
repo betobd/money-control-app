@@ -9,6 +9,7 @@ import type {
   SupportedTransactionType,
   TransactionListItem,
   TransactionRecord,
+  TransactionUpdateRecord,
 } from './transaction.types';
 
 const destinationAccounts = alias(accounts, 'destination_accounts');
@@ -52,6 +53,11 @@ export class SQLiteTransactionRepository implements TransactionRepository {
     await database.insert(transactions).values(transaction);
   }
 
+  async findById(id: string): Promise<TransactionListItem | null> {
+    const rows = await this.historyQuery(eq(transactions.id, id), 1);
+    return rows[0] ? mapRow(rows[0]) : null;
+  }
+
   async list(): Promise<TransactionListItem[]> {
     const rows = await this.historyQuery();
     return rows.map(mapRow);
@@ -84,6 +90,24 @@ export class SQLiteTransactionRepository implements TransactionRepository {
     const income = Number(row.income);
     const expenses = Number(row.expenses);
     return { income, expenses, net: income - expenses };
+  }
+
+  async updatePosted(id: string, transaction: TransactionUpdateRecord): Promise<boolean> {
+    const rows = await database
+      .update(transactions)
+      .set(transaction)
+      .where(and(eq(transactions.id, id), eq(transactions.status, 'posted')))
+      .returning({ id: transactions.id });
+    return rows.length === 1;
+  }
+
+  async voidPosted(id: string, updatedAt: string): Promise<boolean> {
+    const rows = await database
+      .update(transactions)
+      .set({ status: 'voided', updatedAt })
+      .where(and(eq(transactions.id, id), eq(transactions.status, 'posted')))
+      .returning({ id: transactions.id });
+    return rows.length === 1;
   }
 
   private historyQuery(status?: ReturnType<typeof eq>, limit?: number) {

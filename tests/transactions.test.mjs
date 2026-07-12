@@ -8,18 +8,43 @@ import {
 } from '../src/features/transactions/transaction-presentation.ts';
 import { bogotaToday, isValidCalendarDate } from '../src/features/transactions/transaction-date.ts';
 import {
+  TransactionActionError,
   TransactionService,
   TransactionValidationError,
 } from '../src/features/transactions/transaction.service.ts';
 import { subscribeToFinancialDataChanges } from '../src/features/transactions/financial-data-events.ts';
 
 const NOW = '2026-07-12T15:30:00.000Z';
+const LATER = '2026-07-12T16:45:00.000Z';
 
 class Repo {
   records = [];
   async create(value) { this.records.push({ ...value }); }
-  async list() { return this.records; }
-  async recent(limit) { return this.records.slice(0, limit); }
+  decorate(value) {
+    if (!value) return null;
+    return {
+      ...value,
+      accountName: value.accountId,
+      destinationAccountName: value.destinationAccountId,
+      categoryName: value.categoryId,
+      categoryIcon: value.categoryId ? 'other' : null,
+    };
+  }
+  async findById(id) { return this.decorate(this.records.find((record) => record.id === id)); }
+  async list() { return this.records.map((record) => this.decorate(record)); }
+  async recent(limit) { return this.records.slice(0, limit).map((record) => this.decorate(record)); }
+  async updatePosted(id, update) {
+    const record = this.records.find((candidate) => candidate.id === id && candidate.status === 'posted');
+    if (!record) return false;
+    Object.assign(record, update);
+    return true;
+  }
+  async voidPosted(id, updatedAt) {
+    const record = this.records.find((candidate) => candidate.id === id && candidate.status === 'posted');
+    if (!record) return false;
+    Object.assign(record, { status: 'voided', updatedAt });
+    return true;
+  }
   async summarizeMonth() {
     const posted = this.records.filter((record) => record.status === 'posted');
     const income = posted.filter((record) => record.type === 'income').reduce((sum, record) => sum + record.amount, 0);
@@ -55,11 +80,15 @@ class Categories {
   async findById(id) { return this.values.get(id) ?? null; }
 }
 
-function setup() {
+function setup(now = () => NOW) {
   const repository = new Repo();
+  const accounts = new Accounts();
+  const categories = new Categories();
   return {
     repository,
-    service: new TransactionService(repository, new Accounts(), new Categories(), () => 'tx-1', () => NOW),
+    accounts,
+    categories,
+    service: new TransactionService(repository, accounts, categories, () => 'tx-1', now),
   };
 }
 
@@ -165,7 +194,7 @@ test('rejects missing, archived, and identical transfer accounts', async () => {
 test('rejects insufficient funds for asset accounts but not credit cards', async () => {
   assert.match(
     (await fields(() => setup().service.create({ ...validTransfer, amount: 1_000_001 }))).amount,
-    /available balance/i,
+    /insufficient funds/i,
   );
   const { service } = setup();
   const transfer = await service.create({
@@ -228,4 +257,144 @@ test('notifies financial views only after transfer persistence succeeds', async 
   await service.create(validTransfer);
   unsubscribe();
   assert.equal(refreshes, 1);
+});
+
+async function createdSetup(input = valid) {
+  const timestamps = [NOW, LATER];
+  const context = setup(() => timestamps.shift() ?? LATER);
+  await context.service.create(input);
+  return context;
+}
+
+test('reads transaction details by ID and returns null for a missing transaction', async () => {
+  const { service } = await createdSetup();
+  const detail = await service.get('tx-1');
+  assert.equal(detail.id, 'tx-1');
+  assert.equal(detail.accountName, 'active');
+  assert.equal(await service.get('missing'), null);
+});
+
+test('edits an expense amount while preserving ID and createdAt and updating updatedAt', async () => {
+  const { service } = await createdSetup();
+  const edited = await service.update('tx-1', { ...valid, amount: 75_000 });
+  assert.equal(edited.id, 'tx-1');
+  assert.equal(edited.createdAt, NOW);
+  assert.equal(edited.updatedAt, LATER);
+  assert.equal(edited.amount, 75_000);
+});
+
+test('edits an expense account', async () => {
+  const { service } = await createdSetup();
+  assert.equal((await service.update('tx-1', { ...valid, accountId: 'savings' })).accountId, 'savings');
+});
+
+test('edits an expense category', async () => {
+  const { categories, service } = await createdSetup();
+  categories.values.set('expense-2', { id: 'expense-2', type: 'expense', isArchived: false });
+  assert.equal((await service.update('tx-1', { ...valid, categoryId: 'expense-2' })).categoryId, 'expense-2');
+});
+
+test('edits an income transaction', async () => {
+  const income = { ...valid, type: 'income', categoryId: 'income' };
+  const { service } = await createdSetup(income);
+  const edited = await service.update('tx-1', { ...income, amount: 125_000, accountId: 'savings' });
+  assert.equal(edited.type, 'income');
+  assert.equal(edited.amount, 125_000);
+  assert.equal(edited.accountId, 'savings');
+});
+
+test('edits a transfer source, destination, and amount while keeping category null', async () => {
+  const { service } = await createdSetup(validTransfer);
+  const sourceEdit = await service.update('tx-1', { ...validTransfer, accountId: 'cash', amount: 50_000 });
+  assert.equal(sourceEdit.accountId, 'cash');
+  const destinationEdit = await service.update('tx-1', { ...validTransfer, accountId: 'cash', destinationAccountId: 'active', amount: 40_000 });
+  assert.equal(destinationEdit.destinationAccountId, 'active');
+  assert.equal(destinationEdit.amount, 40_000);
+  assert.equal(destinationEdit.categoryId, null);
+});
+
+test('rejects changing transaction type and category incompatibility during editing', async () => {
+  const { service } = await createdSetup();
+  assert.ok((await fields(() => service.update('tx-1', { ...valid, type: 'income', categoryId: 'income' }))).type);
+  assert.ok((await fields(() => service.update('tx-1', { ...valid, categoryId: 'income' }))).categoryId);
+});
+
+test('rejects archived replacement references but preserves unchanged archived historical references', async () => {
+  const { accounts, categories, service } = await createdSetup();
+  assert.ok((await fields(() => service.update('tx-1', { ...valid, accountId: 'archived' }))).accountId);
+  assert.ok((await fields(() => service.update('tx-1', { ...valid, categoryId: 'archived' }))).categoryId);
+
+  accounts.values.get('active').isArchived = true;
+  categories.values.get('expense').isArchived = true;
+  const historical = await service.update('tx-1', { ...valid, note: 'historical references unchanged' });
+  assert.equal(historical.accountId, 'active');
+  assert.equal(historical.categoryId, 'expense');
+});
+
+test('rejects same-account transfer during editing', async () => {
+  const { service } = await createdSetup(validTransfer);
+  assert.match(
+    (await fields(() => service.update('tx-1', { ...validTransfer, destinationAccountId: 'active' }))).destinationAccountId,
+    /different/i,
+  );
+});
+
+test('transfer edit validation removes the original effect before applying the proposal', async () => {
+  const { accounts, service } = await createdSetup(validTransfer);
+  accounts.values.get('active').balance = 600_000;
+  accounts.values.get('savings').balance = 900_000;
+
+  const validEdit = await service.update('tx-1', { ...validTransfer, amount: 800_000 });
+  assert.equal(validEdit.amount, 800_000);
+  accounts.values.get('active').balance = 200_000;
+  accounts.values.get('savings').balance = 1_300_000;
+  assert.match(
+    (await fields(() => service.update('tx-1', { ...validTransfer, amount: 1_100_000 }))).amount,
+    /insufficient funds/i,
+  );
+});
+
+test('rejects editing a voided transaction', async () => {
+  const { service } = await createdSetup();
+  await service.void('tx-1');
+  await assert.rejects(
+    () => service.update('tx-1', valid),
+    (error) => error instanceof TransactionActionError && error.code === 'editing_voided_transaction',
+  );
+});
+
+for (const input of [valid, { ...valid, type: 'income', categoryId: 'income' }, validTransfer]) {
+  test(`voids a posted ${input.type} without deleting it`, async () => {
+    const { repository, service } = await createdSetup(input);
+    const voided = await service.void('tx-1');
+    assert.equal(voided.status, 'voided');
+    assert.equal(voided.id, 'tx-1');
+    assert.equal(voided.createdAt, NOW);
+    assert.equal(voided.updatedAt, LATER);
+    assert.equal(repository.records.length, 1);
+  });
+}
+
+test('returns domain errors for missing and already-voided transactions', async () => {
+  const { service } = setup();
+  await assert.rejects(
+    () => service.void('missing'),
+    (error) => error instanceof TransactionActionError && error.code === 'transaction_not_found',
+  );
+  const context = await createdSetup();
+  await context.service.void('tx-1');
+  await assert.rejects(
+    () => context.service.void('tx-1'),
+    (error) => error instanceof TransactionActionError && error.code === 'transaction_already_voided',
+  );
+});
+
+test('publishes financial invalidation after editing and voiding', async () => {
+  const { service } = await createdSetup();
+  let refreshes = 0;
+  const unsubscribe = subscribeToFinancialDataChanges(() => { refreshes += 1; });
+  await service.update('tx-1', { ...valid, amount: 60_000 });
+  await service.void('tx-1');
+  unsubscribe();
+  assert.equal(refreshes, 2);
 });

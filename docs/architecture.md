@@ -14,7 +14,7 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - The shared custom tab bar serves Home, Transactions, Accounts, and Budgets, with a centered Add action that opens the modal instead of acting as a tab destination.
 - Home, Transactions, and Budgets remain presentation-focused. Accounts is the first functional vertical slice, backed by SQLite through a repository and account service.
 - Categories is a functional vertical slice with its own repository, service, focus-refresh hook, management modal, and form modal. Add Transaction reads active categories from this slice.
-- Expense, Income, and Transfer entry are functional through the transaction repository/service slice. Add Transaction validates active references and writes one posted row per transaction; Transactions and Home use focus-refreshed SQLite read models. Transfers reuse the account selector for distinct active source and destination accounts and never create paired income/expense rows.
+- Expense, Income, and Transfer entry are functional through the transaction repository/service slice. Add Transaction validates active references and writes one posted row per transaction; Transactions and Home use focus-refreshed SQLite read models. Transfers reuse the account selector for distinct active source and destination accounts and never create paired income/expense rows. Transaction rows open a root details modal where posted records can be edited or irreversibly transitioned to `voided`; neither action changes transaction identity or hard-deletes history.
 - Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
 - Migration 001 defines accounts, categories, posted/voided transactions, transaction-split foundation, budgets, and recurring transaction templates. Repositories and business-feature integration do not exist yet.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
@@ -149,6 +149,7 @@ _layout                         # Root stack
 (tabs)/accounts
 (tabs)/budgets
 add-transaction                 # Root full-screen modal
+transactions/[id]              # Root full-screen details/edit modal
 ```
 
 The visible navigation order is Home, Transactions, Add, Accounts, Budgets. Add is not registered as a tab route; it pushes the root modal, which fully covers the tab navigator. Future detail routes should remain outside the tab bar and may be added to the appropriate stack when their feature is implemented.

@@ -43,6 +43,16 @@ export type TransactionRecord =
       destinationAccountId: string;
     });
 
+export type TransactionUpdateRecord = {
+  amount: number;
+  accountId: string;
+  destinationAccountId: string | null;
+  categoryId: string | null;
+  transactionDate: string;
+  note: string | null;
+  updatedAt: string;
+};
+
 export type TransactionField =
   | 'type'
   | 'amount'
