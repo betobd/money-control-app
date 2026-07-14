@@ -45,7 +45,7 @@ The application seeds eight expense and five income defaults atomically only whe
 
 Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. Posted transactions may be edited in place while preserving `id` and `created_at`; edits and voiding advance `updated_at`. Voided transactions cannot be edited or restored to posted. The schema validates row shape, while services validate category compatibility and archive state.
 
-Implemented Expense and Income writes store positive whole-COP magnitudes with `destination_account_id = NULL`; transaction type supplies the signed account effect. An implemented transfer is one row with its source in `account_id`, destination in `destination_account_id`, and `category_id = NULL`; it is not duplicated as income and expense rows. The application service revalidates active references, distinct transfer accounts, Bogotá-local date, safe-integer amount, the asset-account available balance, and a trimmed optional note limited to 200 characters. Read models order by financial date and then creation timestamp, both descending.
+Implemented Expense and Income writes store positive whole-COP magnitudes with `destination_account_id = NULL`; transaction type supplies the signed account effect. An implemented transfer is one row with its source in `account_id`, destination in `destination_account_id`, and `category_id = NULL`; it is not duplicated as income and expense rows. The application service revalidates active references, distinct transfer accounts, Bogotá-local date, safe-integer amount, the asset-account available balance, and a trimmed optional note limited to 200 characters. History read models order by financial date, creation timestamp, and ID, all descending; the three values form the stable pagination cursor.
 
 ### `transaction_splits`
 
@@ -57,8 +57,14 @@ This table is schema foundation only. Split creation and validation are not impl
 
 ### `budgets`
 
-- Category/month unique budget with positive integer whole-COP amount.
-- Foundation only; no behavior is implemented.
+- `id`, `category_id`, `month`, positive safe-integer `limit_amount`
+- UTC `created_at`, `updated_at`
+
+Each budget belongs to exactly one category through a restrictive foreign key. `UNIQUE(category_id, month)` prevents two budgets for the same category and month while allowing that category to have a different budget in another month. The category name and icon are the visible label; a separate budget name is not stored. There is no archive column because monthly records are already historical and no separate lifecycle is justified. Removing a Budget deletes only that monthly plan and never its category or transactions. Currency is omitted because the current product supports only COP.
+
+Income-category rejection and active-category eligibility are enforced by `BudgetService` because SQLite cannot express category type or archive state through a normal cross-table `CHECK`. Archived expense categories already referenced remain valid historical relationships, while creation UI lists only active expense categories. Renaming a category preserves the relationship because references use the stable category ID.
+
+Migration 0004 keeps the original direct category relationship, validates that existing legacy budgets reference expense categories, renames `amount` to `limit_amount`, removes the redundant `currency` column, and copies every row through a create-copy-swap migration. No `budget_categories` table is created.
 
 ### `recurring_transactions`
 
@@ -76,10 +82,11 @@ Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applie
 - Monthly income and expense use `transaction_date`, transaction type, and `status = posted`.
 - Transfers and voided transactions contribute zero to income and expense reporting.
 - History retains both posted and voided records and labels their status.
+- Budget spending uses posted expense transactions whose `category_id` equals the budget's category and whose `transaction_date` is inside the budget month. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
 
 ## 4. Indexes
 
-The initial schema indexes transaction date, `(type, transaction_date)`, account references, category references, split account references, budget month, and recurring next date. Status-aware composite indexes should be added only when real query plans justify them.
+The schema indexes transaction date, `(type, transaction_date)`, source and destination account references, category references, split account references, budget month, unique budget category/month, and recurring next date. These existing indexes support the current filtered-history MVP. Status-aware, compound ordering, FTS, or normalized-search indexes should be added only when real query plans and production-sized measurements justify them.
 
 ## 5. Lifecycle rules
 
@@ -89,7 +96,7 @@ The initial schema indexes transaction date, `(type, transaction_date)`, account
 - The implemented lifecycle has no `voided → posted` transition. Corrections to a voided record require a future new transaction workflow rather than unvoiding.
 - Opening balance becomes immutable after the first posted account transaction.
 - Corrections after activity use a future adjustment transaction.
-- Budgets, recurrence, and split behavior remain outside this implementation phase.
+- Recurrence and split behavior remain outside this implementation phase.
 
 ## 6. Remaining modeling decisions
 

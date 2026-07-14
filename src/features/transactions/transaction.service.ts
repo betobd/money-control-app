@@ -7,12 +7,68 @@ import { isValidCalendarDate } from './transaction-date';
 import type { TransactionRepository } from './transaction.repository';
 import {
   supportedTransactionTypes,
+  type NormalizedTransactionListQuery,
   type TransactionInput,
+  type TransactionListQuery,
   type TransactionListItem,
   type TransactionRecord,
   type TransactionUpdateRecord,
   type TransactionValidationErrors,
 } from './transaction.types';
+
+const transactionStatuses = ['posted', 'voided'] as const;
+const DEFAULT_LIST_LIMIT = 40;
+const MAX_LIST_LIMIT = 100;
+
+export class TransactionListQueryValidationError extends Error {}
+
+export function normalizeTransactionListQuery(
+  query: TransactionListQuery = {},
+): NormalizedTransactionListQuery {
+  const search = query.search?.trim() || undefined;
+  const types = query.types ? [...new Set(query.types)] : undefined;
+  const statuses = query.statuses ? [...new Set(query.statuses)] : undefined;
+  if (types?.some((type) => !supportedTransactionTypes.includes(type))) {
+    throw new TransactionListQueryValidationError('Unsupported transaction type filter.');
+  }
+  if (statuses?.some((status) => !transactionStatuses.includes(status))) {
+    throw new TransactionListQueryValidationError('Unsupported transaction status filter.');
+  }
+  if (query.dateFrom && !isValidCalendarDate(query.dateFrom)) {
+    throw new TransactionListQueryValidationError('Start date must use YYYY-MM-DD.');
+  }
+  if (query.dateTo && !isValidCalendarDate(query.dateTo)) {
+    throw new TransactionListQueryValidationError('End date must use YYYY-MM-DD.');
+  }
+  if (query.dateFrom && query.dateTo && query.dateTo < query.dateFrom) {
+    throw new TransactionListQueryValidationError('End date cannot be earlier than start date.');
+  }
+  const limit = query.limit ?? DEFAULT_LIST_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIST_LIMIT) {
+    throw new TransactionListQueryValidationError(`Page size must be between 1 and ${MAX_LIST_LIMIT}.`);
+  }
+  if (query.cursor) {
+    if (
+      !isValidCalendarDate(query.cursor.transactionDate)
+      || !query.cursor.createdAt
+      || !query.cursor.id
+    ) {
+      throw new TransactionListQueryValidationError('Invalid transaction page cursor.');
+    }
+  }
+
+  return {
+    search,
+    types: types?.length ? types : undefined,
+    statuses: statuses?.length ? statuses : undefined,
+    accountId: query.accountId?.trim() || undefined,
+    categoryId: query.categoryId?.trim() || undefined,
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
+    limit,
+    cursor: query.cursor,
+  };
+}
 
 export class TransactionValidationError extends Error {
   constructor(public readonly fields: TransactionValidationErrors) {
@@ -43,8 +99,16 @@ export class TransactionService {
     private readonly now = () => new Date().toISOString(),
   ) {}
 
-  list() {
-    return this.repository.list();
+  list(query: TransactionListQuery = {}) {
+    return this.repository.list(normalizeTransactionListQuery(query));
+  }
+
+  hasAny() {
+    return this.repository.hasAny();
+  }
+
+  listFilterOptions() {
+    return this.repository.listFilterOptions();
   }
 
   get(id: string) {

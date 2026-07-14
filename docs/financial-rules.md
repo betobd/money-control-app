@@ -119,7 +119,23 @@ The database enforces stable row-local rules such as integer ranges, valid enums
 
 Every schema change uses an ordered migration. A released or externally applied migration is immutable.
 
-## 11. Decisions still unresolved
+## 11. Monthly budgets
+
+- A budget has an ID, exactly one expense-category ID, a `YYYY-MM` month, a positive safe-integer COP limit, and audit timestamps. It has no separate user-defined name; the category name is its visible label.
+- Income categories cannot have budgets. A category may have at most one budget in the same month and may have different budgets in different months.
+- Transactions are never manually assigned to budgets and do not store a budget ID. Attribution is derived automatically from category equality and the transaction date.
+- A transaction contributes when and only when its type is `expense`, status is `posted`, `transaction.categoryId = budget.categoryId`, and `transactionDate` falls inside `budget.month`. `createdAt` never determines the budget month.
+- Transfers, income, voided expenses, and expenses outside the budget month contribute zero.
+- Per budget: `spent = Σ qualifying transaction.amount`, `remaining = limitAmount - spent`, and `percentageUsed = spent / limitAmount`.
+- Only visual progress width is clamped to 100%. Displayed percentages continue above 100%, and remaining may be negative.
+- For a selected month, `totalBudget` is the sum of budget limits. `totalSpent` is the sum of posted expenses in categories that have a budget for that month. Expenses in unbudgeted categories remain normal Home and Transactions expenses but are excluded from budget summary totals.
+- The direct category/month uniqueness rule ensures no transaction can count toward more than one budget in the same month.
+- Archived categories already referenced by historical budgets remain visible. Archived categories cannot be selected for new budgets, and archive status never changes historical attribution.
+- Below 80% is **On track**, 80–99% is **Near limit**, exactly 100% is **Fully used**, and above 100% is **Over budget**.
+- Optional future visual groups such as Leisure or Household may display several independent category budgets together, but cannot change attribution or cause double counting. Future tags or projects may model cross-cutting expenses such as trips, weddings, renovations, or events. Groups, tags, and projects are not implemented in the current phase.
+- These Budget calculations are implemented by the Budget repository/service read model and are shared by the Budgets screen and Home preview.
+
+## 12. Decisions still unresolved
 
 - Adjustment transaction representation and category treatment.
 - Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.

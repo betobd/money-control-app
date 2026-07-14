@@ -6,12 +6,25 @@ import {
   signedTransactionAmount,
   transactionAccountLabel,
 } from '../src/features/transactions/transaction-presentation.ts';
-import { bogotaToday, isValidCalendarDate } from '../src/features/transactions/transaction-date.ts';
+import {
+  bogotaToday,
+  isValidCalendarDate,
+  resolveTransactionDateRange,
+} from '../src/features/transactions/transaction-date.ts';
 import {
   TransactionActionError,
+  TransactionListQueryValidationError,
   TransactionService,
   TransactionValidationError,
+  normalizeTransactionListQuery,
 } from '../src/features/transactions/transaction.service.ts';
+import {
+  buildTransactionListQuery,
+  countActiveTransactionFilters,
+  createClearedTransactionListFilters,
+  createDefaultTransactionListFilters,
+  firstTransactionListPage,
+} from '../src/features/transactions/transaction-list-filters.ts';
 import { subscribeToFinancialDataChanges } from '../src/features/transactions/financial-data-events.ts';
 
 const NOW = '2026-07-12T15:30:00.000Z';
@@ -19,6 +32,7 @@ const LATER = '2026-07-12T16:45:00.000Z';
 
 class Repo {
   records = [];
+  listQueries = [];
   async create(value) { this.records.push({ ...value }); }
   decorate(value) {
     if (!value) return null;
@@ -31,7 +45,12 @@ class Repo {
     };
   }
   async findById(id) { return this.decorate(this.records.find((record) => record.id === id)); }
-  async list() { return this.records.map((record) => this.decorate(record)); }
+  async hasAny() { return this.records.length > 0; }
+  async list(query) {
+    this.listQueries.push(query);
+    return { items: this.records.map((record) => this.decorate(record)), nextCursor: null };
+  }
+  async listFilterOptions() { return { accounts: [], categories: [] }; }
   async recent(limit) { return this.records.slice(0, limit).map((record) => this.decorate(record)); }
   async updatePosted(id, update) {
     const record = this.records.find((candidate) => candidate.id === id && candidate.status === 'posted');
@@ -397,4 +416,111 @@ test('publishes financial invalidation after editing and voiding', async () => {
   await service.void('tx-1');
   unsubscribe();
   assert.equal(refreshes, 2);
+});
+
+test('normalizes trimmed and empty transaction-list search safely', () => {
+  assert.equal(normalizeTransactionListQuery({ search: '  groceries  ' }).search, 'groceries');
+  assert.equal(normalizeTransactionListQuery({ search: '   ' }).search, undefined);
+  assert.equal(normalizeTransactionListQuery({}).limit, 40);
+});
+
+test('normalizes combined list filters before forwarding them to the repository', async () => {
+  const { repository, service } = setup();
+  await service.list({
+    search: '  CHECKING ',
+    types: ['expense'],
+    statuses: ['voided'],
+    accountId: ' active ',
+    categoryId: ' expense ',
+    dateFrom: '2026-07-01',
+    dateTo: '2026-07-31',
+    limit: 30,
+  });
+  assert.deepEqual(repository.listQueries[0], {
+    search: 'CHECKING',
+    types: ['expense'],
+    statuses: ['voided'],
+    accountId: 'active',
+    categoryId: 'expense',
+    dateFrom: '2026-07-01',
+    dateTo: '2026-07-31',
+    limit: 30,
+    cursor: undefined,
+  });
+});
+
+test('rejects invalid transaction-list date ranges and cursors', () => {
+  assert.throws(
+    () => normalizeTransactionListQuery({ dateFrom: '2026-07-20', dateTo: '2026-07-01' }),
+    TransactionListQueryValidationError,
+  );
+  assert.throws(
+    () => normalizeTransactionListQuery({ cursor: { transactionDate: 'invalid', createdAt: NOW, id: 'tx' } }),
+    TransactionListQueryValidationError,
+  );
+});
+
+test('resolves Bogotá-local current, previous, last-30-day, and inclusive custom ranges', () => {
+  assert.deepEqual(resolveTransactionDateRange('current-month', '2026-07-13'), {
+    dateFrom: '2026-07-01',
+    dateTo: '2026-07-31',
+  });
+  assert.deepEqual(resolveTransactionDateRange('previous-month', '2026-01-05'), {
+    dateFrom: '2025-12-01',
+    dateTo: '2025-12-31',
+  });
+  assert.deepEqual(resolveTransactionDateRange('last-30-days', '2026-07-13'), {
+    dateFrom: '2026-06-14',
+    dateTo: '2026-07-13',
+  });
+  assert.deepEqual(resolveTransactionDateRange('custom', '2026-07-13', '2026-06-30', '2026-07-13'), {
+    dateFrom: '2026-06-30',
+    dateTo: '2026-07-13',
+  });
+  assert.throws(
+    () => resolveTransactionDateRange('custom', '2026-07-13', '2026-07-14', '2026-07-13'),
+    /earlier than start date/i,
+  );
+});
+
+test('defaults to Current month and Clear all restores an unfiltered query', () => {
+  const defaults = createDefaultTransactionListFilters('2026-07-13');
+  assert.equal(defaults.datePreset, 'current-month');
+  assert.equal(countActiveTransactionFilters(defaults), 1);
+
+  const combined = {
+    ...defaults,
+    type: 'expense',
+    status: 'posted',
+    accountId: 'checking',
+    categoryId: 'food',
+  };
+  assert.equal(countActiveTransactionFilters(combined), 5);
+  assert.deepEqual(buildTransactionListQuery(combined, ' market ', '2026-07-13'), {
+    search: ' market ',
+    types: ['expense'],
+    statuses: ['posted'],
+    accountId: 'checking',
+    categoryId: 'food',
+    dateFrom: '2026-07-01',
+    dateTo: '2026-07-31',
+  });
+
+  const cleared = createClearedTransactionListFilters('2026-07-13');
+  assert.equal(countActiveTransactionFilters(cleared), 0);
+  assert.deepEqual(buildTransactionListQuery(cleared, '', '2026-07-13'), {
+    search: '',
+    types: undefined,
+    statuses: undefined,
+    accountId: undefined,
+    categoryId: undefined,
+  });
+});
+
+test('query changes and invalidation reset pagination to the first page', () => {
+  const cursor = { transactionDate: '2026-07-13', createdAt: NOW, id: 'tx-9' };
+  assert.deepEqual(firstTransactionListPage({ search: 'food', cursor }), {
+    search: 'food',
+    cursor: undefined,
+  });
 });

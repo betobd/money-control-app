@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import type { BudgetStatus } from '@/features/budgets/budgets.mock';
+import type { BudgetStatus } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function BudgetStatusBadge({ status }: { status: BudgetStatus }) {
@@ -23,18 +23,19 @@ export function BudgetStatusBadge({ status }: { status: BudgetStatus }) {
 
 export function getStatusPresentation(status: BudgetStatus, theme: ReturnType<typeof useAppTheme>) {
   if (status === 'near-limit') {
-    return { label: 'Near limit', foreground: theme.warning, background: theme.elevatedSurface };
+    return { label: 'Near limit', foreground: theme.warning, background: theme.elevatedSurface, accent: theme.warning };
   }
   if (status === 'over-budget') {
-    return { label: 'Over budget', foreground: theme.destructive, background: theme.elevatedSurface };
+    return { label: 'Over budget', foreground: theme.destructive, background: theme.elevatedSurface, accent: theme.destructive };
   }
   if (status === 'fully-used') {
-    return { label: 'Fully used', foreground: theme.secondaryText, background: theme.elevatedSurface };
+    return { label: 'Fully used', foreground: theme.secondaryText, background: theme.elevatedSurface, accent: theme.secondaryText };
   }
   return {
     label: 'On track',
     foreground: theme.selectedNavigationForeground,
     background: theme.selectedNavigationBackground,
+    accent: theme.primaryAction,
   };
 }
 

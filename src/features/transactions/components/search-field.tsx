@@ -1,10 +1,16 @@
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function SearchField() {
+type SearchFieldProps = {
+  value: string;
+  onChangeText: (value: string) => void;
+  onClear: () => void;
+};
+
+export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) {
   const theme = useAppTheme();
 
   return (
@@ -19,13 +25,31 @@ export function SearchField() {
         tintColor={theme.secondaryText}
       />
       <TextInput
-        accessibilityHint="Search is not active in this preview"
         accessibilityLabel="Search transactions"
-        editable={false}
+        autoCapitalize="none"
+        autoCorrect={false}
+        clearButtonMode="never"
+        onChangeText={onChangeText}
         placeholder="Search transactions…"
         placeholderTextColor={theme.mutedText}
+        returnKeyType="search"
         style={[styles.input, { color: theme.primaryText }]}
+        value={value}
       />
+      {value.length > 0 ? (
+        <Pressable
+          accessibilityLabel="Clear transaction search"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={onClear}
+          style={styles.clearButton}>
+          <SymbolView
+            name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+            size={22}
+            tintColor={theme.secondaryText}
+          />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -45,5 +69,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     paddingVertical: 0,
+  },
+  clearButton: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
   },
 });

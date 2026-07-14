@@ -46,7 +46,9 @@
     "lint": "expo lint",
     "test:accounts": "node --import tsx --test tests/accounts.test.mjs && python tests/accounts_database_test.py",
     "test:categories": "node --import tsx --test tests/categories.test.mjs && python tests/categories_database_test.py",
-    "test:transactions": "node --import tsx --test tests/transactions.test.mjs && python tests/transactions_database_test.py"
+    "test:transactions": "node --import tsx --test tests/transactions.test.mjs && python tests/transactions_database_test.py",
+    "test:budgets-schema": "python tests/budgets_schema_database_test.py",
+    "test:budgets": "node --import tsx --test tests/budgets.test.mjs && python tests/budgets_schema_database_test.py && python tests/budgets_database_test.py"
   },
   "private": true
 }

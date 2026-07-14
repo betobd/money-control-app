@@ -45,6 +45,14 @@ This document describes product behavior. Financial invariants are normative in 
 - Show account balances.
 - Do not count transfers as income or expense.
 
+#### Budgets
+
+- Create, edit, and remove one monthly budget per expense category.
+- Use the category name and icon as the budget label; do not require a separate budget name.
+- Assign each expense category to at most one budget in the same month while allowing a new limit in another month.
+- Derive spending automatically from posted expense transactions; users never select a budget on a transaction.
+- Show real monthly budget progress in Budgets and Home, derived from persisted posted expenses for budgeted categories.
+
 ### Data integrity
 
 - Monetary values must not use floating-point arithmetic.
@@ -62,7 +70,7 @@ These assumptions make the scope implementable but are not yet confirmed product
 - Users can edit posted transactions and void them with confirmation. Transactions are never physically deleted; voided records remain in history and are excluded from balances and reports.
 - Archived accounts and categories are hidden from normal creation forms and active lists, but remain visible on historical records and can be restored.
 - An account cannot be archived if doing so would make an existing transfer invalid; existing history remains readable regardless of archive state.
-- History defaults to newest first and supports filters for date range, transaction type, account, and category.
+- History defaults to the current Bogotá-local month and newest-first order. It supports debounced text search plus type, status, account, category, and date-range filters over persisted SQLite data; Clear all restores All time.
 - The monthly dashboard uses the device's local calendar month and includes income, expenses, net cash flow, and a category breakdown for expenses.
 - Amount input and display use COP formatting and the device locale where practical.
 - All writes affecting more than one row, especially transfers, are atomic.
@@ -100,6 +108,13 @@ These assumptions make the scope implementable but are not yet confirmed product
 - Monthly totals are derived from stored transactions, not cached mutable balance fields.
 - A month containing only transfers shows zero income and zero expense.
 
+### Budgets
+
+- A budget requires one active expense category, a valid month, and a positive whole-COP limit.
+- Posted expenses matching that category and month count exactly once.
+- Income, transfers, voided transactions, other months, and unbudgeted categories do not count toward budget totals.
+- Archived categories remain visible on historical budgets but cannot be selected for new budgets.
+
 ### Persistence
 
 - Data survives app restarts.
@@ -114,7 +129,7 @@ Unless later promoted into scope:
 - Shared budgets or multiple users.
 - Bank integrations and automatic transaction import.
 - Recurring transactions and reminders.
-- Budgets, savings goals, debt schedules, and forecasting.
+- Savings goals, debt schedules, and forecasting.
 - Multiple currencies, conversion, and exchange rates.
 - Receipt scanning or attachments.
 - Web and iOS release commitments.

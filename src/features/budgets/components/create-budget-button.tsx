@@ -4,15 +4,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function CreateBudgetButton() {
+export function CreateBudgetButton({ onPress }: { onPress: () => void }) {
   const theme = useAppTheme();
 
   return (
     <Pressable
-      accessibilityHint="Budget creation is not active in this preview"
+      accessibilityHint="Opens budget creation"
       accessibilityLabel="Create budget"
       accessibilityRole="button"
-      onPress={() => undefined}
+      onPress={onPress}
       style={[styles.button, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <View style={[styles.icon, { backgroundColor: theme.primaryAction }]}>
         <SymbolView

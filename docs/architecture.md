@@ -12,11 +12,12 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - React Compiler is enabled.
 - A root Expo Router stack contains a shared tab navigator and a full-screen Add Transaction modal.
 - The shared custom tab bar serves Home, Transactions, Accounts, and Budgets, with a centered Add action that opens the modal instead of acting as a tab destination.
-- Home, Transactions, and Budgets remain presentation-focused. Accounts is the first functional vertical slice, backed by SQLite through a repository and account service.
+- Accounts, Categories, Transactions, and Budgets are functional SQLite-backed vertical slices. Home consumes their derived read models, including the current Bogotá-month budget summary.
 - Categories is a functional vertical slice with its own repository, service, focus-refresh hook, management modal, and form modal. Add Transaction reads active categories from this slice.
 - Expense, Income, and Transfer entry are functional through the transaction repository/service slice. Add Transaction validates active references and writes one posted row per transaction; Transactions and Home use focus-refreshed SQLite read models. Transfers reuse the account selector for distinct active source and destination accounts and never create paired income/expense rows. Transaction rows open a root details modal where posted records can be edited or irreversibly transitioned to `voided`; neither action changes transaction identity or hard-deletes history.
+- Transaction history now searches and filters persisted rows through a typed repository query, returns joined display labels, and incrementally loads stable 40-row cursor pages ordered by financial date, creation time, and ID. Screen-local query state survives the existing details modal and reloads page one through financial-data invalidation after create, edit, or void.
 - Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
-- Migration 001 defines accounts, categories, posted/voided transactions, transaction-split foundation, budgets, and recurring transaction templates. Repositories and business-feature integration do not exist yet.
+- Migration 0000 defines accounts, categories, posted/voided transactions, transaction-split foundation, the original one-category budget foundation, and recurring transaction templates. Migration 0004 preserves the direct category relationship while renaming the budget amount to `limit_amount` and removing the redundant COP currency column.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
 - The worktree already contains user changes and many untracked starter files; implementation work must preserve them.
 
@@ -150,11 +151,20 @@ _layout                         # Root stack
 (tabs)/budgets
 add-transaction                 # Root full-screen modal
 transactions/[id]              # Root full-screen details/edit modal
+budget-form                    # Root full-screen create/edit Budget modal
 ```
 
 The visible navigation order is Home, Transactions, Add, Accounts, Budgets. Add is not registered as a tab route; it pushes the root modal, which fully covers the tab navigator. Future detail routes should remain outside the tab bar and may be added to the appropriate stack when their feature is implemented.
 
 Every primary screen exposes the same More header action. The root `more` modal is intentionally minimal and links to the existing `categories` management modal; Add Transaction's contextual View All action links to that same route. Category icon identifiers are stable application strings mapped to platform symbols in the categories feature, with `other` as the documented fallback for unknown stored identifiers.
+
+### Budgets slice
+
+The Budgets slice keeps route files thin and derives attribution automatically from `budget.category_id`, `transaction.category_id`, and the transaction date. Transactions never persist or select a budget ID. The direct `budgets.category_id` foreign key and `UNIQUE(category_id, month)` constraint make one expense category correspond to at most one budget in a month, so a qualifying transaction cannot overlap multiple budgets under the MVP model.
+
+`BudgetService` validates a positive safe-integer limit, an active expense category for new records, a valid month, and category/month uniqueness before persistence. Archived categories remain referenced by historical budgets but are unavailable for new selection. `SQLiteBudgetRepository` aggregates only posted expenses whose category matches the budget and whose `transaction_date` falls inside the budget month. Budgets and Home consume the same calculated monthly summary and reload through the shared financial-data invalidation hook after successful Budget or Transaction writes.
+
+Optional visual groups such as Leisure or Household may later present several independent category budgets together. A group is presentation metadata only: it must not own transactions, replace category/date attribution, or aggregate a transaction more than once. Cross-cutting cases such as trips, weddings, renovations, and events may later use tags or projects rather than weakening the one-category budget invariant; neither groups nor tags/projects are implemented now.
 
 ## 7. Error handling and observability
 
@@ -186,7 +196,7 @@ Every primary screen exposes the same More header action. The root `more` modal 
 - State/query mechanism and invalidation strategy.
 - Whether web/iOS remain buildable development targets or Android-only constraints may be introduced.
 - Database encryption and Android backup behavior.
-- Pagination approach and expected transaction volume.
+- Expected production transaction volume and the threshold for adding search-specific indexing.
 - Transaction correction/audit policy.
 - Money integer representation (`number` with bounds versus `bigint`).
 - Date/time storage and reporting timezone policy.

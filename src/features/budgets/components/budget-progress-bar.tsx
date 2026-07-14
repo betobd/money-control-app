@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { borderRadii } from '@/constants/theme';
 import { getStatusPresentation } from '@/features/budgets/components/budget-status-badge';
-import type { BudgetStatus, ProgressWidth } from '@/features/budgets/budgets.mock';
+import type { BudgetStatus, ProgressWidth } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type BudgetProgressBarProps = {
@@ -23,7 +23,7 @@ export function BudgetProgressBar({ percentage, progressWidth, status }: BudgetP
     <View
       accessibilityLabel={`${presentation.label}, ${percentage}% used`}
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, now: percentage }}
+      accessibilityValue={{ max: 100, min: 0, now: Math.min(percentage, 100) }}
       style={[styles.track, { backgroundColor: theme.progressTrack }]}>
       <View style={[styles.fill, { backgroundColor: fillColor, width: progressWidth }]} />
     </View>

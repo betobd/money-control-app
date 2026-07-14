@@ -157,14 +157,12 @@ export const budgets = sqliteTable(
       .notNull()
       .references(() => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
     month: text('month').notNull(),
-    amount: integer('amount').notNull(),
-    currency: text('currency').notNull().default('COP'),
+    limitAmount: integer('limit_amount').notNull(),
     ...auditColumns,
   },
   (table) => [
-    check('budgets_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('budgets_currency_cop', sql`${table.currency} = 'COP'`),
-    check('budgets_month_format', sql`${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'`),
+    check('budgets_limit_amount_positive', sql`typeof(${table.limitAmount}) = 'integer' AND ${table.limitAmount} > 0 AND ${table.limitAmount} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('budgets_month_format', sql`${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`),
     check('budgets_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('budgets_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
     uniqueIndex('budgets_category_month_uidx').on(table.categoryId, table.month),

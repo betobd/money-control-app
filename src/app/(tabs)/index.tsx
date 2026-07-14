@@ -10,7 +10,6 @@ import { FinancialSummaryCard } from '@/features/home/components/financial-summa
 import { MoneyText } from '@/features/home/components/money-text';
 import { SectionHeader } from '@/features/home/components/section-header';
 import { TransactionListItem } from '@/features/home/components/transaction-list-item';
-import { staticBudgetPreview } from '@/features/home/home-dashboard.mock';
 import { useHomeDashboard } from '@/features/home/use-home-dashboard';
 import { formatCop } from '@/features/accounts/account-format';
 import { signedTransactionAmount, transactionAccountLabel, transactionIcon, transactionTitle, transactionTypeLabel } from '@/features/transactions/transaction-presentation';
@@ -53,7 +52,7 @@ export default function HomeScreen() {
         netBalance={`${dashboard.summary.net < 0 ? '-' : '+'}${formatCop(Math.abs(dashboard.summary.net))}`}
       />
 
-      <BudgetProgressCard label={staticBudgetPreview.label} percentage={staticBudgetPreview.percentage} />
+      <BudgetProgressCard summary={dashboard.budget} />
 
       <SectionHeader
         action={

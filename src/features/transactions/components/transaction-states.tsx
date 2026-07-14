@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -14,12 +14,37 @@ export function EmptyTransactionsState() {
   );
 }
 
-export function NoTransactionResultsState() {
+export function NoTransactionResultsState({
+  hasSearch,
+  onClearFilters,
+  onClearSearch,
+}: {
+  hasSearch: boolean;
+  onClearFilters: () => void;
+  onClearSearch: () => void;
+}) {
   return (
     <TransactionState
+      actions={(
+        <View style={styles.actions}>
+          <StateButton label="Clear filters" onPress={onClearFilters} />
+          {hasSearch ? <StateButton label="Clear search" onPress={onClearSearch} /> : null}
+        </View>
+      )}
       body="Try changing the search text or clearing a filter."
       icon={{ ios: 'magnifyingglass', android: 'search_off', web: 'search_off' }}
       title="No matching transactions"
+    />
+  );
+}
+
+export function TransactionErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <TransactionState
+      actions={<StateButton label="Try again" onPress={onRetry} />}
+      body={message}
+      icon={{ ios: 'exclamationmark.triangle.fill', android: 'error', web: 'error' }}
+      title="Unable to load transactions"
     />
   );
 }
@@ -46,9 +71,10 @@ type TransactionStateProps = {
   title: string;
   body: string;
   icon: React.ComponentProps<typeof SymbolView>['name'];
+  actions?: React.ReactNode;
 };
 
-function TransactionState({ title, body, icon }: TransactionStateProps) {
+function TransactionState({ title, body, icon, actions }: TransactionStateProps) {
   const theme = useAppTheme();
 
   return (
@@ -58,7 +84,20 @@ function TransactionState({ title, body, icon }: TransactionStateProps) {
       </View>
       <Text style={[styles.stateTitle, { color: theme.primaryText }]}>{title}</Text>
       <Text style={[styles.stateBody, { color: theme.secondaryText }]}>{body}</Text>
+      {actions}
     </View>
+  );
+}
+
+function StateButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const theme = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.stateButton, { borderColor: theme.primaryAction }]}>
+      <Text style={[styles.stateButtonLabel, { color: theme.primaryAction }]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -85,6 +124,16 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
   },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' },
+  stateButton: {
+    alignItems: 'center',
+    borderRadius: borderRadii.full,
+    borderWidth: borderWidths.thin,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+  },
+  stateButtonLabel: { ...typography.caption, fontWeight: '700' },
   loadingRow: {
     alignItems: 'center',
     borderRadius: borderRadii.md,

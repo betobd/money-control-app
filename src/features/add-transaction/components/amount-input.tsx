@@ -6,25 +6,27 @@ import type { TransactionFormType } from '@/features/add-transaction/transaction
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AmountInputProps = {
+  autoFocus?: boolean;
   digits: string;
+  label?: string;
   onDigitsChange: (digits: string) => void;
   type: TransactionFormType;
   error?: string;
 };
 
-export function AmountInput({ digits, onDigitsChange, type, error }: AmountInputProps) {
+export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigitsChange, type, error }: AmountInputProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
   const formattedAmount = formatCopDigits(digits);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-      <Text style={[styles.label, { color: theme.secondaryText }]}>Amount</Text>
+      <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
       <View style={styles.inputRow}>
         <Text style={[styles.symbol, { color: tone }]}>$</Text>
         <TextInput
           accessibilityLabel="Amount in Colombian pesos"
-          autoFocus
+          autoFocus={autoFocus}
           keyboardType="number-pad"
           maxLength={21}
           onChangeText={(value) => onDigitsChange(value.replace(/\D/g, '').slice(0, 16))}
