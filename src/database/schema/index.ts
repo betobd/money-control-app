@@ -191,8 +191,11 @@ export const recurringTransactions = sqliteTable(
     note: text('note'),
     frequency: text('frequency', { enum: ['daily', 'weekly', 'monthly', 'yearly'] }).notNull(),
     interval: integer('interval').notNull().default(1),
-    nextTransactionDate: text('next_transaction_date').notNull(),
+    startDate: text('start_date').notNull(),
+    nextOccurrenceDate: text('next_occurrence_date').notNull(),
+    endDate: text('end_date'),
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    endedAt: text('ended_at'),
     ...auditColumns,
   },
   (table) => [
@@ -201,8 +204,12 @@ export const recurringTransactions = sqliteTable(
     check('recurring_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
     check('recurring_currency_cop', sql`${table.currency} = 'COP'`),
     check('recurring_interval_positive', sql`${table.interval} > 0`),
+    check('recurring_start_date_valid', sql`${table.startDate} GLOB '????-??-??' AND date(${table.startDate}) = ${table.startDate}`),
+    check('recurring_next_date_valid', sql`${table.nextOccurrenceDate} GLOB '????-??-??' AND date(${table.nextOccurrenceDate}) = ${table.nextOccurrenceDate}`),
+    check('recurring_end_date_valid', sql`${table.endDate} IS NULL OR (${table.endDate} GLOB '????-??-??' AND date(${table.endDate}) = ${table.endDate} AND ${table.endDate} >= ${table.startDate})`),
     check('recurring_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('recurring_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('recurring_ended_at_utc', sql`${table.endedAt} IS NULL OR ${table.endedAt} GLOB '????-??-??T??:??:??*Z'`),
     check(
       'recurring_shape_valid',
       sql`(
@@ -211,6 +218,73 @@ export const recurringTransactions = sqliteTable(
         (${table.type} = 'transfer' AND ${table.destinationAccountId} IS NOT NULL AND ${table.accountId} <> ${table.destinationAccountId} AND ${table.categoryId} IS NULL)
       )`,
     ),
-    index('recurring_next_date_idx').on(table.isActive, table.nextTransactionDate),
+    index('recurring_next_date_idx').on(table.isActive, table.nextOccurrenceDate),
+  ],
+);
+
+export const recurringOccurrences = sqliteTable(
+  'recurring_occurrences',
+  {
+    id: text('id').primaryKey(),
+    recurringTransactionId: text('recurring_transaction_id')
+      .notNull()
+      .references(() => recurringTransactions.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    scheduledDate: text('scheduled_date').notNull(),
+    status: text('status', { enum: ['pending', 'posted', 'skipped'] }).notNull().default('pending'),
+    type: text('type', { enum: ['income', 'expense', 'transfer'] }).notNull(),
+    amount: integer('amount').notNull(),
+    currency: text('currency').notNull().default('COP'),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    destinationAccountId: text('destination_account_id').references(() => accounts.id, {
+      onDelete: 'restrict',
+      onUpdate: 'restrict',
+    }),
+    categoryId: text('category_id').references(() => categories.id, {
+      onDelete: 'restrict',
+      onUpdate: 'restrict',
+    }),
+    note: text('note'),
+    transactionId: text('transaction_id').references(() => transactions.id, {
+      onDelete: 'restrict',
+      onUpdate: 'restrict',
+    }),
+    ...auditColumns,
+  },
+  (table) => [
+    check('recurring_occurrence_status_valid', sql`${table.status} IN ('pending', 'posted', 'skipped')`),
+    check('recurring_occurrence_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
+    check('recurring_occurrence_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('recurring_occurrence_currency_cop', sql`${table.currency} = 'COP'`),
+    check('recurring_occurrence_date_valid', sql`${table.scheduledDate} GLOB '????-??-??' AND date(${table.scheduledDate}) = ${table.scheduledDate}`),
+    check('recurring_occurrence_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('recurring_occurrence_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check(
+      'recurring_occurrence_shape_valid',
+      sql`(
+        (${table.type} IN ('income', 'expense') AND ${table.destinationAccountId} IS NULL AND ${table.categoryId} IS NOT NULL)
+        OR
+        (${table.type} = 'transfer' AND ${table.destinationAccountId} IS NOT NULL AND ${table.accountId} <> ${table.destinationAccountId} AND ${table.categoryId} IS NULL)
+      )`,
+    ),
+    check(
+      'recurring_occurrence_transaction_link_valid',
+      sql`(
+        (${table.status} = 'posted' AND ${table.transactionId} IS NOT NULL)
+        OR
+        (${table.status} IN ('pending', 'skipped') AND ${table.transactionId} IS NULL)
+      )`,
+    ),
+    uniqueIndex('recurring_occurrences_rule_date_uidx').on(
+      table.recurringTransactionId,
+      table.scheduledDate,
+    ),
+    uniqueIndex('recurring_occurrences_transaction_uidx').on(table.transactionId),
+    index('recurring_occurrences_status_date_idx').on(table.status, table.scheduledDate),
+    index('recurring_occurrences_rule_status_idx').on(table.recurringTransactionId, table.status),
+    index('recurring_occurrences_account_idx').on(table.accountId),
+    index('recurring_occurrences_destination_account_idx').on(table.destinationAccountId),
+    index('recurring_occurrences_category_idx').on(table.categoryId),
   ],
 );

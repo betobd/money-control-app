@@ -68,8 +68,23 @@ Migration 0004 keeps the original direct category relationship, validates that e
 
 ### `recurring_transactions`
 
-- Transaction template shape, recurrence frequency/interval, next local date, and active state.
-- Foundation only; no scheduler or transaction generation behavior is implemented.
+- Reusable transaction template shape for expense, income, or transfer.
+- Frequency (`daily | weekly | monthly | yearly`) plus a positive interval; every two weeks is stored as weekly with interval `2`.
+- Bogotá-local `start_date`, `next_occurrence_date`, and optional inclusive `end_date`.
+- `is_active` distinguishes active from paused; `ended_at` distinguishes a terminal rule from a paused rule.
+- UTC `created_at`, `updated_at`, and optional `ended_at`.
+
+Rules do not reserve funds and never post transactions automatically. Active references are validated when a rule is created or edited. Editing a rule affects only dates that have not yet been materialized as occurrences.
+
+### `recurring_occurrences`
+
+- Stable ID, parent recurring-rule ID, and Bogotá-local `scheduled_date`.
+- Status (`pending | posted | skipped`).
+- Snapshot of the rule's transaction shape, so one pending occurrence can be edited without mutating the rule or sibling occurrences.
+- Optional `transaction_id`, required exactly when status is `posted`.
+- UTC `created_at` and `updated_at`.
+
+`UNIQUE(recurring_transaction_id, scheduled_date)` makes generation idempotent. Confirmation inserts the normal posted transaction and links the occurrence in one SQLite transaction. Skipped occurrences remain audit history and have no transaction link or financial effect.
 
 ### Migration metadata
 
@@ -83,10 +98,11 @@ Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applie
 - Transfers and voided transactions contribute zero to income and expense reporting.
 - History retains both posted and voided records and labels their status.
 - Budget spending uses posted expense transactions whose `category_id` equals the budget's category and whose `transaction_date` is inside the budget month. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
+- Pending and skipped recurring occurrences never affect balances, budgets, Home totals, or transaction history. A confirmed occurrence affects those read models only through its linked normal posted transaction.
 
 ## 4. Indexes
 
-The schema indexes transaction date, `(type, transaction_date)`, source and destination account references, category references, split account references, budget month, unique budget category/month, and recurring next date. These existing indexes support the current filtered-history MVP. Status-aware, compound ordering, FTS, or normalized-search indexes should be added only when real query plans and production-sized measurements justify them.
+The schema indexes transaction date, `(type, transaction_date)`, source and destination account references, category references, split account references, budget month, unique budget category/month, recurring next date, occurrence status/date, occurrence rule/status, and occurrence account/category references. These indexes support current history and recurring review queries. FTS or normalized-search indexes should be added only when real query plans and production-sized measurements justify them.
 
 ## 5. Lifecycle rules
 
@@ -94,9 +110,12 @@ The schema indexes transaction date, `(type, transaction_date)`, source and dest
 - Permanent account deletion is limited to unused accounts with zero opening and derived balances and no references in transactions, transaction splits, recurring templates, or other financial history. Referenced accounts are retained, and existing `ON DELETE RESTRICT` foreign keys are not weakened.
 - Persisted transactions transition from posted to voided; they are not deleted.
 - The implemented lifecycle has no `voided → posted` transition. Corrections to a voided record require a future new transaction workflow rather than unvoiding.
+- Recurring occurrences transition from pending to exactly one terminal state: posted or skipped. Posted and skipped occurrences cannot return to pending.
+- Pausing a recurring rule is reversible and does not backfill the paused interval when resumed. Ending is terminal and preserves all existing occurrences.
+- Due-occurrence generation runs when the Recurring screen loads, catches up through the current Bogotá date, and creates at most 100 occurrences per rule per load. A later load continues from the saved cursor when a larger backlog remains.
 - Opening balance becomes immutable after the first posted account transaction.
 - Corrections after activity use a future adjustment transaction.
-- Recurrence and split behavior remain outside this implementation phase.
+- Split behavior remains outside this implementation phase.
 
 ## 6. Remaining modeling decisions
 

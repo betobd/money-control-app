@@ -76,6 +76,8 @@ export class TransactionValidationError extends Error {
   }
 }
 
+export type TransactionPersistence = (transaction: TransactionRecord) => Promise<void>;
+
 export type TransactionActionErrorCode =
   | 'transaction_not_found'
   | 'transaction_already_voided'
@@ -123,7 +125,10 @@ export class TransactionService {
     return this.repository.summarizeMonth(month);
   }
 
-  async create(input: TransactionInput): Promise<TransactionRecord> {
+  async create(
+    input: TransactionInput,
+    persist: TransactionPersistence = (transaction) => this.repository.create(transaction),
+  ): Promise<TransactionRecord> {
     const normalized = this.normalize(input);
     await this.validate(normalized);
     const timestamp = this.now();
@@ -138,9 +143,15 @@ export class TransactionService {
       ? { ...normalized, ...metadata, categoryId: null }
       : { ...normalized, ...metadata, destinationAccountId: null };
 
-    await this.repository.create(transaction);
+    await persist(transaction);
     notifyFinancialDataChanged();
     return transaction;
+  }
+
+  async validateTemplate(input: TransactionInput): Promise<TransactionInput> {
+    const normalized = this.normalize(input);
+    await this.validate(normalized, undefined, {}, false);
+    return normalized;
   }
 
   async update(id: string, input: TransactionInput): Promise<TransactionListItem> {
@@ -201,6 +212,7 @@ export class TransactionService {
     input: TransactionInput,
     original?: TransactionListItem,
     errors: TransactionValidationErrors = {},
+    validateTransferFunds = true,
   ): Promise<void> {
     if (!supportedTransactionTypes.includes(input.type)) {
       errors.type = 'Select a supported transaction type.';
@@ -216,7 +228,7 @@ export class TransactionService {
     }
 
     if (input.type === 'transfer') {
-      await this.validateTransfer(input, errors, original);
+      await this.validateTransfer(input, errors, original, validateTransferFunds);
     } else {
       await this.validateCategorizedTransaction(input, errors, original);
     }
@@ -249,6 +261,7 @@ export class TransactionService {
     input: Extract<TransactionInput, { type: 'transfer' }>,
     errors: TransactionValidationErrors,
     original?: TransactionListItem,
+    validateFunds = true,
   ): Promise<void> {
     if (!input.accountId) errors.accountId = 'Select a source account.';
     if (!input.destinationAccountId) errors.destinationAccountId = 'Select a destination account.';
@@ -269,6 +282,7 @@ export class TransactionService {
       errors,
     );
     if (errors.accountId || errors.destinationAccountId || !source || !destination) return;
+    if (!validateFunds) return;
 
     const projected = new Map(accounts.map((account) => [account.id, account.balance]));
     const affected = new Set<string>();

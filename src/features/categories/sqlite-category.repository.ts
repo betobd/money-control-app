@@ -1,7 +1,13 @@
 import { and, eq, ne, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
-import { budgets, categories, recurringTransactions, transactions } from '@/database/schema';
+import {
+  budgets,
+  categories,
+  recurringOccurrences,
+  recurringTransactions,
+  transactions,
+} from '@/database/schema';
 import type { CategoryRepository, CategoryUpdate } from './category.repository';
 import type { Category, CategoryType } from './category.types';
 
@@ -21,12 +27,13 @@ export class SQLiteCategoryRepository implements CategoryRepository {
     return row ? mapCategory(row) : null;
   }
   async hasFinancialReferences(id: string): Promise<boolean> {
-    const [transaction, budget, recurring] = await Promise.all([
+    const [transaction, budget, recurring, occurrence] = await Promise.all([
       database.select({ id: transactions.id }).from(transactions).where(eq(transactions.categoryId, id)).limit(1),
       database.select({ id: budgets.id }).from(budgets).where(eq(budgets.categoryId, id)).limit(1),
       database.select({ id: recurringTransactions.id }).from(recurringTransactions).where(eq(recurringTransactions.categoryId, id)).limit(1),
+      database.select({ id: recurringOccurrences.id }).from(recurringOccurrences).where(eq(recurringOccurrences.categoryId, id)).limit(1),
     ]);
-    return Boolean(transaction[0] || budget[0] || recurring[0]);
+    return Boolean(transaction[0] || budget[0] || recurring[0] || occurrence[0]);
   }
   async create(category: Category): Promise<void> { await database.insert(categories).values(category); }
   async update(id: string, update: CategoryUpdate): Promise<void> { await database.update(categories).set(update).where(eq(categories.id, id)); }

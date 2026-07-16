@@ -1,7 +1,13 @@
 import { and, eq, ne, or, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
-import { accounts, recurringTransactions, transactionSplits, transactions } from '@/database/schema';
+import {
+  accounts,
+  recurringOccurrences,
+  recurringTransactions,
+  transactionSplits,
+  transactions,
+} from '@/database/schema';
 import type { AccountDeletionEligibility, AccountRepository, AccountUpdateRecord, NewAccountRecord } from './account.repository';
 import type { Account, AccountType, AccountWithBalance } from './account.types';
 
@@ -56,7 +62,7 @@ export class SQLiteAccountRepository implements AccountRepository {
     const account = (await this.list(true)).find((candidate) => candidate.id === id) ?? null;
     if (!account) return { account: null, hasFinancialReferences: false };
 
-    const [transactionReference, splitReference, recurringReference] = await Promise.all([
+    const [transactionReference, splitReference, recurringReference, occurrenceReference] = await Promise.all([
       database
         .select({ id: transactions.id })
         .from(transactions)
@@ -72,12 +78,20 @@ export class SQLiteAccountRepository implements AccountRepository {
         .from(recurringTransactions)
         .where(or(eq(recurringTransactions.accountId, id), eq(recurringTransactions.destinationAccountId, id)))
         .limit(1),
+      database
+        .select({ id: recurringOccurrences.id })
+        .from(recurringOccurrences)
+        .where(or(
+          eq(recurringOccurrences.accountId, id),
+          eq(recurringOccurrences.destinationAccountId, id),
+        ))
+        .limit(1),
     ]);
 
     return {
       account,
       hasFinancialReferences: Boolean(
-        transactionReference[0] || splitReference[0] || recurringReference[0],
+        transactionReference[0] || splitReference[0] || recurringReference[0] || occurrenceReference[0],
       ),
     };
   }

@@ -40,6 +40,9 @@ export default function RootLayout() {
         <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="more" options={{ presentation: 'modal' }} />
         <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="recurring-form" options={{ presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="recurring-occurrence" options={{ presentation: 'fullScreenModal' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

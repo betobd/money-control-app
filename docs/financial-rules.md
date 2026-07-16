@@ -135,7 +135,20 @@ Every schema change uses an ordered migration. A released or externally applied 
 - Optional future visual groups such as Leisure or Household may display several independent category budgets together, but cannot change attribution or cause double counting. Future tags or projects may model cross-cutting expenses such as trips, weddings, renovations, or events. Groups, tags, and projects are not implemented in the current phase.
 - These Budget calculations are implemented by the Budget repository/service read model and are shared by the Budgets screen and Home preview.
 
-## 12. Decisions still unresolved
+## 12. Recurring transactions
+
+- A recurring rule is a reusable template, not a posted transaction and not a balance reservation.
+- The app materializes due occurrences only while the application is running and the Recurring screen is loaded. It does not post in the background.
+- Every occurrence starts pending. Only explicit user confirmation may create a posted transaction; skipping creates no transaction and no financial effect.
+- Confirmation reuses the normal transaction service and therefore revalidates active accounts/categories, category type, distinct transfer accounts, safe amount/date rules, and current transfer funds.
+- Transaction insertion and the occurrence's `pending → posted` transition are one atomic repository operation. A failed validation or write leaves the occurrence pending and creates no partial transaction.
+- Editing one pending occurrence modifies its snapshot only. Editing a rule affects only future dates that have not been generated.
+- Occurrence generation is idempotent by parent rule and scheduled date. Catch-up is limited to 100 occurrences per rule per screen load.
+- All scheduled dates use Bogotá-local `YYYY-MM-DD` calendar values. Monthly schedules preserve their original intended day, clamping to month end where necessary; annual leap-day schedules clamp to February's last day and return to February 29 in leap years.
+- Paused rules generate nothing. Resuming advances to the first anchored schedule date on or after the current Bogotá date, so the paused interval is not backfilled.
+- Ended rules never resume or generate again. Existing pending, posted, and skipped occurrences remain available for review and audit.
+
+## 13. Decisions still unresolved
 
 - Adjustment transaction representation and category treatment.
 - Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.

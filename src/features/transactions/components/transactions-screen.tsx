@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     textTransform: 'uppercase',
   },
-  transactionItem: { paddingBottom: spacing.sm },
+  transactionItem: { paddingBottom: spacing.md },
   emptyArea: { gap: spacing.sm },
   footer: { alignItems: 'center', paddingVertical: spacing.xl },
   loadMoreButton: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.lg },
