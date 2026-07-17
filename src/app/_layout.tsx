@@ -39,6 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
         <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="more" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="backup" />
         <Stack.Screen name="reports" />
         <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
         <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />

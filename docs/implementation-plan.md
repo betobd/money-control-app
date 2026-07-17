@@ -142,11 +142,15 @@ Exit criteria:
 
 - Critical path passes on the supported Android versions/devices.
 - No known balance-reconciliation or migration defects remain.
-- Data-loss limitations (especially lack of backup/export) are disclosed.
+- Data-loss and privacy limitations (especially plaintext manual backups and no automatic backup) are disclosed.
 
 ### Implemented reporting vertical slice
 
 Reports is implemented as a dedicated feature repository/service/UI slice reachable from More at `/reports`. It covers period summary, cash flow over time, category expenses, net-worth evolution, and previous-period comparison without adding a chart dependency or schema migration. See [reports.md](reports.md) for calculations, grouping, performance expectations, and known limitations.
+
+### Implemented backup and restore vertical slice
+
+Backup & Restore is implemented as a dedicated feature service/repository/adapter/UI slice reachable from More at `/backup`. It uses a versioned logical JSON contract, deterministic SHA-256 integrity checking, native document/share surfaces, strict limits and relationship validation, and an exclusive atomic SQLite replacement with post-restore checks. No database migration was needed because it serializes the existing application-owned schema. See [backup-and-restore.md](backup-and-restore.md).
 
 ## 5. Test matrix
 
@@ -190,4 +194,4 @@ Accounts/categories can begin only after the initial schema is stable. History a
 - UX/design source of truth and accessibility target.
 - Expected transaction volume for performance testing.
 - Whether seed data/default categories ship in migration 001 or application bootstrap.
-- Whether backup/export must move into MVP because local-only data may be lost on uninstall or device failure.
+- Password-protected/authenticated backup design and key-management policy for a future format version.

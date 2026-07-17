@@ -6,6 +6,8 @@ Migration 001 is the unreleased initial Expo SQLite schema managed by Drizzle OR
 
 `created_at` and `updated_at` are UTC ISO 8601 timestamps. `transaction_date` is an independent Bogotá-local calendar date stored as `YYYY-MM-DD`; it is never derived from an audit timestamp.
 
+The portable backup model mirrors all seven application-owned tables using camel-cased logical fields, but deliberately excludes physical SQLite/Drizzle migration metadata. Restore targets the already-migrated current schema and preserves IDs and relationships exactly. See [backup-and-restore.md](backup-and-restore.md) for the versioned contract.
+
 ## 2. Tables
 
 ### `accounts`

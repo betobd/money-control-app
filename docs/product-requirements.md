@@ -61,6 +61,15 @@ This document describes product behavior. Financial invariants are normative in 
 - Exclude transfers, voided transactions, and unconfirmed recurring occurrences from income/expense reporting.
 - Preserve archived account/category history and the signed credit-card debt convention in net-worth reporting.
 
+#### Backup and restore
+
+- Create a complete, versioned logical backup of local financial data and share/save it through Android system UI.
+- Preview metadata and record counts before a restore.
+- Require explicit destructive confirmation and replace data atomically, never merge or partially restore.
+- Preserve IDs, archived records, notes, transaction status, transfers, budgets, and recurring state.
+- Reject damaged, incompatible, oversized, or relationally invalid files before changing the database.
+- Warn clearly that version 1 backups contain sensitive financial data in plaintext.
+
 ### Data integrity
 
 - Monetary values must not use floating-point arithmetic.
@@ -128,6 +137,7 @@ These assumptions make the scope implementable but are not yet confirmed product
 - Data survives app restarts.
 - Database initialization applies every pending migration exactly once in order.
 - A migration failure does not leave a partially migrated schema.
+- A failed restore leaves the entire pre-restore database unchanged, while a successful restore survives restart and refreshes every affected read model.
 
 ## 5. Explicitly out of MVP
 
@@ -141,7 +151,7 @@ Unless later promoted into scope:
 - Multiple currencies, conversion, and exchange rates.
 - Receipt scanning or attachments.
 - Web and iOS release commitments.
-- Data export/import, backup/restore, and encryption beyond platform defaults.
+- Encrypted/password-protected backup, automatic/scheduled backup, cloud sync, merge import, and partial restore.
 - Split transactions and transaction tagging.
 
 ## 6. Unresolved decisions
@@ -157,4 +167,4 @@ Unless later promoted into scope:
 | Opening balance changes after activity | Can rewrite historical meaning | Lock it after the first transaction or represent adjustments as transactions |
 | Dashboard month navigation | Defines whether “monthly” means current month only | Support previous/next month, defaulting to current month |
 | Filter persistence | Affects return behavior | Keep filters only for the current app session |
-| Backup/export | Local-only data is vulnerable to uninstall/device loss | Explicitly warn users until a later backup feature exists |
+| Backup encryption | Plaintext manual backups are portable but sensitive | Keep version 1 explicit and add authenticated encryption only through a future format version |

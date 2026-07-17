@@ -1,6 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
+import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
 import { subscribeToRecurringDataChanges } from './recurring-data-events';
 import { recurringTransactionService } from './recurring-transactions';
 import type {
@@ -42,6 +43,10 @@ export function useRecurringTransactions() {
   }, [reload]));
 
   useEffect(() => subscribeToRecurringDataChanges(() => {
+    void reload();
+  }), [reload]);
+
+  useEffect(() => subscribeToFinancialDataChanges(() => {
     void reload();
   }), [reload]);
 
