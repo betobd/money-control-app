@@ -148,7 +148,20 @@ Every schema change uses an ordered migration. A released or externally applied 
 - Paused rules generate nothing. Resuming advances to the first anchored schedule date on or after the current Bogotá date, so the paused interval is not backfilled.
 - Ended rules never resume or generate again. Existing pending, posted, and skipped occurrences remain available for review and audit.
 
-## 13. Decisions still unresolved
+## 13. Reports
+
+- Reports use persisted SQLite data and the inclusive Bogotá-local `transactionDate` range selected by the user. Audit timestamps never determine period membership.
+- Only posted income and expenses affect period summary, cash-flow, category, and comparison metrics. Transfers and voided transactions contribute zero.
+- Average expense is rounded to the nearest whole peso and is zero when no posted expense exists.
+- Category percentages use integer basis points and stable category IDs. Archived category history remains included; a defensive unknown-category label is presentation fallback only.
+- Net worth includes every active and archived account opening balance plus all posted financial effects through each point. Credit-card debt retains its signed negative convention. Transfers conserve total net worth.
+- Net-worth series include the value immediately before the selected period, followed by daily end values for short ranges or month-end values for longer ranges.
+- Calendar presets compare with the preceding equivalent calendar window; custom periods compare with the immediately preceding equal-length inclusive day range.
+- Percentage changes use integer basis points and are omitted when the previous value is zero. Expense increases are semantically negative even though their numeric difference is positive.
+
+Full reporting behavior and limitations are in [reports.md](reports.md).
+
+## 14. Decisions still unresolved
 
 - Adjustment transaction representation and category treatment.
 - Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.

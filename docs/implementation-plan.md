@@ -144,6 +144,10 @@ Exit criteria:
 - No known balance-reconciliation or migration defects remain.
 - Data-loss limitations (especially lack of backup/export) are disclosed.
 
+### Implemented reporting vertical slice
+
+Reports is implemented as a dedicated feature repository/service/UI slice reachable from More at `/reports`. It covers period summary, cash flow over time, category expenses, net-worth evolution, and previous-period comparison without adding a chart dependency or schema migration. See [reports.md](reports.md) for calculations, grouping, performance expectations, and known limitations.
+
 ## 5. Test matrix
 
 | Area | Essential cases |
@@ -187,4 +191,3 @@ Accounts/categories can begin only after the initial schema is stable. History a
 - Expected transaction volume for performance testing.
 - Whether seed data/default categories ship in migration 001 or application bootstrap.
 - Whether backup/export must move into MVP because local-only data may be lost on uninstall or device failure.
-

@@ -99,10 +99,11 @@ Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applie
 - History retains both posted and voided records and labels their status.
 - Budget spending uses posted expense transactions whose `category_id` equals the budget's category and whose `transaction_date` is inside the budget month. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
 - Pending and skipped recurring occurrences never affect balances, budgets, Home totals, or transaction history. A confirmed occurrence affects those read models only through its linked normal posted transaction.
+- Reports derive summaries, cash-flow buckets, category rankings, and net-worth changes from posted transactions and `transaction_date`. Report percentages and comparison values are transient service results and are never persisted.
 
 ## 4. Indexes
 
-The schema indexes transaction date, `(type, transaction_date)`, source and destination account references, category references, split account references, budget month, unique budget category/month, recurring next date, occurrence status/date, occurrence rule/status, and occurrence account/category references. These indexes support current history and recurring review queries. FTS or normalized-search indexes should be added only when real query plans and production-sized measurements justify them.
+The schema indexes transaction date, `(type, transaction_date)`, source and destination account references, category references, split account references, budget month, unique budget category/month, recurring next date, occurrence status/date, occurrence rule/status, and occurrence account/category references. The transaction date/type/category indexes also support the current bounded reporting aggregates. No reporting-specific index is added without real query plans and production-sized measurements. FTS or normalized-search indexes should follow the same evidence threshold.
 
 ## 5. Lifecycle rules
 

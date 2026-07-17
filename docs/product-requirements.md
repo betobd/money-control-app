@@ -53,6 +53,14 @@ This document describes product behavior. Financial invariants are normative in 
 - Derive spending automatically from posted expense transactions; users never select a budget on a transaction.
 - Show real monthly budget progress in Budgets and Home, derived from persisted posted expenses for budgeted categories.
 
+#### Reports
+
+- Open Reports from More without adding a sixth bottom-navigation item.
+- Show period summary, income versus expenses, expenses by category, net-worth evolution, and previous-period comparison from persisted SQLite data.
+- Support current month, previous month, last 3 months, last 6 months, current year, and an inclusive custom Bogotá-local date range.
+- Exclude transfers, voided transactions, and unconfirmed recurring occurrences from income/expense reporting.
+- Preserve archived account/category history and the signed credit-card debt convention in net-worth reporting.
+
 ### Data integrity
 
 - Monetary values must not use floating-point arithmetic.
