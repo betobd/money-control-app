@@ -7,6 +7,7 @@
     "scheme": "moneycontrolapp",
     "userInterfaceStyle": "automatic",
     "android": {
+      "package": "com.alber.moneycontrolapp",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -15,7 +16,20 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Money Control to use device biometrics for app unlock."
+        }
+      ],
+      "expo-build-properties",
+      "react-native-quick-crypto",
+      "expo-image",
+      "expo-splash-screen",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

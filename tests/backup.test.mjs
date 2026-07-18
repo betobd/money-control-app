@@ -157,6 +157,18 @@ test('generates the versioned format, UTC/Bogotá/COP metadata, all collections,
   assert.equal(file.data.transactionSplits.length, 1);
   assert.match(file.integrity.checksum, /^[a-f0-9]{64}$/);
   assert.equal(await checksum.verify(file), true);
+  const serialized = serializer.stringify(file);
+  for (const forbidden of [
+    'money_control_app_lock_config_v1',
+    'money_control_pin_verifier_v1',
+    'money_control_pin_verifier_pending_v1',
+    'money_control_app_lock_attempts_v1',
+    'saltHex',
+    'derivedKeyHex',
+    'biometricUnlockEnabled',
+    'failedAttempts',
+    'lockoutUntilEpochMs',
+  ]) assert.equal(serialized.includes(forbidden), false);
 });
 
 test('orders every collection by ID and produces the same checksum for the same canonical data', async () => {

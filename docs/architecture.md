@@ -19,6 +19,7 @@ The repository is a lightly modified `create-expo-app` starter, not yet a Money 
 - Recurring Transactions is a functional vertical slice under More. Its service generates bounded, idempotent pending occurrences from reusable rules, while confirmation delegates validation and transaction construction to `TransactionService`. The recurring repository atomically persists the normal transaction and occurrence link, then the existing financial-data invalidation refreshes Accounts, Home, Budgets, and Transactions.
 - Reports is a functional SQLite-backed vertical slice under More at `/reports`. A dedicated reporting repository performs bounded aggregate queries, while `ReportService` validates Bogotá-local periods, fills continuous buckets, calculates basis-point percentages and previous-period comparisons, and builds net-worth points from opening balances plus cumulative posted history. It reuses focus/event financial-data invalidation without changing transaction persistence.
 - Backup & Restore is a functional local-first vertical slice under More at `/backup`. It exports a versioned logical JSON snapshot through Android's native share UI and imports through the native document picker. Restore validates the complete graph and checksum before replacing all application-owned rows in one exclusive SQLite transaction; migration metadata and device secrets are excluded. See [backup-and-restore.md](backup-and-restore.md).
+- Local App Lock is an optional SecureStore-backed vertical slice under More at `/security`. A root provider resolves lock configuration before SQLite initialization or protected-route mounting, then gates the financial stack behind a six-digit, native PBKDF2-verified PIN with optional strong device biometrics, AppState delays, local retry throttling, and Android screen-capture protection. The native KDF requires an Android development or production build and is intentionally unavailable in Expo Go. It does not encrypt SQLite or plaintext backups. See [security.md](security.md).
 - Expo SQLite and Drizzle ORM now provide the local database foundation. The root layout initializes the database and applies bundled migrations before rendering routes.
 - Migration 0000 defines accounts, categories, posted/voided transactions, transaction-split foundation, the original one-category budget foundation, and recurring transaction templates. Migration 0004 preserves the direct category relationship while renaming the budget amount to `limit_amount` and removing the redundant COP currency column. Migration 0005 upgrades recurring templates with schedule lifecycle fields and adds snapshot-based recurring occurrences.
 - The app config declares Android, iOS, and static web settings, although the stated product target is Android.
@@ -165,6 +166,8 @@ Reports also remains outside the five primary tabs. More pushes the dedicated `/
 
 Backup & Restore likewise remains outside the five primary tabs. More pushes `/backup`; export and import use Android system surfaces, while the route itself stays a thin feature composition boundary.
 
+Security also remains outside the five primary tabs. More pushes `/security`. Its route is a thin feature composition boundary; SecureStore, PBKDF2, biometric result normalization, lockout rules, AppState timing, and privacy protection stay in the security feature rather than UI components. The App Lock gate wraps database initialization and the complete root stack so protected content is not mounted while lock state is loading or locked.
+
 ### Budgets slice
 
 The Budgets slice keeps route files thin and derives attribution automatically from `budget.category_id`, `transaction.category_id`, and the transaction date. Transactions never persist or select a budget ID. The direct `budgets.category_id` foreign key and `UNIQUE(category_id, month)` constraint make one expense category correspond to at most one budget in a month, so a qualifying transaction cannot overlap multiple budgets under the MVP model.
@@ -196,6 +199,7 @@ Optional visual groups such as Leisure or Household may later present several in
 - Network access is unnecessary for core workflows.
 - OS app sandboxing is the initial storage protection; database encryption is not currently confirmed.
 - Manual backups are plaintext and carry a prominent privacy warning. Password protection, authenticated encryption, Android automatic-backup policy, rooted-device threats, screenshots, and at-rest database encryption remain release decisions.
+- Optional App Lock protects casual UI access with a local PIN and strong device biometrics. It uses Android Keystore-backed SecureStore records and `FLAG_SECURE`, but does not protect against rooted/instrumented devices, external cameras, every overlay/capture technique, plaintext SQLite extraction after device compromise, or plaintext exported backups.
 
 ## 10. Unresolved decisions
 

@@ -42,6 +42,7 @@ All monetary values remain safe integers in the same whole-COP representation us
 - Drizzle's `__drizzle_migrations` table and every SQLite internal table.
 - The database file, WAL/SHM files, indexes, constraints, and other physical schema details.
 - SecureStore values, OS credentials, device-local secrets, cache files, logs, and transient hook/UI state.
+- App Lock configuration, biometric preference, PIN salts/verifiers, staged verifier changes, and failed-attempt/lockout records.
 - App configuration and seeded defaults as a separate concept; existing category rows, including defaults that the user renamed or archived, are already included as categories.
 
 Migration history remains owned by the installed app. Restore writes logical rows into the current migrated schema; a backup never rewinds or fabricates migration metadata.
@@ -108,6 +109,7 @@ Only after commit does the service publish one global financial-data invalidatio
 - There is no password protection, encryption, signature/authenticity, cloud sync, scheduled backup, merge import, partial restore, or cross-currency conversion.
 - Version 1 supports only COP and the current Money Control logical model.
 - Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret version 1 plaintext files.
+- Restoring a financial backup never reads or writes SecureStore. It therefore cannot enable, disable, or alter the current device's App Lock, biometric preference, PIN verifier, or failed-attempt state. Restored financial data remains behind the current device lock when that lock is enabled.
 
 ## Verification
 

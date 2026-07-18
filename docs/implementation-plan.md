@@ -152,6 +152,10 @@ Reports is implemented as a dedicated feature repository/service/UI slice reacha
 
 Backup & Restore is implemented as a dedicated feature service/repository/adapter/UI slice reachable from More at `/backup`. It uses a versioned logical JSON contract, deterministic SHA-256 integrity checking, native document/share surfaces, strict limits and relationship validation, and an exclusive atomic SQLite replacement with post-restore checks. No database migration was needed because it serializes the existing application-owned schema. See [backup-and-restore.md](backup-and-restore.md).
 
+### Implemented local App Lock vertical slice
+
+Local App Lock is implemented as a SecureStore-backed feature under More at `/security`. The root lock provider resolves security state before database initialization or financial-route mounting. It supports an exactly six-digit, native PBKDF2 verifier, strong device biometrics with independent PIN fallback, AppState delays, manual locking, persisted temporary retry delays, Android screen-capture/recent-app privacy, and deliberate Android app-storage recovery guidance. The native crypto path requires a development build and fails closed when unavailable; Expo Go is not a supported App Lock runtime. No database migration was needed because security records never enter SQLite or logical financial backups. See [security.md](security.md).
+
 ## 5. Test matrix
 
 | Area | Essential cases |

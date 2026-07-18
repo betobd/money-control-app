@@ -70,6 +70,16 @@ This document describes product behavior. Financial invariants are normative in 
 - Reject damaged, incompatible, oversized, or relationally invalid files before changing the database.
 - Warn clearly that version 1 backups contain sensitive financial data in plaintext.
 
+#### Local App Lock
+
+- Optionally protect application UI access with an exactly six-digit local PIN.
+- Offer strong device biometrics only after PIN creation and current-PIN verification, while retaining the PIN as fallback.
+- Lock immediately on demand and after a configured AppState background delay.
+- Keep financial routes hidden until SecureStore-backed lock configuration is known and the enabled lock is satisfied.
+- Prevent normal Android screenshots and obscure recent-app previews while App Lock is enabled where platform support permits.
+- Exclude every App Lock record and secret from financial backup and restore behavior.
+- Disclose that App Lock does not encrypt SQLite or plaintext exported backup files.
+
 ### Data integrity
 
 - Monetary values must not use floating-point arithmetic.
