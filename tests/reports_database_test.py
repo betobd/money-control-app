@@ -88,7 +88,7 @@ categories = [
     ('old-utilities', 'Old utilities', 'expense', 'bills', 1, utc, utc, utc),
     ('salary', 'Salary', 'income', 'salary', 0, None, utc, utc),
 ]
-connection.executemany('INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
+connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
 connection.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', categories)
 transactions = [
     ('prior-expense', 'expense', 'posted', 100_000, 'COP', 'checking', None, 'food', None, '2026-06-30', utc, utc),

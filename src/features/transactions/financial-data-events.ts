@@ -8,6 +8,7 @@ export type FinancialDataChange =
       after?: TransactionRecord | TransactionListItem;
     }
   | { kind: 'budget'; operation: 'create' | 'update' | 'remove'; budgetId: string }
+  | { kind: 'account'; operation: 'create' | 'update' | 'archive' | 'restore' | 'delete'; accountId: string }
   | { kind: 'restore' }
   | { kind: 'unspecified' };
 

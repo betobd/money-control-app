@@ -4,7 +4,8 @@ import test from 'node:test';
 import { AccountActionError, AccountService, AccountValidationError } from '../src/features/accounts/account.service.ts';
 
 const NOW = '2026-07-12T12:00:00.000Z';
-const validInput = { name: 'Main Checking', type: 'checking', openingBalance: 100000, creditLimit: null };
+const validInput = { name: 'Main Checking', type: 'checking', openingBalance: 100000, creditLimit: null, statementClosingDay: null, paymentDueDay: null };
+const validCardInput = { ...validInput, name: 'Visa', type: 'credit_card', creditLimit: 2_000_000, statementClosingDay: 15, paymentDueDay: 5 };
 
 class MemoryAccountRepository {
   accounts = [];
@@ -18,6 +19,7 @@ class MemoryAccountRepository {
     return this.accounts.find((account) => !account.isArchived && account.id !== excludingId && account.name.trim().toLocaleLowerCase('es-CO') === name) ?? null;
   }
   async hasPostedTransactions(id) { return this.postedActivity.has(id); }
+  async hasCreditCardStatements() { return false; }
   async getDeletionEligibility(id) {
     const account = this.accounts.find((candidate) => candidate.id === id);
     return {
@@ -79,14 +81,16 @@ test('rejects unsafe integer monetary values', async () => {
   assert.match(fields.openingBalance, /safe/i);
 });
 
-test('validates credit-card limits and clears limits for other account types', async () => {
+test('requires positive credit-card limits and valid cycle days', async () => {
   const { service } = setup();
-  const fields = await validationFields(() => service.create({ ...validInput, type: 'credit_card', creditLimit: -1 }));
-  assert.match(fields.creditLimit, /non-negative/i);
+  const fields = await validationFields(() => service.create({ ...validCardInput, creditLimit: -1 }));
+  assert.match(fields.creditLimit, /positive/i);
+  const cycleFields = await validationFields(() => service.create({ ...validCardInput, statementClosingDay: 32 }));
+  assert.match(cycleFields.statementClosingDay, /1 to 31/i);
   const checking = await service.create({ ...validInput, creditLimit: null });
   assert.equal(checking.creditLimit, null);
-  const credit = await service.create({ ...validInput, name: 'Visa', type: 'credit_card', creditLimit: null });
-  assert.equal(credit.creditLimit, null);
+  const credit = await service.create(validCardInput);
+  assert.equal(credit.creditLimit, 2_000_000);
 });
 
 test('edits opening balance before posted activity', async () => {
@@ -249,15 +253,12 @@ test('an archived credit card with debt still reduces net worth', () => {
 test('stores credit-card opening debt as negative without double-negating it', async () => {
   const { service } = setup();
   const positiveMagnitude = await service.create({
-    ...validInput,
-    name: 'Visa',
-    type: 'credit_card',
+    ...validCardInput,
     openingBalance: 1000000,
   });
   const alreadySigned = await service.create({
-    ...validInput,
+    ...validCardInput,
     name: 'Mastercard',
-    type: 'credit_card',
     openingBalance: -500000,
   });
   assert.equal(positiveMagnitude.openingBalance, -1000000);

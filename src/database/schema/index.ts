@@ -26,6 +26,8 @@ export const accounts = sqliteTable(
     currency: text('currency').notNull().default('COP'),
     openingBalance: integer('opening_balance').notNull().default(0),
     creditLimit: integer('credit_limit'),
+    statementClosingDay: integer('statement_closing_day'),
+    paymentDueDay: integer('payment_due_day'),
     isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
     archivedAt: text('archived_at'),
     ...auditColumns,
@@ -45,10 +47,49 @@ export const accounts = sqliteTable(
       'accounts_credit_limit_valid',
       sql`${table.creditLimit} IS NULL OR (typeof(${table.creditLimit}) = 'integer' AND ${table.type} = 'credit_card' AND ${table.creditLimit} >= 0 AND ${table.creditLimit} <= ${MAX_SAFE_MONEY_SQL})`,
     ),
+    check(
+      'accounts_statement_closing_day_valid',
+      sql`${table.statementClosingDay} IS NULL OR (typeof(${table.statementClosingDay}) = 'integer' AND ${table.type} = 'credit_card' AND ${table.statementClosingDay} BETWEEN 1 AND 31)`,
+    ),
+    check(
+      'accounts_payment_due_day_valid',
+      sql`${table.paymentDueDay} IS NULL OR (typeof(${table.paymentDueDay}) = 'integer' AND ${table.type} = 'credit_card' AND ${table.paymentDueDay} BETWEEN 1 AND 31)`,
+    ),
     index('accounts_archived_idx').on(table.isArchived),
     uniqueIndex('accounts_active_name_uidx')
       .on(sql`lower(trim(${table.name}))`)
       .where(sql`${table.isArchived} = 0`),
+  ],
+);
+
+export const creditCardStatements = sqliteTable(
+  'credit_card_statements',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    periodStart: text('period_start').notNull(),
+    periodEnd: text('period_end').notNull(),
+    closingDate: text('closing_date').notNull(),
+    dueDate: text('due_date').notNull(),
+    statementBalance: integer('statement_balance').notNull(),
+    minimumPayment: integer('minimum_payment').notNull(),
+    ...auditColumns,
+  },
+  (table) => [
+    check('credit_card_statements_period_start_valid', sql`${table.periodStart} GLOB '????-??-??' AND date(${table.periodStart}) = ${table.periodStart}`),
+    check('credit_card_statements_period_end_valid', sql`${table.periodEnd} GLOB '????-??-??' AND date(${table.periodEnd}) = ${table.periodEnd}`),
+    check('credit_card_statements_closing_date_valid', sql`${table.closingDate} GLOB '????-??-??' AND date(${table.closingDate}) = ${table.closingDate}`),
+    check('credit_card_statements_due_date_valid', sql`${table.dueDate} GLOB '????-??-??' AND date(${table.dueDate}) = ${table.dueDate}`),
+    check('credit_card_statements_period_valid', sql`${table.periodStart} <= ${table.periodEnd} AND ${table.closingDate} >= ${table.periodEnd} AND ${table.dueDate} >= ${table.closingDate}`),
+    check('credit_card_statements_balance_valid', sql`typeof(${table.statementBalance}) = 'integer' AND ${table.statementBalance} BETWEEN 0 AND ${MAX_SAFE_MONEY_SQL}`),
+    check('credit_card_statements_minimum_valid', sql`typeof(${table.minimumPayment}) = 'integer' AND ${table.minimumPayment} BETWEEN 0 AND ${table.statementBalance}`),
+    check('credit_card_statements_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('credit_card_statements_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    uniqueIndex('credit_card_statements_account_closing_uidx').on(table.accountId, table.closingDate),
+    index('credit_card_statements_account_period_idx').on(table.accountId, table.periodEnd),
+    index('credit_card_statements_due_date_idx').on(table.dueDate),
   ],
 );
 
@@ -302,6 +343,11 @@ export const notificationSettings = sqliteTable(
     budgetAlertsEnabled: integer('budget_alerts_enabled', { mode: 'boolean' }).notNull().default(false),
     dailyReminderEnabled: integer('daily_reminder_enabled', { mode: 'boolean' }).notNull().default(false),
     dailyReminderTime: text('daily_reminder_time').notNull().default('19:00'),
+    creditCardRemindersEnabled: integer('credit_card_reminders_enabled', { mode: 'boolean' }).notNull().default(false),
+    creditCardClosingReminderEnabled: integer('credit_card_closing_reminder_enabled', { mode: 'boolean' }).notNull().default(true),
+    creditCardDueThreeDaysEnabled: integer('credit_card_due_three_days_enabled', { mode: 'boolean' }).notNull().default(true),
+    creditCardDueOneDayEnabled: integer('credit_card_due_one_day_enabled', { mode: 'boolean' }).notNull().default(true),
+    creditCardDueTodayEnabled: integer('credit_card_due_today_enabled', { mode: 'boolean' }).notNull().default(true),
     notificationContentMode: text('notification_content_mode', { enum: ['private', 'detailed'] }).notNull().default('private'),
     permissionPrompted: integer('permission_prompted', { mode: 'boolean' }).notNull().default(false),
     lastErrorCode: text('last_error_code'),
@@ -324,7 +370,7 @@ export const scheduledNotifications = sqliteTable(
   'scheduled_notifications',
   {
     id: text('id').primaryKey(),
-    domainType: text('domain_type', { enum: ['recurring-occurrence', 'daily-reminder', 'test-notification'] }).notNull(),
+    domainType: text('domain_type', { enum: ['recurring-occurrence', 'daily-reminder', 'test-notification', 'credit-card-reminder'] }).notNull(),
     domainId: text('domain_id').notNull(),
     notificationKind: text('notification_kind').notNull(),
     scheduledNotificationId: text('scheduled_notification_id').notNull(),
@@ -335,7 +381,7 @@ export const scheduledNotifications = sqliteTable(
     updatedAt: text('updated_at').notNull(),
   },
   (table) => [
-    check('scheduled_notification_domain_valid', sql`${table.domainType} IN ('recurring-occurrence', 'daily-reminder', 'test-notification')`),
+    check('scheduled_notification_domain_valid', sql`${table.domainType} IN ('recurring-occurrence', 'daily-reminder', 'test-notification', 'credit-card-reminder')`),
     check('scheduled_notification_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('scheduled_notification_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
     check('scheduled_notification_scheduled_at_utc', sql`${table.scheduledAt} GLOB '????-??-??T??:??:??*Z'`),

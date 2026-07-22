@@ -8,9 +8,10 @@ import {
 } from './backup.repository';
 import type {
   BackupAccount,
+  BackupCreditCardStatement,
   BackupBudget,
   BackupCategory,
-  BackupDataV1,
+  BackupDataV2,
   BackupOverview,
   BackupRecurringOccurrence,
   BackupRecurringTransaction,
@@ -30,6 +31,7 @@ type OverviewRow = {
   budgets: number;
   recurringRules: number;
   recurringOccurrences: number;
+  creditCardStatements: number;
   oldest: string | null;
   newest: string | null;
 };
@@ -58,6 +60,7 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
       (SELECT count(*) FROM budgets) AS budgets,
       (SELECT count(*) FROM recurring_transactions) AS recurringRules,
       (SELECT count(*) FROM recurring_occurrences) AS recurringOccurrences,
+      (SELECT count(*) FROM credit_card_statements) AS creditCardStatements,
       (SELECT min(transaction_date) FROM transactions) AS oldest,
       (SELECT max(transaction_date) FROM transactions) AS newest
   `);
@@ -70,6 +73,7 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
       budgets: Number(row?.budgets ?? 0),
       recurringRules: Number(row?.recurringRules ?? 0),
       recurringOccurrences: Number(row?.recurringOccurrences ?? 0),
+      creditCardStatements: Number(row?.creditCardStatements ?? 0),
     },
     transactionDateRange: {
       oldest: row?.oldest ?? null,
@@ -78,10 +82,11 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
   };
 }
 
-async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV1> {
+async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV2> {
   const accounts = await database.getAllAsync<SqlAccount>(`
     SELECT id, name, type, currency, opening_balance AS openingBalance,
-      credit_limit AS creditLimit, is_archived AS isArchived,
+      credit_limit AS creditLimit, statement_closing_day AS statementClosingDay,
+      payment_due_day AS paymentDueDay, is_archived AS isArchived,
       archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
     FROM accounts ORDER BY id
   `);
@@ -124,6 +129,13 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV1> {
       created_at AS createdAt, updated_at AS updatedAt
     FROM recurring_occurrences ORDER BY id
   `);
+  const creditCardStatements = await database.getAllAsync<BackupCreditCardStatement>(`
+    SELECT id, account_id AS accountId, period_start AS periodStart,
+      period_end AS periodEnd, closing_date AS closingDate, due_date AS dueDate,
+      statement_balance AS statementBalance, minimum_payment AS minimumPayment,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM credit_card_statements ORDER BY id
+  `);
 
   return {
     accounts: accounts.map((row) => ({ ...row, isArchived: row.isArchived === 1 })),
@@ -136,18 +148,31 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV1> {
       isActive: row.isActive === 1,
     })),
     recurringOccurrences,
+    creditCardStatements,
   };
 }
 
-async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV1): Promise<void> {
+async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV2): Promise<void> {
   await insertRows(database, `
     INSERT INTO accounts (
-      id, name, type, currency, opening_balance, credit_limit, is_archived,
+      id, name, type, currency, opening_balance, credit_limit,
+      statement_closing_day, payment_due_day, is_archived,
       archived_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, data.accounts.map((row) => [
     row.id, row.name, row.type, row.currency, row.openingBalance, row.creditLimit,
-    row.isArchived ? 1 : 0, row.archivedAt, row.createdAt, row.updatedAt,
+    row.statementClosingDay, row.paymentDueDay, row.isArchived ? 1 : 0,
+    row.archivedAt, row.createdAt, row.updatedAt,
+  ]));
+
+  await insertRows(database, `
+    INSERT INTO credit_card_statements (
+      id, account_id, period_start, period_end, closing_date, due_date,
+      statement_balance, minimum_payment, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, data.creditCardStatements.map((row) => [
+    row.id, row.accountId, row.periodStart, row.periodEnd, row.closingDate,
+    row.dueDate, row.statementBalance, row.minimumPayment, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `
@@ -214,7 +239,7 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV1): Pro
 
 async function runPostRestoreChecks(
   database: SQLiteDatabase,
-  data: BackupDataV1,
+  data: BackupDataV2,
 ): Promise<BackupOverview> {
   const actual = await readOverview(database);
   const expected = createBackupOverview(data);
@@ -244,6 +269,9 @@ async function runPostRestoreChecks(
       + (SELECT count(*) FROM recurring_occurrences AS o
         JOIN categories AS c ON c.id = o.category_id
         WHERE o.type IN ('income', 'expense') AND c.type <> o.type)
+      + (SELECT count(*) FROM credit_card_statements AS s
+        JOIN accounts AS a ON a.id = s.account_id
+        WHERE a.type <> 'credit_card')
       AS violations
   `);
   if (Number(domain?.violations ?? 0) !== 0) {
@@ -272,8 +300,8 @@ export class SQLiteBackupRepository implements BackupRepository {
     return readOverview(sqlite);
   }
 
-  async readSnapshot(): Promise<BackupDataV1> {
-    let snapshot: BackupDataV1 | undefined;
+  async readSnapshot(): Promise<BackupDataV2> {
+    let snapshot: BackupDataV2 | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       snapshot = await readSnapshot(transaction);
     });
@@ -281,10 +309,11 @@ export class SQLiteBackupRepository implements BackupRepository {
     return snapshot;
   }
 
-  async replaceAll(data: BackupDataV1): Promise<BackupOverview> {
+  async replaceAll(data: BackupDataV2): Promise<BackupOverview> {
     let overview: BackupOverview | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       await transaction.execAsync(`
+        DELETE FROM credit_card_statements;
         DELETE FROM recurring_occurrences;
         DELETE FROM transaction_splits;
         DELETE FROM budgets;

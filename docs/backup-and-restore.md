@@ -8,12 +8,12 @@ Creating a backup reads one consistent SQLite snapshot, builds and self-validate
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.
 
-## Version 1 file contract
+## Version 2 file contract
 
 Top-level fields are:
 
 - `format`: literal `money-control-backup`.
-- `formatVersion`: integer `1`, independent from the database schema version.
+- `formatVersion`: integer `2`, independent from the database schema version.
 - `appVersion`, `schemaVersion`, and UTC `createdAt` provenance.
 - `timezone`: literal `America/Bogota`; `currency`: literal `COP`.
 - `summary`: counts for every collection.
@@ -27,7 +27,8 @@ All monetary values remain safe integers in the same whole-COP representation us
 
 | Collection | Fields |
 |---|---|
-| `accounts` | `id`, `name`, `type`, `currency`, `openingBalance`, `creditLimit`, `isArchived`, `archivedAt`, `createdAt`, `updatedAt` |
+| `accounts` | prior account fields plus `statementClosingDay` and `paymentDueDay` |
+| `creditCardStatements` | ID, card relationship, period/closing/due dates, statement balance, minimum payment, audit timestamps |
 | `categories` | `id`, `name`, `type`, `icon`, `isArchived`, `archivedAt`, `createdAt`, `updatedAt` |
 | `transactions` | `id`, `type`, `status`, `amount`, `currency`, `accountId`, `destinationAccountId`, `categoryId`, `note`, `transactionDate`, `createdAt`, `updatedAt` |
 | `transactionSplits` | `id`, `transactionId`, `accountId`, `amount`, `position` |
@@ -52,13 +53,13 @@ Migration history remains owned by the installed app. Restore writes logical row
 
 Every exported collection is sorted by stable record ID. The SHA-256 input is canonical JSON with object keys sorted recursively and array order preserved. The sole excluded value is `integrity.checksum` itself; `integrity.algorithm` remains covered. The readable file is pretty-printed JSON and ends with a newline, but whitespace is not part of checksum verification because verification canonicalizes the parsed document again.
 
-SHA-256 detects accidental damage and casual modification. It is not authentication: because the backup has no secret signature key, an attacker who can alter the file can also recompute the checksum. Version 1 is intentionally unencrypted plaintext.
+SHA-256 detects accidental damage and casual modification. It is not authentication: because the backup has no secret signature key, an attacker who can alter the file can also recompute the checksum. Version 2 remains intentionally unencrypted plaintext.
 
 ## Compatibility and migration policy
 
-The portable format version is independent of migration `0005`. The importer rejects an unsupported or future `formatVersion` before touching SQLite. A dedicated format migrator currently accepts version 1 as identity; future app releases must add explicit `vN → vN+1` transforms rather than branch ad hoc inside the repository. A differing source `schemaVersion` is shown as a warning when the portable format remains supported.
+The portable format version is independent of migration `0007`. The importer accepts v1 and v2 and rejects unsupported or future versions before touching SQLite. The in-memory v1→v2 migration adds null cycle fields and an empty statement collection; it never invents statements or zero-value placeholders. An empty statement collection means no statement has been recorded. A differing source `schemaVersion` is shown as a warning when the portable format remains supported.
 
-Version 1 restores IDs exactly. It does not merge, remap, or partially import records.
+Version 2 restores IDs exactly. It does not merge, remap, or partially import records.
 
 ## Validation and defensive limits
 
@@ -85,18 +86,20 @@ Restore uses `withExclusiveTransactionAsync` with foreign keys still enabled. It
 3. budgets
 4. recurring rules
 5. transactions
-6. categories
-7. accounts
+6. credit-card statements
+7. categories
+8. accounts
 
 It inserts in dependency order:
 
 1. accounts
-2. categories
-3. transactions
-4. transaction splits
-5. budgets
-6. recurring rules
-7. recurring occurrences
+2. credit-card statements
+3. categories
+4. transactions
+5. transaction splits
+6. budgets
+7. recurring rules
+8. recurring occurrences
 
 Prepared statements and bound parameters are used throughout. Before commit, the repository verifies collection counts and transaction date range, rechecks category compatibility, runs `PRAGMA foreign_key_check`, and requires `PRAGMA integrity_check = 'ok'`. Any deletion, insertion, validation, or integrity failure rejects the transaction and leaves the pre-restore database unchanged.
 
@@ -108,8 +111,8 @@ Only after commit does the service publish one global financial-data invalidatio
 - Temporary export and picker copies live only in the app cache and are deleted on the best-effort cleanup path after use.
 - The feature requests no broad storage permission and has no cloud/network component. The user chooses the destination/provider through Android system UI.
 - There is no password protection, encryption, signature/authenticity, cloud sync, scheduled backup, merge import, partial restore, or cross-currency conversion.
-- Version 1 supports only COP and the current Money Control logical model.
-- Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret version 1 plaintext files.
+- Version 2 supports only COP and the current Money Control logical model.
+- Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret existing plaintext files.
 - Restoring a financial backup never reads or writes SecureStore. It therefore cannot enable, disable, or alter the current device's App Lock, biometric preference, PIN verifier, or failed-attempt state. Restored financial data remains behind the current device lock when that lock is enabled.
 - Restore preserves the current device's notification preferences. After the financial replacement commits, it cancels known local schedules, clears device-specific schedule/threshold metadata, rebuilds allowed recurring and daily work, and baselines restored budgets without historical alerts. It never requests notification permission or enables a reminder category. Notification cleanup failure cannot roll back the already committed financial restore.
 

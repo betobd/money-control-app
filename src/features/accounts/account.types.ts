@@ -9,6 +9,8 @@ export type Account = {
   currency: 'COP';
   openingBalance: number;
   creditLimit: number | null;
+  statementClosingDay: number | null;
+  paymentDueDay: number | null;
   isArchived: boolean;
   archivedAt: string | null;
   createdAt: string;
@@ -24,8 +26,10 @@ export type AccountInput = {
   type: AccountType;
   openingBalance: number;
   creditLimit: number | null;
+  statementClosingDay: number | null;
+  paymentDueDay: number | null;
 };
 
-export type AccountField = 'name' | 'type' | 'openingBalance' | 'creditLimit';
+export type AccountField = 'name' | 'type' | 'openingBalance' | 'creditLimit' | 'statementClosingDay' | 'paymentDueDay';
 
 export type AccountValidationErrors = Partial<Record<AccountField, string>>;

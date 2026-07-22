@@ -3,10 +3,10 @@ import type { BackupChecksumService } from './backup-checksum.service';
 import type { BackupFileAdapter, PickBackupFileResult } from './backup-file.adapter';
 import type { BackupFormatMigrator } from './backup-format-migrator';
 import type { BackupRepository } from './backup.repository';
-import { createBackupFileName, type BackupSerializer } from './backup-serializer';
+import { createBackupFileName, createBackupOverview, type BackupSerializer } from './backup-serializer';
 import type {
   BackupExportResult,
-  BackupFileV1,
+  BackupFile,
   BackupOverview,
   BackupPreview,
   BackupRestoreResult,
@@ -76,6 +76,7 @@ export class BackupService {
         `Created with database schema ${parsed.file.schemaVersion}; backup format ${parsed.file.formatVersion} is compatible.`,
       );
     }
+    const overview = createBackupOverview(parsed.data);
     const preview: BackupPreview = {
       fileName: selected.file.fileName,
       fileSize: selected.file.fileSize,
@@ -84,8 +85,8 @@ export class BackupService {
       appVersion: parsed.file.appVersion,
       currency: parsed.file.currency,
       schemaVersion: parsed.file.schemaVersion,
-      summary: parsed.file.summary,
-      transactionDateRange: parsed.file.transactionDateRange,
+      summary: overview.summary,
+      transactionDateRange: overview.transactionDateRange,
       compatible: true,
       warnings,
     };
@@ -106,16 +107,18 @@ export class BackupService {
   private async parseBackup(
     text: string,
     fileSize: number,
-  ): Promise<{ file: BackupFileV1; data: RestoreCandidate['data'] }> {
+  ): Promise<{ file: BackupFile; data: RestoreCandidate['data'] }> {
     const envelope = this.validator.parseEnvelope(text, fileSize);
     this.migrator.assertSupported(envelope.formatVersion);
-    const file = this.validator.validateV1(envelope.raw);
+    const file = envelope.formatVersion === 1
+      ? this.validator.validateV1(envelope.raw)
+      : this.validator.validateV2(envelope.raw);
     return this.validateFile(file);
   }
 
   private async validateFile(
-    file: BackupFileV1,
-  ): Promise<{ file: BackupFileV1; data: RestoreCandidate['data'] }> {
+    file: BackupFile,
+  ): Promise<{ file: BackupFile; data: RestoreCandidate['data'] }> {
     this.validator.validateRelationships(file);
     if (!(await this.checksum.verify(file))) throw this.validator.checksumMismatch();
     return { file, data: this.migrator.migrate(file) };

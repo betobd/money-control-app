@@ -32,7 +32,7 @@ assert {
 
 utc = '2026-07-16T15:00:00.000Z'
 connection.execute(
-    'INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
     ('checking', 'Checking', 'checking', 'COP', 1_000_000, None, 0, None, utc, utc),
 )
 connection.execute(
@@ -114,7 +114,7 @@ upgrade.execute('PRAGMA foreign_keys = ON')
 for migration in sorted(migrations.glob('*.sql'))[:5]:
     apply(upgrade, migration)
 upgrade.execute(
-    'INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
     ('legacy-account', 'Legacy', 'checking', 'COP', 0, None, 0, None, utc, utc),
 )
 upgrade.execute(

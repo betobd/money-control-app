@@ -4,7 +4,7 @@
 
 App Lock is an optional, device-local interface lock under **More → Security** at `/security`. It is disabled by default and never adds a bottom-navigation item. Enabling it creates a six-digit numeric PIN. Strong device biometrics may then be enabled as a convenience; the Money Control PIN always remains an independent fallback.
 
-This feature protects casual access to rendered application content. It is not a user account, remote authentication system, replacement for Android device security, database encryption mechanism, or backup encryption mechanism. The SQLite database remains plaintext inside the application sandbox. Version 1 exported JSON backups remain plaintext and readable outside Money Control.
+This feature protects casual access to rendered application content. It is not a user account, remote authentication system, replacement for Android device security, database encryption mechanism, or backup encryption mechanism. The SQLite database remains plaintext inside the application sandbox. Exported JSON backups remain plaintext and readable outside Money Control.
 
 ## Startup and navigation gate
 

@@ -7,6 +7,7 @@ import type { NotificationScheduler } from './notification-scheduler';
 import type { NotificationSettingsRepository } from './notification-settings.repository';
 import type { NotificationSettings } from './notification.types';
 import type { RecurringReminderCoordinator } from './recurring-reminder.coordinator';
+import type { CreditCardReminderCoordinator } from './credit-card-reminder.coordinator';
 
 export class NotificationCoordinator {
   private queue: Promise<void> = Promise.resolve();
@@ -19,6 +20,7 @@ export class NotificationCoordinator {
     private readonly recurring: RecurringReminderCoordinator,
     private readonly daily: DailyReminderCoordinator,
     private readonly budgets: BudgetAlertCoordinator,
+    private readonly creditCards: CreditCardReminderCoordinator,
     private readonly now = () => new Date().toISOString(),
   ) {}
 
@@ -28,6 +30,7 @@ export class NotificationCoordinator {
       this.run('schedule-failed', async () => {
         await this.recurring.reconcile();
         await this.daily.reconcile();
+        await this.creditCards.reconcile();
         await this.budgets.baselineIfEmpty();
       }));
   }
@@ -36,6 +39,7 @@ export class NotificationCoordinator {
     return this.run('schedule-failed', async () => {
       await this.recurring.reconcile();
       await this.daily.reconcile();
+      await this.creditCards.reconcile();
       if (settings.notificationsEnabled && settings.budgetAlertsEnabled) await this.budgets.baseline();
     });
   }
@@ -46,13 +50,21 @@ export class NotificationCoordinator {
 
   financialChanged(change: FinancialDataChange): Promise<void> {
     if (change.kind === 'restore') return Promise.resolve();
-    return this.run('schedule-failed', () => this.budgets.evaluate(change));
+    return this.run('schedule-failed', async () => {
+      await this.budgets.evaluate(change);
+      if (change.kind === 'transaction' || change.kind === 'account') await this.creditCards.reconcile();
+    });
+  }
+
+  creditCardChanged(): Promise<void> {
+    return this.run('schedule-failed', () => this.creditCards.reconcile());
   }
 
   appBecameActive(): Promise<void> {
     return this.run('schedule-failed', async () => {
       await this.recurring.reconcile();
       await this.daily.reconcile();
+      await this.creditCards.reconcile();
     });
   }
 
@@ -62,6 +74,7 @@ export class NotificationCoordinator {
       await this.budgetStates.clear();
       await this.recurring.reconcile();
       await this.daily.reconcile();
+      await this.creditCards.reconcile();
       await this.budgets.baseline();
     });
   }

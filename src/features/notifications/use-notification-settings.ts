@@ -83,6 +83,8 @@ export function useNotificationSettings() {
     setAdvanceDays: (value: 0 | 1 | 2 | 3) => run(() => notificationSettingsService.setRecurringAdvanceDays(value), 'Advance notice updated.'),
     setDailyTime: (value: string) => run(() => notificationSettingsService.setDailyTime(value), 'Daily reminder time updated.'),
     setContentMode: (value: NotificationContentMode) => run(() => notificationSettingsService.setContentMode(value), 'Notification privacy updated.'),
+    setCardClosing: (value: boolean) => run(() => notificationSettingsService.setCreditCardClosingReminderEnabled(value), 'Card closing reminder updated.'),
+    setCardDueOffset: (offset: 3 | 1 | 0, value: boolean) => run(() => notificationSettingsService.setCreditCardDueOffsetEnabled(offset, value), 'Card due reminder updated.'),
     openSettings: () => run(() => notificationSettingsService.openSystemSettings()),
     test: () => run(async () => {
       const value = await notificationTestService.schedule();

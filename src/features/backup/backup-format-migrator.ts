@@ -1,4 +1,4 @@
-import { CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV1, type BackupFileV1 } from './backup.types';
+import { CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV2, type BackupFile } from './backup.types';
 
 export class UnsupportedBackupVersionError extends Error {
   constructor(public readonly version: number) {
@@ -12,14 +12,24 @@ export class UnsupportedBackupVersionError extends Error {
 
 export class BackupFormatMigrator {
   assertSupported(version: number): void {
-    if (version !== CURRENT_BACKUP_FORMAT_VERSION) {
+    if (version !== 1 && version !== CURRENT_BACKUP_FORMAT_VERSION) {
       throw new UnsupportedBackupVersionError(version);
     }
   }
 
-  migrate(file: BackupFileV1): BackupDataV1 {
+  migrate(file: BackupFile): BackupDataV2 {
     switch (file.formatVersion) {
       case 1:
+        return {
+          ...file.data,
+          accounts: file.data.accounts.map((account) => ({
+            ...account,
+            statementClosingDay: null,
+            paymentDueDay: null,
+          })),
+          creditCardStatements: [],
+        };
+      case 2:
         return file.data;
     }
   }

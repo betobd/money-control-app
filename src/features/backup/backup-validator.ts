@@ -4,7 +4,9 @@ import {
   BACKUP_CURRENCY,
   BACKUP_FORMAT,
   BACKUP_TIMEZONE,
+  type BackupFile,
   type BackupFileV1,
+  type BackupFileV2,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -256,7 +258,7 @@ function validateTransactionShape(row: Record<string, unknown>, path: string, is
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2): void {
   rows.forEach((value, index) => {
     const path = `data.accounts[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -272,7 +274,53 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues): void {
         issue(issues, 'domain_mismatch', `${path}.creditLimit`, 'Only credit cards may have a credit limit.');
       }
     }
+    if (version === 2) {
+      for (const field of ['statementClosingDay', 'paymentDueDay'] as const) {
+        const fieldValue = row[field];
+        if (fieldValue !== null) {
+          validateSafeInteger(fieldValue, `${path}.${field}`, issues, { positive: true });
+          if (typeof fieldValue === 'number' && fieldValue > 31) {
+            issue(issues, 'invalid_value', `${path}.${field}`, `${path}.${field} must be from 1 to 31.`);
+          }
+          if (row.type !== 'credit_card') {
+            issue(issues, 'domain_mismatch', `${path}.${field}`, 'Only credit cards may have cycle settings.');
+          }
+        }
+      }
+      if ((row.statementClosingDay === null) !== (row.paymentDueDay === null)) {
+        issue(issues, 'domain_mismatch', path, 'Credit-card closing and due days must both be present or both be absent.');
+      }
+    }
     validateArchiveFields(row, path, issues);
+    validateAuditFields(row, path, issues);
+  });
+}
+
+function validateCreditCardStatementRows(rows: unknown[], issues: ValidationIssues): void {
+  rows.forEach((value, index) => {
+    const path = `data.creditCardStatements[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.id, `${path}.id`, issues);
+    validateId(row.accountId, `${path}.accountId`, issues);
+    validateCalendarDate(row.periodStart, `${path}.periodStart`, issues);
+    validateCalendarDate(row.periodEnd, `${path}.periodEnd`, issues);
+    validateCalendarDate(row.closingDate, `${path}.closingDate`, issues);
+    validateCalendarDate(row.dueDate, `${path}.dueDate`, issues);
+    validateSafeInteger(row.statementBalance, `${path}.statementBalance`, issues, { nonNegative: true });
+    validateSafeInteger(row.minimumPayment, `${path}.minimumPayment`, issues, { nonNegative: true });
+    if (typeof row.statementBalance === 'number' && typeof row.minimumPayment === 'number' && row.minimumPayment > row.statementBalance) {
+      issue(issues, 'domain_mismatch', `${path}.minimumPayment`, 'Minimum payment cannot exceed statement balance.');
+    }
+    if (typeof row.periodStart === 'string' && typeof row.periodEnd === 'string' && row.periodStart > row.periodEnd) {
+      issue(issues, 'domain_mismatch', path, 'Statement period is reversed.');
+    }
+    if (typeof row.periodEnd === 'string' && typeof row.closingDate === 'string' && row.closingDate < row.periodEnd) {
+      issue(issues, 'domain_mismatch', path, 'Statement closing date is before period end.');
+    }
+    if (typeof row.closingDate === 'string' && typeof row.dueDate === 'string' && row.dueDate < row.closingDate) {
+      issue(issues, 'domain_mismatch', path, 'Statement due date is before closing date.');
+    }
     validateAuditFields(row, path, issues);
   });
 }
@@ -437,7 +485,7 @@ function normalizedName(value: string): string {
   return value.trim().toLocaleLowerCase('es-CO');
 }
 
-function validateSummaryAndRange(file: BackupFileV1, issues: ValidationIssues): void {
+function validateSummaryAndRange(file: BackupFile, issues: ValidationIssues): void {
   const expected = {
     accounts: file.data.accounts.length,
     categories: file.data.categories.length,
@@ -447,8 +495,11 @@ function validateSummaryAndRange(file: BackupFileV1, issues: ValidationIssues): 
     recurringRules: file.data.recurringTransactions.length,
     recurringOccurrences: file.data.recurringOccurrences.length,
   };
-  for (const [key, count] of Object.entries(expected)) {
-    if (file.summary[key as keyof typeof expected] !== count) {
+  const expectedWithCards = file.formatVersion === 2
+    ? { ...expected, creditCardStatements: file.data.creditCardStatements.length }
+    : expected;
+  for (const [key, count] of Object.entries(expectedWithCards)) {
+    if ((file.summary as Record<string, number>)[key] !== count) {
       issue(issues, 'domain_mismatch', `summary.${key}`, `Backup summary count for ${key} does not match its data.`);
     }
   }
@@ -498,7 +549,18 @@ export class BackupValidator {
   }
 
   validateV1(raw: Record<string, unknown>): BackupFileV1 {
+    return this.validateVersion(raw, 1) as BackupFileV1;
+  }
+
+  validateV2(raw: Record<string, unknown>): BackupFileV2 {
+    return this.validateVersion(raw, 2) as BackupFileV2;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: 1 | 2): BackupFile {
     const issues: ValidationIssues = [];
+    if (raw.formatVersion !== version) {
+      issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
+    }
     validateString(raw.appVersion, 'appVersion', issues, { nonBlank: true });
     validateUtcTimestamp(raw.createdAt, 'createdAt', issues);
     if (raw.timezone !== BACKUP_TIMEZONE) {
@@ -509,7 +571,9 @@ export class BackupValidator {
 
     const summary = requireRecord(raw.summary, 'summary', issues);
     if (summary) {
-      for (const key of ['accounts', 'categories', 'transactions', 'transactionSplits', 'budgets', 'recurringRules', 'recurringOccurrences']) {
+      const keys = ['accounts', 'categories', 'transactions', 'transactionSplits', 'budgets', 'recurringRules', 'recurringOccurrences'];
+      if (version === 2) keys.push('creditCardStatements');
+      for (const key of keys) {
         validateSafeInteger(summary[key], `summary.${key}`, issues, { nonNegative: true });
       }
     }
@@ -540,19 +604,23 @@ export class BackupValidator {
       const budgets = requireArray(data, 'budgets', 'data.budgets', backupLimits.collections.budgets, issues);
       const recurring = requireArray(data, 'recurringTransactions', 'data.recurringTransactions', backupLimits.collections.recurringTransactions, issues);
       const occurrences = requireArray(data, 'recurringOccurrences', 'data.recurringOccurrences', backupLimits.collections.recurringOccurrences, issues);
-      validateAccountRows(accounts, issues);
+      const cardStatements = version === 2
+        ? requireArray(data, 'creditCardStatements', 'data.creditCardStatements', backupLimits.collections.creditCardStatements, issues)
+        : [];
+      validateAccountRows(accounts, issues, version);
       validateCategoryRows(categories, issues);
       validateTransactionRows(transactions, issues);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
       validateRecurringRows(recurring, issues);
       validateOccurrenceRows(occurrences, issues);
+      if (version === 2) validateCreditCardStatementRows(cardStatements, issues);
     }
     if (issues.length) throw new BackupValidationError(issues);
-    return raw as unknown as BackupFileV1;
+    return raw as unknown as BackupFile;
   }
 
-  validateRelationships(file: BackupFileV1): void {
+  validateRelationships(file: BackupFile): void {
     const issues: ValidationIssues = [];
     const { data } = file;
     validateUniqueIds(data.accounts, 'accounts', issues);
@@ -562,11 +630,29 @@ export class BackupValidator {
     validateUniqueIds(data.budgets, 'budgets', issues);
     validateUniqueIds(data.recurringTransactions, 'recurringTransactions', issues);
     validateUniqueIds(data.recurringOccurrences, 'recurringOccurrences', issues);
+    if (file.formatVersion === 2) validateUniqueIds(file.data.creditCardStatements, 'creditCardStatements', issues);
 
     const accountIds = new Set(data.accounts.map((row) => row.id));
     const categories = new Map(data.categories.map((row) => [row.id, row]));
     const transactionIds = new Set(data.transactions.map((row) => row.id));
     const recurringIds = new Set(data.recurringTransactions.map((row) => row.id));
+
+    if (file.formatVersion === 2) {
+      const statementKeys = new Set<string>();
+      for (const statement of file.data.creditCardStatements) {
+        const account = file.data.accounts.find((candidate) => candidate.id === statement.accountId);
+        if (!account) {
+          issue(issues, 'missing_reference', 'data.creditCardStatements', `Statement ${statement.id} references a missing account.`);
+        } else if (account.type !== 'credit_card') {
+          issue(issues, 'domain_mismatch', 'data.creditCardStatements', `Statement ${statement.id} must reference a credit card.`);
+        }
+        const key = `${statement.accountId}:${statement.closingDate}`;
+        if (statementKeys.has(key)) {
+          issue(issues, 'duplicate_constraint', 'data.creditCardStatements', 'Two statements use the same card and closing date.');
+        }
+        statementKeys.add(key);
+      }
+    }
 
     const activeAccountNames = new Set<string>();
     for (const account of data.accounts) {

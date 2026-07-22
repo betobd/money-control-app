@@ -5,14 +5,18 @@ import { borderRadii, borderWidths, spacing, typography } from '@/constants/them
 import { accountTypeLabels, formatCop } from '@/features/accounts/account-format';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
+import { CreditCardCycleService } from '@/features/credit-cards/credit-card-cycle.service';
+import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
+import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AccountCardProps = {
   account: AccountWithBalance;
   onActions: (account: AccountWithBalance) => void;
+  onOpen?: (account: AccountWithBalance) => void;
 };
 
-export function AccountCard({ account, onActions }: AccountCardProps) {
+export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
   const theme = useAppTheme();
   const isDebt = account.type === 'credit_card' && account.balance < 0;
   const balanceLabel = account.type === 'credit_card'
@@ -23,6 +27,12 @@ export function AccountCard({ account, onActions }: AccountCardProps) {
   const formattedBalance = formatCop(
     account.type === 'credit_card' ? Math.abs(account.balance) : account.balance,
   );
+  const utilization = account.type === 'credit_card'
+    ? calculateCreditCardUtilization(account.balance, account.creditLimit)
+    : null;
+  const cycle = account.type === 'credit_card' && account.statementClosingDay !== null && account.paymentDueDay !== null
+    ? new CreditCardCycleService().resolve(account.statementClosingDay, account.paymentDueDay, bogotaToday())
+    : null;
 
   return (
     <View
@@ -63,7 +73,12 @@ export function AccountCard({ account, onActions }: AccountCardProps) {
         </Pressable>
       </View>
 
-      <View style={styles.balance}>
+      <Pressable
+        accessibilityHint={onOpen ? 'Opens credit card details' : undefined}
+        accessibilityRole={onOpen ? 'button' : undefined}
+        disabled={!onOpen}
+        onPress={() => onOpen?.(account)}
+        style={styles.balance}>
         <Text style={[styles.balanceLabel, { color: theme.secondaryText }]}>{balanceLabel}</Text>
         <View style={styles.amountRow}>
           <Text
@@ -78,7 +93,13 @@ export function AccountCard({ account, onActions }: AccountCardProps) {
         {isDebt ? (
           <Text style={[styles.debtNote, { color: theme.expense }]}>Debt · reduces net worth</Text>
         ) : null}
-      </View>
+        {utilization ? (
+          <View style={styles.cardDetails}>
+            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available {utilization.availableCredit === null ? 'unavailable' : formatCop(utilization.availableCredit)} · Utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
+            {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
+          </View>
+        ) : null}
+      </Pressable>
     </View>
   );
 }
@@ -98,4 +119,5 @@ const styles = StyleSheet.create({
   amount: { ...typography.display, flexShrink: 1, fontSize: 28, fontVariant: ['tabular-nums'], lineHeight: 34 },
   currency: { ...typography.caption, marginLeft: spacing.xs },
   debtNote: { ...typography.caption, fontWeight: '600' },
+  cardDetails: { gap: spacing.xs, paddingTop: spacing.xs },
 });

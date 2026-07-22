@@ -6,6 +6,7 @@ import type {
   AccountWithBalance,
 } from './account.types';
 import { accountTypes } from './account.types';
+import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 
 export class AccountValidationError extends Error {
   constructor(public readonly fields: AccountValidationErrors) {
@@ -41,11 +42,19 @@ export function validateAccountInput(input: AccountInput): AccountValidationErro
     errors.openingBalance = 'Opening balance must be a whole, safe COP amount.';
   }
   if (input.type === 'credit_card') {
-    if (input.creditLimit !== null && (!Number.isSafeInteger(input.creditLimit) || input.creditLimit < 0)) {
-      errors.creditLimit = 'Credit limit must be a non-negative whole COP amount.';
+    if (!Number.isSafeInteger(input.creditLimit) || (input.creditLimit ?? 0) <= 0) {
+      errors.creditLimit = 'Credit limit must be a positive whole, safe COP amount.';
+    }
+    if (!Number.isInteger(input.statementClosingDay) || (input.statementClosingDay ?? 0) < 1 || (input.statementClosingDay ?? 0) > 31) {
+      errors.statementClosingDay = 'Closing day must be a whole number from 1 to 31.';
+    }
+    if (!Number.isInteger(input.paymentDueDay) || (input.paymentDueDay ?? 0) < 1 || (input.paymentDueDay ?? 0) > 31) {
+      errors.paymentDueDay = 'Payment due day must be a whole number from 1 to 31.';
     }
   } else if (input.creditLimit !== null) {
     errors.creditLimit = 'Credit limit is only available for credit cards.';
+  } else if (input.statementClosingDay !== null || input.paymentDueDay !== null) {
+    errors.statementClosingDay = 'Card cycle settings are only available for credit cards.';
   }
   return errors;
 }
@@ -98,6 +107,7 @@ export class AccountService {
       updatedAt: timestamp,
     };
     await this.repository.create(account);
+    notifyFinancialDataChanged({ kind: 'account', operation: 'create', accountId: account.id });
     return account;
   }
 
@@ -105,6 +115,26 @@ export class AccountService {
     const current = await this.repository.findById(id);
     if (!current) throw new Error('Account not found.');
     const normalized = await this.validate(input, id, current.isArchived);
+
+    if (
+      current.type === 'credit_card'
+      && normalized.type !== 'credit_card'
+      && await this.repository.hasCreditCardStatements(id)
+    ) {
+      throw new AccountValidationError({
+        type: 'A credit card with statement history cannot change account type.',
+      });
+    }
+
+    if (normalized.type === 'credit_card' && normalized.creditLimit !== null) {
+      const withBalance = (await this.repository.list(true)).find((account) => account.id === id);
+      const currentDebt = withBalance && withBalance.balance < 0 ? Math.abs(withBalance.balance) : 0;
+      if (normalized.creditLimit < currentDebt) {
+        throw new AccountValidationError({
+          creditLimit: 'Credit limit cannot be lower than the card’s current debt.',
+        });
+      }
+    }
 
     if (
       normalized.openingBalance !== current.openingBalance &&
@@ -116,12 +146,16 @@ export class AccountService {
     }
 
     await this.repository.update(id, { ...normalized, updatedAt: this.now() });
+    notifyFinancialDataChanged({ kind: 'account', operation: 'update', accountId: id });
   }
 
   async archive(id: string): Promise<void> {
     const account = await this.repository.findById(id);
     if (!account) throw new Error('Account not found.');
-    if (!account.isArchived) await this.repository.archive(id, this.now());
+    if (!account.isArchived) {
+      await this.repository.archive(id, this.now());
+      notifyFinancialDataChanged({ kind: 'account', operation: 'archive', accountId: id });
+    }
   }
 
   async restore(id: string): Promise<void> {
@@ -138,6 +172,7 @@ export class AccountService {
       );
     }
     await this.repository.restore(id, this.now());
+    notifyFinancialDataChanged({ kind: 'account', operation: 'restore', accountId: id });
   }
 
   async canPermanentlyDelete(id: string): Promise<boolean> {
@@ -168,6 +203,7 @@ export class AccountService {
       );
     }
     await this.repository.permanentlyDelete(id);
+    notifyFinancialDataChanged({ kind: 'account', operation: 'delete', accountId: id });
   }
 
   calculateNetWorth(accountsWithBalances: AccountWithBalance[]): number {
@@ -188,8 +224,19 @@ export class AccountService {
         ? input.openingBalance === 0 ? 0 : -Math.abs(input.openingBalance)
         : input.openingBalance,
       creditLimit: input.type === 'credit_card' ? input.creditLimit : null,
+      statementClosingDay: input.type === 'credit_card' ? input.statementClosingDay : null,
+      paymentDueDay: input.type === 'credit_card' ? input.paymentDueDay : null,
     };
     const errors = validateAccountInput(normalized);
+    if (
+      normalized.type === 'credit_card'
+      && !errors.creditLimit
+      && normalized.creditLimit !== null
+      && normalized.openingBalance < 0
+      && normalized.creditLimit < Math.abs(normalized.openingBalance)
+    ) {
+      errors.creditLimit = 'Credit limit cannot be lower than the opening card debt.';
+    }
     if (!errors.name && !isArchived) {
       const duplicate = await this.repository.findActiveByNormalizedName(
         normalizeName(normalized.name),

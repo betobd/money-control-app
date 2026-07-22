@@ -34,7 +34,7 @@ categories = [
     ('expense', 'Food', 'expense', 'food', 0, None, utc, utc),
     ('income', 'Salary', 'income', 'salary', 0, None, utc, utc),
 ]
-connection.executemany('INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
+connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
 connection.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', categories)
 connection.executemany(
     'INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -214,7 +214,7 @@ filter_categories = [
     ('archived-category-filter', 'Café', 'expense', 'food', 1, utc, utc, utc),
     ('unused-category-filter', 'Unused', 'expense', 'other', 0, None, utc, utc),
 ]
-query_database.executemany('INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)', filter_accounts)
+query_database.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', filter_accounts)
 query_database.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', filter_categories)
 tie_time = '2026-07-10T10:00:00.000Z'
 query_database.executemany(

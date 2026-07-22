@@ -6,7 +6,7 @@ Migration 001 is the unreleased initial Expo SQLite schema managed by Drizzle OR
 
 `created_at` and `updated_at` are UTC ISO 8601 timestamps. `transaction_date` is an independent Bogotá-local calendar date stored as `YYYY-MM-DD`; it is never derived from an audit timestamp.
 
-The portable backup model mirrors all seven application-owned tables using camel-cased logical fields, but deliberately excludes physical SQLite/Drizzle migration metadata. Restore targets the already-migrated current schema and preserves IDs and relationships exactly. See [backup-and-restore.md](backup-and-restore.md) for the versioned contract.
+The portable backup model mirrors all eight application-owned financial/statement tables using camel-cased logical fields, but deliberately excludes physical SQLite/Drizzle migration metadata. Restore targets the already-migrated current schema and preserves IDs and relationships exactly. See [backup-and-restore.md](backup-and-restore.md) for the versioned contract.
 
 ## 2. Tables
 
@@ -14,6 +14,7 @@ The portable backup model mirrors all seven application-owned tables using camel
 
 - `id`, `name`, controlled `type`, `currency`
 - integer `opening_balance`; optional integer `credit_limit`
+- optional integer `statement_closing_day` and `payment_due_day` for credit cards
 - `is_archived`, `archived_at`
 - UTC `created_at`, `updated_at`
 
@@ -32,6 +33,15 @@ Referenced categories cannot be physically deleted. Transaction/category compati
 Active category names are unique after trimming and case folding within each category type; expense and income may each contain the same normalized name. Categories may change type only before financial use. Archived categories remain addressable for history and are excluded from new transaction selection. Permanent deletion is limited to categories with no transaction, budget, recurring-template, or other financial references.
 
 The application seeds eight expense and five income defaults atomically only when the category table is empty. Seeding is idempotent and does not track a separate `is_default` flag; an archived or renamed category keeps the table non-empty and is not recreated.
+
+### `credit_card_statements`
+
+- `id`, restrictive `account_id`
+- Bogotá-local `period_start`, `period_end`, `closing_date`, and `due_date`
+- non-negative safe-integer `statement_balance` and `minimum_payment`
+- UTC `created_at`, `updated_at`
+
+One card has at most one statement per closing date. Statement rows are non-financial metadata: they never create postings or alter balances, budgets, reports, or net worth. See [credit-cards.md](credit-cards.md).
 
 ### `transactions`
 

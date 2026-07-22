@@ -1,4 +1,4 @@
-import type { BackupFileV1 } from './backup.types';
+import type { BackupFile } from './backup.types';
 
 export type BackupDigest = (canonicalValue: string) => Promise<string>;
 
@@ -19,7 +19,7 @@ export function canonicalizeJson(value: unknown): string {
   return JSON.stringify(sortForCanonicalJson(value));
 }
 
-export function checksumInput(file: BackupFileV1): unknown {
+export function checksumInput(file: BackupFile): unknown {
   const { checksum: _checksum, ...integrity } = file.integrity;
   void _checksum;
   return { ...file, integrity };
@@ -39,11 +39,11 @@ function equalHex(left: string, right: string): boolean {
 export class BackupChecksumService {
   constructor(private readonly digest: BackupDigest) {}
 
-  calculate(file: BackupFileV1): Promise<string> {
+  calculate(file: BackupFile): Promise<string> {
     return this.digest(canonicalizeJson(checksumInput(file)));
   }
 
-  async verify(file: BackupFileV1): Promise<boolean> {
+  async verify(file: BackupFile): Promise<boolean> {
     return equalHex(await this.calculate(file), file.integrity.checksum);
   }
 }

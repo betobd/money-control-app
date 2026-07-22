@@ -22,6 +22,8 @@ const account = (id, overrides = {}) => ({
   currency: 'COP',
   openingBalance: 1_000_000,
   creditLimit: null,
+  statementClosingDay: null,
+  paymentDueDay: null,
   isArchived: false,
   archivedAt: null,
   createdAt: NOW,
@@ -62,7 +64,7 @@ function representativeData() {
     accounts: [
       account('savings', { name: 'Savings', type: 'savings', openingBalance: 500_000 }),
       account('checking', { name: 'Checking' }),
-      account('card', { name: 'Card', type: 'credit_card', openingBalance: -200_000, creditLimit: 2_000_000 }),
+      account('card', { name: 'Card', type: 'credit_card', openingBalance: -200_000, creditLimit: 2_000_000, statementClosingDay: 15, paymentDueDay: 5 }),
       account('archived-account', { name: 'Old cash', type: 'cash', isArchived: true, archivedAt: NOW }),
     ],
     categories: [
@@ -102,12 +104,16 @@ function representativeData() {
         categoryId: 'food', note: 'Monthly', transactionId: null, createdAt: NOW, updatedAt: NOW,
       },
     ],
+    creditCardStatements: [
+      { id: 'statement', accountId: 'card', periodStart: '2026-06-16', periodEnd: '2026-07-15', closingDate: '2026-07-15', dueDate: '2026-08-05', statementBalance: 200_000, minimumPayment: 20_000, createdAt: NOW, updatedAt: NOW },
+    ],
   };
 }
 
 const emptyData = () => ({
   accounts: [], categories: [], transactions: [], transactionSplits: [], budgets: [],
   recurringTransactions: [], recurringOccurrences: [],
+  creditCardStatements: [],
 });
 
 async function createFile(data = representativeData()) {
@@ -123,7 +129,7 @@ async function validate(file, declaredSize = 0) {
   const text = serializer.stringify(file);
   const envelope = validator.parseEnvelope(text, declaredSize);
   migrator.assertSupported(envelope.formatVersion);
-  const typed = validator.validateV1(envelope.raw);
+  const typed = envelope.formatVersion === 1 ? validator.validateV1(envelope.raw) : validator.validateV2(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -143,14 +149,14 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 1);
+  assert.equal(file.formatVersion, 2);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
   assert.equal(file.schemaVersion, '0005');
   assert.deepEqual(file.summary, {
     accounts: 4, categories: 3, transactions: 4, transactionSplits: 1,
-    budgets: 1, recurringRules: 1, recurringOccurrences: 2,
+    budgets: 1, recurringRules: 1, recurringOccurrences: 2, creditCardStatements: 1,
   });
   assert.equal(file.data.accounts.some((row) => row.id === 'archived-account' && row.isArchived), true);
   assert.equal(file.data.categories.some((row) => row.id === 'archived-category' && row.isArchived), true);
@@ -220,7 +226,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 2;
+  future.formatVersion = 3;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');
@@ -314,4 +320,23 @@ test('does not replace or publish refresh for a tampered selected backup', async
   await assert.rejects(() => context.service.selectBackup(), BackupValidationError);
   assert.equal(context.repository.replacements, 0);
   assert.equal(context.refreshes(), 0);
+});
+
+test('migrates format v1 in memory with setup-incomplete cards and no invented statements', async () => {
+  const current = await createFile();
+  const legacy = structuredClone(current);
+  legacy.formatVersion = 1;
+  delete legacy.summary.creditCardStatements;
+  delete legacy.data.creditCardStatements;
+  legacy.data.accounts = legacy.data.accounts.map(({ statementClosingDay: _closing, paymentDueDay: _due, ...account }) => account);
+  legacy.integrity.checksum = await checksum.calculate(legacy);
+  const envelope = validator.parseEnvelope(JSON.stringify(legacy), 0);
+  migrator.assertSupported(envelope.formatVersion);
+  const validated = validator.validateV1(envelope.raw);
+  validator.validateRelationships(validated);
+  assert.equal(await checksum.verify(validated), true);
+  const migrated = migrator.migrate(validated);
+  assert.deepEqual(migrated.creditCardStatements, []);
+  assert.equal(migrated.accounts.find((account) => account.id === 'card').statementClosingDay, null);
+  assert.equal(migrated.accounts.find((account) => account.id === 'card').paymentDueDay, null);
 });

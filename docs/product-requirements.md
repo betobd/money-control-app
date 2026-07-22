@@ -68,7 +68,7 @@ This document describes product behavior. Financial invariants are normative in 
 - Require explicit destructive confirmation and replace data atomically, never merge or partially restore.
 - Preserve IDs, archived records, notes, transaction status, transfers, budgets, and recurring state.
 - Reject damaged, incompatible, oversized, or relationally invalid files before changing the database.
-- Warn clearly that version 1 backups contain sensitive financial data in plaintext.
+- Warn clearly that exported backups contain sensitive financial data in plaintext.
 
 #### Local App Lock
 
@@ -87,6 +87,15 @@ This document describes product behavior. Financial invariants are normative in 
 - Keep reminder scheduling, preferences, content, and routing local to the device with Private content as the default.
 - Reconcile recurring work idempotently over a bounded window and alert once per 80%/100% budget crossing.
 - Preserve App Lock as the gate for notification taps and exclude device notification metadata from portable backups.
+
+#### Credit cards
+
+- Track card cycle metadata and manually entered statement history without changing transaction types.
+- Pay cards through ordinary transfers, preserve signed debt, and warn before deliberate overpayment.
+- Clearly separate transaction-derived Current debt from bank-provided Statement balance and Minimum payment; the app does not calculate minimum payments or installment schedules.
+- Show current debt, available credit, integer-basis-point utilization guidance, minimum remaining, statement remaining, and cycle dates.
+- Keep unavailable Minimum payment, Remaining statement, and Current total debt choices visible but disabled with a specific reason rather than resolving them to zero.
+- Offer optional private/detailed local closing and due reminders.
 
 ### Data integrity
 
@@ -164,7 +173,7 @@ Unless later promoted into scope:
 - Cloud sync, accounts, and authentication.
 - Shared budgets or multiple users.
 - Bank integrations and automatic transaction import.
-- Remote push notifications, credit-card due-date alerts, and automatic recurring transaction posting.
+- Remote push notifications and automatic recurring transaction posting.
 - Savings goals, debt schedules, and forecasting.
 - Multiple currencies, conversion, and exchange rates.
 - Receipt scanning or attachments.
@@ -185,4 +194,4 @@ Unless later promoted into scope:
 | Opening balance changes after activity | Can rewrite historical meaning | Lock it after the first transaction or represent adjustments as transactions |
 | Dashboard month navigation | Defines whether “monthly” means current month only | Support previous/next month, defaulting to current month |
 | Filter persistence | Affects return behavior | Keep filters only for the current app session |
-| Backup encryption | Plaintext manual backups are portable but sensitive | Keep version 1 explicit and add authenticated encryption only through a future format version |
+| Backup encryption | Plaintext manual backups are portable but sensitive | Keep the current plaintext format explicit and add authenticated encryption only through a future format version |

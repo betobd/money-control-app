@@ -34,6 +34,8 @@ export function AccountForm({ accountId }: { accountId?: string }) {
   const [type, setType] = useState<AccountType>('checking');
   const [openingBalance, setOpeningBalance] = useState('0');
   const [creditLimit, setCreditLimit] = useState('');
+  const [statementClosingDay, setStatementClosingDay] = useState('');
+  const [paymentDueDay, setPaymentDueDay] = useState('');
   const [errors, setErrors] = useState<AccountValidationErrors>({});
   const [generalError, setGeneralError] = useState<string>();
   const [loading, setLoading] = useState(Boolean(accountId));
@@ -50,6 +52,8 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         setType(account.type);
         setOpeningBalance(String(account.type === 'credit_card' ? Math.abs(account.openingBalance) : account.openingBalance));
         setCreditLimit(account.creditLimit === null ? '' : String(account.creditLimit));
+        setStatementClosingDay(account.statementClosingDay === null ? '' : String(account.statementClosingDay));
+        setPaymentDueDay(account.paymentDueDay === null ? '' : String(account.paymentDueDay));
         setOpeningBalanceEditable(canEdit);
       })
       .catch((cause) => setGeneralError(cause instanceof Error ? cause.message : 'Unable to load account.'))
@@ -70,6 +74,8 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         type,
         openingBalance: parseWholePesos(openingBalance),
         creditLimit: type === 'credit_card' && creditLimit.trim() ? parseWholePesos(creditLimit) : null,
+        statementClosingDay: type === 'credit_card' && statementClosingDay.trim() ? Number(statementClosingDay) : null,
+        paymentDueDay: type === 'credit_card' && paymentDueDay.trim() ? Number(paymentDueDay) : null,
       };
       if (accountId) await accountService.update(accountId, input);
       else await accountService.create(input);
@@ -157,7 +163,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         </FormField>
 
         {type === 'credit_card' ? (
-          <FormField label="Credit limit (optional)" error={errors.creditLimit} theme={theme}>
+          <FormField label="Credit limit" error={errors.creditLimit} theme={theme}>
             <TextInput
               accessibilityLabel="Credit limit in whole Colombian pesos"
               keyboardType="number-pad"
@@ -167,6 +173,39 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.creditLimit ? theme.destructive : theme.border, color: theme.primaryText }]}
               value={creditLimit}
             />
+            <Text style={[styles.help, { color: theme.secondaryText }]}>Whole Colombian pesos. Must cover the card’s current debt.</Text>
+          </FormField>
+        ) : null}
+
+        {type === 'credit_card' ? (
+          <FormField label="Statement closing day" error={errors.statementClosingDay} theme={theme}>
+            <TextInput
+              accessibilityLabel="Statement closing calendar day"
+              keyboardType="number-pad"
+              maxLength={2}
+              onChangeText={(value) => { setStatementClosingDay(value.replace(/\D/g, '')); clearError('statementClosingDay'); }}
+              placeholder="1–31"
+              placeholderTextColor={theme.mutedText}
+              style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.statementClosingDay ? theme.destructive : theme.border, color: theme.primaryText }]}
+              value={statementClosingDay}
+            />
+            <Text style={[styles.help, { color: theme.secondaryText }]}>For shorter months, Money Control uses the last calendar day and keeps this intended day for later months.</Text>
+          </FormField>
+        ) : null}
+
+        {type === 'credit_card' ? (
+          <FormField label="Payment due day" error={errors.paymentDueDay} theme={theme}>
+            <TextInput
+              accessibilityLabel="Payment due calendar day"
+              keyboardType="number-pad"
+              maxLength={2}
+              onChangeText={(value) => { setPaymentDueDay(value.replace(/\D/g, '')); clearError('paymentDueDay'); }}
+              placeholder="1–31"
+              placeholderTextColor={theme.mutedText}
+              style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.paymentDueDay ? theme.destructive : theme.border, color: theme.primaryText }]}
+              value={paymentDueDay}
+            />
+            <Text style={[styles.help, { color: theme.secondaryText }]}>The due date is the first configured day after each statement closes.</Text>
           </FormField>
         ) : null}
 

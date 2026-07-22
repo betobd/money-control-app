@@ -3,6 +3,8 @@ import { randomUUID } from 'expo-crypto';
 import { budgetService } from '@/features/budgets/budgets';
 import { recurringTransactionService } from '@/features/recurring-transactions/recurring-transactions';
 import { BudgetAlertCoordinator } from './budget-alert.coordinator';
+import { creditCardService } from '@/features/credit-cards/credit-cards';
+import { CreditCardReminderCoordinator } from './credit-card-reminder.coordinator';
 import { DailyReminderCoordinator } from './daily-reminder.coordinator';
 import { ExpoLocalNotificationAdapter } from './expo-local-notification.adapter';
 import { NotificationCoordinator } from './notification.coordinator';
@@ -50,6 +52,12 @@ const budgetAlertCoordinator = new BudgetAlertCoordinator(
   notificationPermissionService,
   localNotificationAdapter,
 );
+const creditCardReminderCoordinator = new CreditCardReminderCoordinator(
+  creditCardService,
+  notificationRepository,
+  notificationPermissionService,
+  notificationScheduler,
+);
 export const notificationCoordinator = new NotificationCoordinator(
   localNotificationAdapter,
   notificationRepository,
@@ -58,8 +66,9 @@ export const notificationCoordinator = new NotificationCoordinator(
   recurringReminderCoordinator,
   dailyReminderCoordinator,
   budgetAlertCoordinator,
+  creditCardReminderCoordinator,
 );
-export const notificationNavigationService = new NotificationNavigationService(recurringTransactionService);
+export const notificationNavigationService = new NotificationNavigationService(recurringTransactionService, creditCardService);
 export const notificationTestService = new NotificationTestService(
   notificationPermissionService,
   notificationScheduler,

@@ -136,7 +136,7 @@ export default function AccountsScreen() {
       {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState /> : null}
       {!loading && !error && activeAccounts.length > 0 ? (
         <View accessibilityLabel="Active accounts" style={styles.accounts}>
-          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} />)}
+          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
         </View>
       ) : null}
 
@@ -144,7 +144,7 @@ export default function AccountsScreen() {
         <View style={styles.archivedSection}>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Archived accounts</Text>
           <View accessibilityLabel="Archived accounts" style={styles.accounts}>
-            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} />)}
+            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
           </View>
         </View>
       ) : null}

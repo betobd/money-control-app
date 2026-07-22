@@ -22,6 +22,7 @@ Runtime channel IDs are stable:
 |---|---|---|---|
 | `recurring-reminders` | Due, overdue, and upcoming recurring items | Default | System default sound, light vibration |
 | `budget-alerts` | 80% and 100% monthly threshold crossings | Default | System default sound and vibration |
+| `credit-card-reminders` | Statement closing and payment due reminders | Default | System default sound, light vibration |
 | `daily-reminders` | Daily review prompt | Low | Silent, no vibration |
 
 IDs never contain financial record identifiers. Repeated creation is safe; Android owns later user changes to channel behavior. No channel uses maximum importance.
@@ -44,6 +45,8 @@ Migration `0006_local_notifications` adds three SQLite tables outside the financ
 - `budget_notification_state`: per-budget/month 80% and 100% delivery state.
 
 Defaults are all categories disabled, recurring at `09:00`, same-day notice, daily review at `19:00`, and Private content. These values are ordinary non-secret preferences and are intentionally not stored with SecureStore App Lock records.
+
+Migration `0007_credit_card_management` adds opt-in card reminder preferences and extends the scheduling domain. The category is disabled by default; its closing and due-offset child selections default on so explicit enablement produces the documented manageable reminder set. See [credit-cards.md](credit-cards.md).
 
 ## Recurring reminders
 
@@ -69,11 +72,17 @@ The optional daily reminder uses one repeating Android daily trigger and contain
 
 Daily reminders follow the device's local clock. A timezone change is reconciled when the unlocked app next becomes active.
 
+## Credit-card reminders
+
+Card reminders remain opt-in. Closing reminders use configured cycle metadata, while due reminders require a real latest statement with positive remaining statement balance. No statement, an intentional zero-balance statement, or a fully attributed payment produces no due reminder. Money Control does not create a minimum-payment-specific schedule, so a zero or already-covered minimum never produces one.
+
+Statement create/update emits a card-data event, and posted/edited/voided payments emit the existing financial event. Both paths reconcile the same idempotent schedules; paying the statement fully cancels its remaining due work while an independently relevant next-closing reminder remains. Restore rebuilds only from actual restored statement rows. Private mode hides card names and amounts; Detailed mode may show nickname, due date, and remaining statement but never notes or full identifiers.
+
 ## Privacy and App Lock
 
 Private mode hides amounts, account names, category names, balances, notes, and internal identifiers. Detailed recurring content may contain a category and amount but never the recurring note or full account details. Detailed budget content may contain category, month, and rounded percentage but not a note or precise remaining balance. Daily and test content contain no financial data.
 
-Payloads contain only version 1 and a safe target (`home`, `budgets`, or `recurring`), plus an occurrence ID only when direct validated routing is useful. PINs, verifier data, salts, SecureStore records, backup filenames, notes, balances, and financial records never enter payloads. Notification bodies are not logged.
+Payloads contain only version 1 and a safe target (`home`, `budgets`, `recurring`, or `credit-card`), plus the minimum ID needed for validated routing. PINs, verifier data, salts, SecureStore records, backup filenames, notes, balances, and financial records never enter payloads. Notification bodies are not logged.
 
 App Lock and notification content are independent preferences. Private is the default for everyone. When App Lock is enabled and Detailed is selected, the UI recommends Private but does not silently overwrite the choice.
 
@@ -81,7 +90,7 @@ App Lock and notification content are independent preferences. Private is the de
 
 ## Backup and restore
 
-Notification preferences are device-specific and excluded from logical backup version 1. Scheduled IDs and threshold state are also excluded. A restore preserves the current device's preferences, cancels known app schedules, clears scheduling/threshold metadata, rebuilds the recurring/daily schedules permitted by current settings and OS permission, and baselines restored budgets. It does not restore IDs from another device or request permission.
+Notification preferences are device-specific and excluded from logical backup version 2. Scheduled IDs and threshold state are also excluded. A restore preserves the current device's preferences, cancels known app schedules, clears scheduling/threshold metadata, rebuilds recurring, daily, and card schedules permitted by current settings and OS permission, and baselines restored budgets. It does not restore IDs from another device or request permission.
 
 Notification cleanup runs after the exclusive financial replacement commits. A notification failure is recorded for retry/settings display and does not undo restored financial data.
 
@@ -92,7 +101,7 @@ Notification cleanup runs after the exclusive financial replacement commits. A n
 - Recurring reminders use one global time and one selected advance offset, not per-rule times or multiple simultaneous offsets.
 - Future rule reminders without a materialized occurrence open the recurring list rather than a nonexistent detail record.
 - The recurring model has no separate public rule-name field, so Detailed content uses category/type and amount and never substitutes the private note as a title.
-- There are no notification actions, snooze, weekday selection for daily review, credit-card statement/due-date alerts, analytics, remote push, or background financial transaction generation.
+- There are no notification actions, snooze, weekday selection for daily review, analytics, remote push, or background financial transaction generation.
 - Permission denial variants, OEM battery behavior, timezone changes, locked cold-start tap routing, and physical delivery timing require representative physical Android verification.
 
 ## Development build

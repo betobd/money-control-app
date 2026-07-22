@@ -10,7 +10,7 @@ for migration in migrations[:2]:
 
 utc = '2026-07-12T12:00:00.000Z'
 connection.execute(
-    'INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
     ('legacy-card', 'Legacy Card', 'credit_card', 'COP', 1000000, None, 0, None, utc, utc),
 )
 for migration in migrations[2:]:
@@ -22,7 +22,7 @@ accounts = [
     ('active', 'Checking', 'checking', 'COP', 100000, None, 0, None, utc, utc),
     ('archived', 'Old Cash', 'cash', 'COP', 50000, None, 1, utc, utc, utc),
 ]
-connection.executemany('INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
+connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
 connection.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('income', 'Salary', 'income', None, 0, None, utc, utc))
 connection.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('expense', 'Food', 'expense', None, 0, None, utc, utc))
 
@@ -58,7 +58,7 @@ net_worth_accounts = [
     ('net-card', 'Net Card', 'credit_card', 'COP', -1000000, None, 0, None, utc, utc),
     ('net-savings', 'Net Savings', 'savings', 'COP', 1500000, None, 1, utc, utc, utc),
 ]
-connection.executemany('INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)', net_worth_accounts)
+connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', net_worth_accounts)
 net_worth_balances = dict(connection.execute(balance_sql))
 assert sum(net_worth_balances[account_id] for account_id in ('net-checking', 'net-card', 'net-savings')) == 1100000
 
@@ -77,7 +77,7 @@ assert connection.execute(
 ).fetchone()[0] == history_count
 
 connection.execute(
-    'INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
     ('unused-zero', 'Unused Zero', 'cash', 'COP', 0, None, 0, None, utc, utc),
 )
 connection.execute("DELETE FROM accounts WHERE id = 'unused-zero'")
@@ -91,13 +91,13 @@ except sqlite3.IntegrityError:
 assert connection.execute("SELECT count(*) FROM transactions WHERE account_id = 'active'").fetchone()[0] == 4
 
 try:
-    connection.execute("INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)", ('duplicate', ' checking ', 'cash', 'COP', 0, None, 0, None, utc, utc))
+    connection.execute("INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)", ('duplicate', ' checking ', 'cash', 'COP', 0, None, 0, None, utc, utc))
     raise AssertionError('case-insensitive active duplicate was accepted')
 except sqlite3.IntegrityError:
     pass
 
 connection.execute("UPDATE accounts SET is_archived = 1, archived_at = ? WHERE id = 'active'", (utc,))
-connection.execute("INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)", ('replacement', ' checking ', 'cash', 'COP', 0, None, 0, None, utc, utc))
+connection.execute("INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)", ('replacement', ' checking ', 'cash', 'COP', 0, None, 0, None, utc, utc))
 assert connection.execute("SELECT count(*) FROM accounts WHERE lower(trim(name)) = 'checking'").fetchone()[0] == 2
 assert connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
 print('accounts database integration: PASS')

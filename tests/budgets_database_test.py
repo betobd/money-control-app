@@ -56,7 +56,7 @@ connection.executemany(
     ],
 )
 connection.executemany(
-    'INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
         ('checking', 'Checking', 'checking', 'COP', 1_000_000, None, 0, None, UTC, UTC),
         ('savings', 'Savings', 'savings', 'COP', 500_000, None, 0, None, UTC, UTC),

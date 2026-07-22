@@ -25,6 +25,7 @@ const countLabels: { key: keyof BackupSummary; label: string }[] = [
   { key: 'budgets', label: 'Budgets' },
   { key: 'recurringRules', label: 'Recurring rules' },
   { key: 'recurringOccurrences', label: 'Recurring occurrences' },
+  { key: 'creditCardStatements', label: 'Credit card statements' },
   { key: 'transactionSplits', label: 'Ledger splits' },
 ];
 

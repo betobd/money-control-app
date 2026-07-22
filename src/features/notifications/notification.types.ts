@@ -13,6 +13,11 @@ export type NotificationSettings = {
   budgetAlertsEnabled: boolean;
   dailyReminderEnabled: boolean;
   dailyReminderTime: string;
+  creditCardRemindersEnabled: boolean;
+  creditCardClosingReminderEnabled: boolean;
+  creditCardDueThreeDaysEnabled: boolean;
+  creditCardDueOneDayEnabled: boolean;
+  creditCardDueTodayEnabled: boolean;
   notificationContentMode: NotificationContentMode;
   permissionPrompted: boolean;
   lastErrorCode: NotificationErrorCode | null;
@@ -29,6 +34,11 @@ export type NotificationSettingsUpdate = Partial<Pick<
   | 'budgetAlertsEnabled'
   | 'dailyReminderEnabled'
   | 'dailyReminderTime'
+  | 'creditCardRemindersEnabled'
+  | 'creditCardClosingReminderEnabled'
+  | 'creditCardDueThreeDaysEnabled'
+  | 'creditCardDueOneDayEnabled'
+  | 'creditCardDueTodayEnabled'
   | 'notificationContentMode'
   | 'permissionPrompted'
 >>;
@@ -52,7 +62,8 @@ export type NotificationErrorCode =
 export type ScheduledNotificationDomainType =
   | 'recurring-occurrence'
   | 'daily-reminder'
-  | 'test-notification';
+  | 'test-notification'
+  | 'credit-card-reminder';
 
 export type ScheduledNotificationRecord = {
   id: string;
@@ -83,6 +94,7 @@ export type BudgetNotificationState = {
 export type SafeNotificationTarget =
   | { version: 1; target: 'home' }
   | { version: 1; target: 'budgets' }
+  | { version: 1; target: 'credit-card'; cardId: string }
   | { version: 1; target: 'recurring'; occurrenceId?: string };
 
 export type LocalNotificationContent = {
@@ -110,5 +122,6 @@ export function isValidTime(value: string): boolean {
 export function hasEnabledCategory(settings: NotificationSettings): boolean {
   return settings.recurringRemindersEnabled
     || settings.budgetAlertsEnabled
-    || settings.dailyReminderEnabled;
+    || settings.dailyReminderEnabled
+    || settings.creditCardRemindersEnabled;
 }

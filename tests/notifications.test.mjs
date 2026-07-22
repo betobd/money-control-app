@@ -4,11 +4,13 @@ import test from 'node:test';
 import { ANDROID_NOTIFICATION_CHANNELS } from '../src/features/notifications/android-notification-channels.ts';
 import { BudgetAlertCoordinator } from '../src/features/notifications/budget-alert.coordinator.ts';
 import { DailyReminderCoordinator } from '../src/features/notifications/daily-reminder.coordinator.ts';
+import { CreditCardReminderCoordinator } from '../src/features/notifications/credit-card-reminder.coordinator.ts';
 import { NOTIFICATION_CHANNELS } from '../src/features/notifications/local-notification.adapter.ts';
 import {
   budgetAlertContent,
   dailyReminderContent,
   recurringReminderContent,
+  creditCardReminderContent,
 } from '../src/features/notifications/notification-content.ts';
 import { NotificationNavigationService, parseTarget } from '../src/features/notifications/notification-navigation.service.ts';
 import { NotificationPermissionService } from '../src/features/notifications/notification-permission.service.ts';
@@ -53,6 +55,8 @@ class SettingsRepository {
     id: 'device', settingsVersion: 1, notificationsEnabled: true,
     recurringRemindersEnabled: true, recurringReminderTime: '09:00', recurringAdvanceDays: 0,
     budgetAlertsEnabled: true, dailyReminderEnabled: true, dailyReminderTime: '19:00',
+    creditCardRemindersEnabled: true, creditCardClosingReminderEnabled: true,
+    creditCardDueThreeDaysEnabled: true, creditCardDueOneDayEnabled: true, creditCardDueTodayEnabled: true,
     notificationContentMode: 'private', permissionPrompted: true,
     lastErrorCode: null, lastErrorAt: null, updatedAt: NOW,
   };
@@ -93,13 +97,14 @@ test('permission dismissal stays requestable and does not become an application 
   assert.equal(adapter.requests, 1);
 });
 
-test('uses three stable, non-dynamic Android channel IDs with restrained importance', () => {
+test('uses four stable, non-dynamic Android channel IDs with restrained importance', () => {
   assert.deepEqual(ANDROID_NOTIFICATION_CHANNELS.map((channel) => channel.id), [
     NOTIFICATION_CHANNELS.recurring,
     NOTIFICATION_CHANNELS.budgets,
+    NOTIFICATION_CHANNELS.creditCards,
     NOTIFICATION_CHANNELS.daily,
   ]);
-  assert.equal(new Set(ANDROID_NOTIFICATION_CHANNELS.map((channel) => channel.id)).size, 3);
+  assert.equal(new Set(ANDROID_NOTIFICATION_CHANNELS.map((channel) => channel.id)).size, 4);
   assert.ok(ANDROID_NOTIFICATION_CHANNELS.every((channel) => channel.importance !== 'max'));
   const recurring = ANDROID_NOTIFICATION_CHANNELS.find((channel) => channel.id === NOTIFICATION_CHANNELS.recurring);
   const budgets = ANDROID_NOTIFICATION_CHANNELS.find((channel) => channel.id === NOTIFICATION_CHANNELS.budgets);
@@ -265,4 +270,49 @@ test('notification navigation validates payloads, routes pending active occurren
   assert.equal(await service.resolve({ responseId: 'two', data: { version: 1, target: 'recurring', occurrenceId: 'occ' } }), '/recurring');
   assert.equal(await service.resolve({ responseId: 'three', data: { version: 1, target: 'recurring', occurrenceId: 'missing' } }), '/recurring');
   assert.equal(await service.resolve({ responseId: 'four', data: { version: 2, target: 'home' } }), null);
+});
+
+test('credit-card reminders schedule closing and due offsets, preserve privacy, and cancel paid statement work', async () => {
+  const adapter = new Adapter();
+  const repository = new SchedulingRepository();
+  const scheduler = new NotificationScheduler(repository, adapter, () => `id-${repository.records.length + 1}`, () => NOW);
+  const settings = new SettingsRepository();
+  const permission = new Permission();
+  const card = {
+    account: { id: 'card', name: 'Private Visa', isArchived: false },
+    setupComplete: true,
+    cycle: { nextClosingDate: '2026-08-15' },
+    latestStatement: { id: 'statement', dueDate: '2026-08-05', remainingStatement: 300000, minimumPayment: 0, minimumRemaining: 0 },
+  };
+  const cards = { async listDetails() { return [card]; } };
+  const coordinator = new CreditCardReminderCoordinator(cards, settings, permission, scheduler, () => new Date(2026, 6, 21, 8, 0), () => '2026-07-21');
+  await coordinator.reconcile();
+  assert.equal(repository.records.length, 4);
+  assert.ok(adapter.scheduled.every((item) => !item.content.body.includes('Private Visa') && !item.content.body.includes('300')));
+  settings.value.notificationContentMode = 'detailed';
+  const detailed = creditCardReminderContent(card, 'detailed', 'due', '2026-08-05');
+  assert.match(detailed.body, /Private Visa/);
+  assert.doesNotMatch(detailed.body, /note|account number/i);
+  assert.ok(repository.records.every((record) => !record.notificationKind.includes('minimum')));
+  card.latestStatement.remainingStatement = 0;
+  await coordinator.reconcile();
+  assert.equal(repository.records.length, 1);
+  assert.equal(repository.records[0].notificationKind, 'closing-1-day');
+  card.latestStatement = null;
+  await coordinator.reconcile();
+  assert.equal(repository.records.length, 1);
+  card.latestStatement = { id: 'updated-statement', dueDate: '2026-08-06', remainingStatement: 200000, minimumPayment: 20000, minimumRemaining: 20000 };
+  await coordinator.reconcile();
+  assert.equal(repository.records.length, 4);
+  assert.ok(repository.records.some((record) => record.domainId === 'updated-statement'));
+});
+
+test('credit-card notification taps validate the card before routing', async () => {
+  const recurring = { async getOccurrence() { return null; }, async getRule() { return null; } };
+  const cards = { async getDetails(id) { return id === 'card' ? { account: { id } } : null; } };
+  const service = new NotificationNavigationService(recurring, cards);
+  assert.deepEqual(parseTarget({ version: 1, target: 'credit-card', cardId: 'card' }), { version: 1, target: 'credit-card', cardId: 'card' });
+  assert.equal(parseTarget({ version: 1, target: 'credit-card' }), null);
+  assert.deepEqual(await service.resolve({ responseId: 'card-one', data: { version: 1, target: 'credit-card', cardId: 'card' } }), { pathname: '/accounts/[id]', params: { id: 'card' } });
+  assert.equal(await service.resolve({ responseId: 'card-missing', data: { version: 1, target: 'credit-card', cardId: 'missing' } }), '/');
 });

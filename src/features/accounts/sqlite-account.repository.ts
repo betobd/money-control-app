@@ -3,6 +3,7 @@ import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { database } from '@/database/client';
 import {
   accounts,
+  creditCardStatements,
   recurringOccurrences,
   recurringTransactions,
   transactionSplits,
@@ -62,11 +63,16 @@ export class SQLiteAccountRepository implements AccountRepository {
     const account = (await this.list(true)).find((candidate) => candidate.id === id) ?? null;
     if (!account) return { account: null, hasFinancialReferences: false };
 
-    const [transactionReference, splitReference, recurringReference, occurrenceReference] = await Promise.all([
+    const [transactionReference, statementReference, splitReference, recurringReference, occurrenceReference] = await Promise.all([
       database
         .select({ id: transactions.id })
         .from(transactions)
         .where(or(eq(transactions.accountId, id), eq(transactions.destinationAccountId, id)))
+        .limit(1),
+      database
+        .select({ id: creditCardStatements.id })
+        .from(creditCardStatements)
+        .where(eq(creditCardStatements.accountId, id))
         .limit(1),
       database
         .select({ id: transactionSplits.id })
@@ -91,7 +97,7 @@ export class SQLiteAccountRepository implements AccountRepository {
     return {
       account,
       hasFinancialReferences: Boolean(
-        transactionReference[0] || splitReference[0] || recurringReference[0] || occurrenceReference[0],
+        transactionReference[0] || splitReference[0] || recurringReference[0] || occurrenceReference[0] || statementReference[0],
       ),
     };
   }
@@ -117,6 +123,15 @@ export class SQLiteAccountRepository implements AccountRepository {
           or(eq(transactions.accountId, id), eq(transactions.destinationAccountId, id)),
         ),
       )
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async hasCreditCardStatements(id: string): Promise<boolean> {
+    const [row] = await database
+      .select({ id: creditCardStatements.id })
+      .from(creditCardStatements)
+      .where(eq(creditCardStatements.accountId, id))
       .limit(1);
     return Boolean(row);
   }

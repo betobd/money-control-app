@@ -3,6 +3,7 @@ import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import type { BudgetView } from '@/features/budgets/budget.types';
 import type { RecurringOccurrenceListItem, RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
 import type { LocalNotificationContent, NotificationContentMode } from './notification.types';
+import type { CreditCardDetails } from '@/features/credit-cards/credit-card.types';
 
 type RecurringContentSource = Pick<
   RecurringOccurrenceListItem | RecurringRuleListItem,
@@ -66,5 +67,26 @@ export function testNotificationContent(): LocalNotificationContent {
     body: 'Local reminders are ready on this device.',
     data: { version: 1, target: 'home' },
     priority: 'default',
+  };
+}
+
+export function creditCardReminderContent(
+  card: CreditCardDetails,
+  mode: NotificationContentMode,
+  kind: 'closing' | 'due',
+  date: string,
+): LocalNotificationContent {
+  const privateBody = kind === 'closing'
+    ? 'A credit card statement closes soon.'
+    : 'A credit card payment is due soon.';
+  const remaining = card.latestStatement?.remainingStatement ?? 0;
+  const detailedBody = kind === 'closing'
+    ? `${card.account.name} closes on ${date}.`
+    : `${card.account.name} has ${formatCop(remaining)} remaining, due ${date}.`;
+  return {
+    title: kind === 'closing' ? 'Statement closing soon' : 'Credit card payment due',
+    body: mode === 'private' ? privateBody : detailedBody,
+    data: { version: 1, target: 'credit-card', cardId: card.account.id },
+    priority: kind === 'due' ? 'high' : 'default',
   };
 }

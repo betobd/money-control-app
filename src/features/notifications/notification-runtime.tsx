@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import { subscribeToRecurringDataChanges } from '@/features/recurring-transactions/recurring-data-events';
 import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
 import { subscribeToNotificationSettingsChanges } from './notification-settings.events';
+import { subscribeToCreditCardDataChanges } from '@/features/credit-cards/credit-card-data-events';
 import {
   localNotificationAdapter,
   notificationCoordinator,
@@ -49,6 +50,7 @@ export function NotificationRuntime({ children }: { children: React.ReactNode })
     const removeRecurring = subscribeToRecurringDataChanges(() => void notificationCoordinator.recurringChanged());
     const removeFinancial = subscribeToFinancialDataChanges((change) => void notificationCoordinator.financialChanged(change));
     const removeSettings = subscribeToNotificationSettingsChanges((settings) => void notificationCoordinator.settingsChanged(settings));
+    const removeCreditCards = subscribeToCreditCardDataChanges(() => void notificationCoordinator.creditCardChanged());
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') void notificationCoordinator.appBecameActive();
     });
@@ -58,6 +60,7 @@ export function NotificationRuntime({ children }: { children: React.ReactNode })
       removeRecurring();
       removeFinancial();
       removeSettings();
+      removeCreditCards();
       appState.remove();
     };
   }, []);

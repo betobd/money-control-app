@@ -158,7 +158,11 @@ Local App Lock is implemented as a SecureStore-backed feature under More at `/se
 
 ### Implemented local notifications vertical slice
 
-Android local reminders are implemented under More at `/notifications-settings` with `expo-notifications@57.0.6`, explicit permission UX, three stable channels, a 60-day serialized recurring reconciliation window, event-driven 80%/100% budget alerts, one device-local daily reminder, Private/Detailed content, App Lock-safe response routing, and device-only SQLite metadata in migration 0006. No exact-alarm permission, push token, remote service, or backup-format collection was added. See [notifications.md](notifications.md).
+Android local reminders are implemented under More at `/notifications-settings` with `expo-notifications@57.0.6`, explicit permission UX, four stable channels, a 60-day serialized recurring reconciliation window, event-driven budget alerts, one device-local daily reminder, opt-in card reminders, Private/Detailed content, App Lock-safe routing, and device-only scheduling metadata. No exact-alarm permission, push token, or remote service was added. See [notifications.md](notifications.md).
+
+### Implemented Credit Card Management v1 vertical slice
+
+Credit cards retain the signed-balance and normal-transaction model while adding card setup, pure Bogotá-local cycle calculation, statement history, date-based payment attribution, guided transfer payments with explicit option availability and overpayment confirmation, integer-basis-point utilization, dedicated details UI, opt-in reminders, and logical backup format v2. New statement money fields start blank, saved zero values remain intentional, and no-statement cards show no invented bank data. See [credit-cards.md](credit-cards.md).
 
 ## 5. Test matrix
 

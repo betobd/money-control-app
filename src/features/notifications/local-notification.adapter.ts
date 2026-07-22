@@ -8,6 +8,7 @@ export const NOTIFICATION_CHANNELS = {
   recurring: 'recurring-reminders',
   budgets: 'budget-alerts',
   daily: 'daily-reminders',
+  creditCards: 'credit-card-reminders',
 } as const;
 
 export type RawNotificationPermission = {

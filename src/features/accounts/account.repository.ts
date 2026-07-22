@@ -4,7 +4,7 @@ export type NewAccountRecord = Account;
 
 export type AccountUpdateRecord = Pick<
   Account,
-  'name' | 'type' | 'openingBalance' | 'creditLimit' | 'updatedAt'
+  'name' | 'type' | 'openingBalance' | 'creditLimit' | 'statementClosingDay' | 'paymentDueDay' | 'updatedAt'
 >;
 
 export type AccountDeletionEligibility = {
@@ -19,6 +19,7 @@ export interface AccountRepository {
   findActiveByNormalizedName(normalizedName: string, excludingId?: string): Promise<Account | null>;
   findById(id: string): Promise<Account | null>;
   hasPostedTransactions(id: string): Promise<boolean>;
+  hasCreditCardStatements(id: string): Promise<boolean>;
   list(includeArchived: boolean): Promise<AccountWithBalance[]>;
   permanentlyDelete(id: string): Promise<void>;
   restore(id: string, restoredAt: string): Promise<void>;

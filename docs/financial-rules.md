@@ -46,6 +46,10 @@ This document is the normative source for financial calculations and invariants.
 - Checking, savings, and cash accounts may transfer at most their current derived available balance. The service rejects a larger transfer before persistence.
 - Credit-card sources are exempt from the insufficient-funds restriction because a negative signed card balance represents debt. A transfer into a credit card increases its signed balance toward zero and may create a positive credit balance when overpaid.
 - A credit-card payment is a normal transfer, not a separate transaction type. It does not affect income, expense, or monthly net cash flow.
+- Bank statement balance and minimum payment are non-financial metadata. They never replace current debt or create an expense.
+- Statement remaining uses the date-based transfer attribution in [credit-cards.md](credit-cards.md); it is not an issuer-level allocation guarantee.
+- Minimum payment and statement balance are copied from the bank. Money Control neither calculates the bank's minimum nor models installment schedules.
+- Minimum-payment and Remaining-statement payment choices are available only when their derived remaining amounts are positive. Current-total-debt payment is available only when signed balance represents positive debt; unavailable choices are never represented as payable zero amounts.
 - Active category names are unique case-insensitively after trimming within their expense or income type. The same name may exist once in each type.
 - Category type may change only before the category has financial references. Archiving is reversible; restoring reruns active-name validation.
 

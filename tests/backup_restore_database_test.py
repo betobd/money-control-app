@@ -14,8 +14,10 @@ tables = (
     'budgets',
     'recurring_transactions',
     'recurring_occurrences',
+    'credit_card_statements',
 )
 delete_order = (
+    'credit_card_statements',
     'recurring_occurrences',
     'transaction_splits',
     'budgets',
@@ -128,13 +130,17 @@ apply_migrations(connection)
 
 utc = '2026-07-16T15:00:00.000Z'
 connection.executemany(
-    'INSERT INTO accounts VALUES (?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
     [
         ('checking', 'Checking', 'checking', 'COP', 2_000_000, None, 0, None, utc, utc),
         ('savings', 'Savings', 'savings', 'COP', 500_000, None, 0, None, utc, utc),
         ('card', 'Credit card', 'credit_card', 'COP', -300_000, 2_000_000, 0, None, utc, utc),
         ('archived-account', 'Old cash', 'cash', 'COP', 100_000, None, 1, utc, utc, utc),
     ],
+)
+connection.execute(
+    'INSERT INTO credit_card_statements VALUES (?,?,?,?,?,?,?,?,?,?)',
+    ('statement', 'card', '2026-06-16', '2026-07-15', '2026-07-15', '2026-08-05', 250_000, 25_000, utc, utc),
 )
 connection.executemany(
     'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',

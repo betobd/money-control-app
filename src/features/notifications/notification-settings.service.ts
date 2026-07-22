@@ -9,7 +9,7 @@ import {
   type NotificationSettingsUpdate,
 } from './notification.types';
 
-export type NotificationCategory = 'recurring' | 'budgets' | 'daily';
+export type NotificationCategory = 'recurring' | 'budgets' | 'daily' | 'credit-cards';
 
 export class NotificationSettingsValidationError extends Error {}
 
@@ -61,7 +61,9 @@ export class NotificationSettingsService {
       ? 'recurringRemindersEnabled'
       : category === 'budgets'
         ? 'budgetAlertsEnabled'
-        : 'dailyReminderEnabled';
+        : category === 'daily'
+          ? 'dailyReminderEnabled'
+          : 'creditCardRemindersEnabled';
     const settings = await this.update({
       [field]: enabled,
       ...(enabled ? { notificationsEnabled: true, permissionPrompted: true } : {}),
@@ -87,6 +89,19 @@ export class NotificationSettingsService {
   setContentMode(value: NotificationContentMode): Promise<NotificationSettings> {
     if (value !== 'private' && value !== 'detailed') throw new NotificationSettingsValidationError('Select a supported notification content mode.');
     return this.update({ notificationContentMode: value });
+  }
+
+  setCreditCardClosingReminderEnabled(value: boolean): Promise<NotificationSettings> {
+    return this.update({ creditCardClosingReminderEnabled: value });
+  }
+
+  setCreditCardDueOffsetEnabled(offset: 3 | 1 | 0, value: boolean): Promise<NotificationSettings> {
+    const field = offset === 3
+      ? 'creditCardDueThreeDaysEnabled'
+      : offset === 1
+        ? 'creditCardDueOneDayEnabled'
+        : 'creditCardDueTodayEnabled';
+    return this.update({ [field]: value });
   }
 
   async clearError(): Promise<void> {

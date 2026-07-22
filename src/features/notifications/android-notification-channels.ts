@@ -18,6 +18,14 @@ export const ANDROID_NOTIFICATION_CHANNELS = [
     vibrationPattern: [0, 250, 120, 250],
   },
   {
+    id: NOTIFICATION_CHANNELS.creditCards,
+    name: 'Credit card reminders',
+    description: 'Statement closing and payment due reminders',
+    importance: 'default' as const,
+    enableVibrate: true,
+    vibrationPattern: [0, 180],
+  },
+  {
     id: NOTIFICATION_CHANNELS.daily,
     name: 'Daily reminders',
     description: 'Quiet reminders to review your finances',

@@ -99,6 +99,16 @@ export function NotificationSettingsScreen() {
             </View>
           ) : null}
           <SettingToggle description="One alert near 80% and one at 100%" disabled={model.busy} label="Budget thresholds" onChange={(value) => changeCategory('budgets', value)} theme={theme} value={settings.budgetAlertsEnabled} />
+          <SettingToggle description="Statement closing and payment due reminders" disabled={model.busy} label="Credit cards" onChange={(value) => changeCategory('credit-cards', value)} theme={theme} value={settings.creditCardRemindersEnabled} />
+          {settings.creditCardRemindersEnabled ? (
+            <View style={styles.options}>
+              <SettingToggle description="One day before the calculated closing date" disabled={model.busy} label="Closing reminder" onChange={(value) => void model.setCardClosing(value)} theme={theme} value={settings.creditCardClosingReminderEnabled} />
+              <Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Payment due reminders</Text>
+              <SettingToggle description="Three days before the statement due date" disabled={model.busy} label="3 days before" onChange={(value) => void model.setCardDueOffset(3, value)} theme={theme} value={settings.creditCardDueThreeDaysEnabled} />
+              <SettingToggle description="One day before the statement due date" disabled={model.busy} label="1 day before" onChange={(value) => void model.setCardDueOffset(1, value)} theme={theme} value={settings.creditCardDueOneDayEnabled} />
+              <SettingToggle description="On the statement due date" disabled={model.busy} label="Due today" onChange={(value) => void model.setCardDueOffset(0, value)} theme={theme} value={settings.creditCardDueTodayEnabled} />
+            </View>
+          ) : null}
           <SettingToggle description="A quiet daily prompt to review your finances" disabled={model.busy} label="Daily review" onChange={(value) => changeCategory('daily', value)} theme={theme} value={settings.dailyReminderEnabled} />
           {settings.dailyReminderEnabled ? <ValueButton label="Daily reminder time" onPress={() => setTimePicker('daily')} theme={theme} value={settings.dailyReminderTime} /> : null}
         </Section>

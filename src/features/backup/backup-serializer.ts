@@ -1,4 +1,4 @@
-import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV1, type BackupFileV1, type BackupOverview } from './backup.types';
+import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV2, type BackupFileV2, type BackupOverview } from './backup.types';
 import type { BackupChecksumService } from './backup-checksum.service';
 
 type BackupMetadata = {
@@ -11,7 +11,7 @@ function compareIds(left: { id: string }, right: { id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
-export function sortBackupData(data: BackupDataV1): BackupDataV1 {
+export function sortBackupData(data: BackupDataV2): BackupDataV2 {
   return {
     accounts: [...data.accounts].sort(compareIds),
     categories: [...data.categories].sort(compareIds),
@@ -20,10 +20,11 @@ export function sortBackupData(data: BackupDataV1): BackupDataV1 {
     budgets: [...data.budgets].sort(compareIds),
     recurringTransactions: [...data.recurringTransactions].sort(compareIds),
     recurringOccurrences: [...data.recurringOccurrences].sort(compareIds),
+    creditCardStatements: [...data.creditCardStatements].sort(compareIds),
   };
 }
 
-export function createBackupOverview(data: BackupDataV1): BackupOverview {
+export function createBackupOverview(data: BackupDataV2): BackupOverview {
   let oldest: string | null = null;
   let newest: string | null = null;
   for (const transaction of data.transactions) {
@@ -39,6 +40,7 @@ export function createBackupOverview(data: BackupDataV1): BackupOverview {
       budgets: data.budgets.length,
       recurringRules: data.recurringTransactions.length,
       recurringOccurrences: data.recurringOccurrences.length,
+      creditCardStatements: data.creditCardStatements.length,
     },
     transactionDateRange: { oldest, newest },
   };
@@ -47,10 +49,10 @@ export function createBackupOverview(data: BackupDataV1): BackupOverview {
 export class BackupSerializer {
   constructor(private readonly checksum: BackupChecksumService) {}
 
-  async create(data: BackupDataV1, metadata: BackupMetadata): Promise<BackupFileV1> {
+  async create(data: BackupDataV2, metadata: BackupMetadata): Promise<BackupFileV2> {
     const orderedData = sortBackupData(data);
     const overview = createBackupOverview(orderedData);
-    const draft: BackupFileV1 = {
+    const draft: BackupFileV2 = {
       format: BACKUP_FORMAT,
       formatVersion: CURRENT_BACKUP_FORMAT_VERSION,
       appVersion: metadata.appVersion,
@@ -74,7 +76,7 @@ export class BackupSerializer {
     };
   }
 
-  stringify(file: BackupFileV1): string {
+  stringify(file: BackupFileV2): string {
     return `${JSON.stringify(file, null, 2)}\n`;
   }
 }
