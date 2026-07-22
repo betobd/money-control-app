@@ -4,6 +4,8 @@
 
 Backup & Restore is a local-first, user-initiated recovery feature under More at `/backup`. It exports a logical, versioned JSON document instead of copying the live SQLite file. This avoids coupling a backup to SQLite journal state, Drizzle's migration bookkeeping, or a particular database file layout.
 
+This logical JSON format is the restoration workflow. Data Export CSV files are separate human-readable projections for spreadsheets and sharing; they do not preserve the complete restoration graph, cannot replace a backup, and are not accepted by restore. See [data-export.md](data-export.md).
+
 Creating a backup reads one consistent SQLite snapshot, builds and self-validates the JSON, writes a temporary cache file, and opens Android's native share sheet. Money Control deletes its temporary file when the share flow returns. The app can prove that the file was generated and that the native share UI opened; Android's sharing API does not report whether the user ultimately saved the file at a destination.
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.

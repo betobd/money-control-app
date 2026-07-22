@@ -4,7 +4,7 @@
 
 Reports is a persisted SQLite-backed vertical slice available from **More → Reports** at `/reports`. It does not add a bottom-navigation destination; Home, Transactions, Add, Accounts, and Budgets remain the only five primary navigation items.
 
-The implemented reports are period summary, income versus expenses over time, expenses by category, net worth evolution, and previous equivalent period comparison. CSV export, backup/restore, synchronization, authentication, tax reporting, forecasting, bank integrations, AI insights, and advanced analytics remain outside this slice.
+The implemented reports are period summary, income versus expenses over time, expenses by category, net worth evolution, and previous equivalent period comparison. Data Export v1 can serialize the existing selected-period summary as a separate two-column-style metrics CSV without moving export logic into Reports. Backup/restore, synchronization, authentication, tax reporting, forecasting, bank integrations, AI insights, and advanced analytics remain outside the Reports slice.
 
 ## Authoritative financial data
 

@@ -70,6 +70,15 @@ This document describes product behavior. Financial invariants are normative in 
 - Reject damaged, incompatible, oversized, or relationally invalid files before changing the database.
 - Warn clearly that exported backups contain sensitive financial data in plaintext.
 
+#### Data export
+
+- Open Data Export from More without changing the five-item bottom navigation.
+- Create readable UTF-8 CSV files for transactions, accounts, one budget month, recurring rules, credit-card statements, and a selected-period report summary.
+- Read persisted SQLite data and reuse current balance, budget, statement-attribution, transaction-filter, and report rules.
+- Generate files locally and open Android's native save/share surface without broad storage permission or an app-controlled upload.
+- Protect user-authored text from spreadsheet formula injection and warn that CSV is plaintext outside App Lock.
+- Keep CSV separate from logical backup: CSV cannot restore full app state and Backup & Restore must remain the recovery workflow.
+
 #### Local App Lock
 
 - Optionally protect application UI access with an exactly six-digit local PIN.
@@ -179,6 +188,7 @@ Unless later promoted into scope:
 - Receipt scanning or attachments.
 - Web and iOS release commitments.
 - Encrypted/password-protected backup, automatic/scheduled backup, cloud sync, merge import, and partial restore.
+- CSV import, XLSX/Excel export, PDF reports, scheduled export, automatic email delivery, and cloud-account integrations.
 - Split transactions and transaction tagging.
 
 ## 6. Unresolved decisions

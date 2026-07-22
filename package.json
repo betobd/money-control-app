@@ -64,7 +64,8 @@
     "test:recurring": "node --import tsx --test tests/recurring-transactions.test.mjs && python tests/recurring_transactions_database_test.py",
     "test:reports": "node --import tsx --test tests/reports.test.mjs && python tests/reports_database_test.py",
     "test:notifications": "node --import tsx --test tests/notifications.test.mjs && python tests/notifications_database_test.py",
-    "test:credit-cards": "node --import tsx --test tests/credit-cards.test.mjs && python tests/credit_cards_database_test.py"
+    "test:credit-cards": "node --import tsx --test tests/credit-cards.test.mjs && python tests/credit_cards_database_test.py",
+    "test:data-export": "node --import tsx --test tests/data-export.test.mjs && python tests/data_export_database_test.py"
   },
   "private": true
 }

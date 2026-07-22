@@ -75,6 +75,7 @@ export default function RootLayout() {
                 <Stack.Screen name="security" />
                 <Stack.Screen name="notifications-settings" />
                 <Stack.Screen name="backup" />
+                <Stack.Screen name="data-export" />
                 <Stack.Screen name="reports" />
                 <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />
