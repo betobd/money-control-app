@@ -1,6 +1,6 @@
 export const BACKUP_FORMAT = 'money-control-backup' as const;
 export const CURRENT_BACKUP_FORMAT_VERSION = 1 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0005' as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0006' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 export const BACKUP_CURRENCY = 'COP' as const;
 export const BACKUP_CHECKSUM_ALGORITHM = 'SHA-256' as const;

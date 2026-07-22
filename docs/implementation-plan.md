@@ -156,6 +156,10 @@ Backup & Restore is implemented as a dedicated feature service/repository/adapte
 
 Local App Lock is implemented as a SecureStore-backed feature under More at `/security`. The root lock provider resolves security state before database initialization or financial-route mounting. It supports an exactly six-digit, native PBKDF2 verifier, strong device biometrics with independent PIN fallback, AppState delays, manual locking, persisted temporary retry delays, Android screen-capture/recent-app privacy, and deliberate Android app-storage recovery guidance. The native crypto path requires a development build and fails closed when unavailable; Expo Go is not a supported App Lock runtime. No database migration was needed because security records never enter SQLite or logical financial backups. See [security.md](security.md).
 
+### Implemented local notifications vertical slice
+
+Android local reminders are implemented under More at `/notifications-settings` with `expo-notifications@57.0.6`, explicit permission UX, three stable channels, a 60-day serialized recurring reconciliation window, event-driven 80%/100% budget alerts, one device-local daily reminder, Private/Detailed content, App Lock-safe response routing, and device-only SQLite metadata in migration 0006. No exact-alarm permission, push token, remote service, or backup-format collection was added. See [notifications.md](notifications.md).
+
 ## 5. Test matrix
 
 | Area | Essential cases |

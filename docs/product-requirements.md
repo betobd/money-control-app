@@ -80,6 +80,14 @@ This document describes product behavior. Financial invariants are normative in 
 - Exclude every App Lock record and secret from financial backup and restore behavior.
 - Disclose that App Lock does not encrypt SQLite or plaintext exported backup files.
 
+#### Local notifications
+
+- Configure optional recurring, budget-threshold, and daily-review reminders under More without changing the five-item bottom navigation.
+- Request Android notification permission only from an explicit user action and continue normally after denial.
+- Keep reminder scheduling, preferences, content, and routing local to the device with Private content as the default.
+- Reconcile recurring work idempotently over a bounded window and alert once per 80%/100% budget crossing.
+- Preserve App Lock as the gate for notification taps and exclude device notification metadata from portable backups.
+
 ### Data integrity
 
 - Monetary values must not use floating-point arithmetic.
@@ -156,7 +164,7 @@ Unless later promoted into scope:
 - Cloud sync, accounts, and authentication.
 - Shared budgets or multiple users.
 - Bank integrations and automatic transaction import.
-- Recurring transactions and reminders.
+- Remote push notifications, credit-card due-date alerts, and automatic recurring transaction posting.
 - Savings goals, debt schedules, and forecasting.
 - Multiple currencies, conversion, and exchange rates.
 - Receipt scanning or attachments.

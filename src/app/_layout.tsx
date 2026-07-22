@@ -7,6 +7,7 @@ import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-nativ
 import { colors } from '@/constants/theme';
 import { AppLockProvider } from '@/features/security/app-lock-provider';
 import { AppLockBoundary } from '@/features/security/components/app-lock-gate';
+import { NotificationRuntime } from '@/features/notifications/notification-runtime';
 
 function DatabaseGate({ children, backgroundColor, accentColor }: {
   children: React.ReactNode;
@@ -59,22 +60,25 @@ export default function RootLayout() {
       <AppLockProvider>
         <AppLockBoundary>
           <DatabaseGate backgroundColor={theme.appBackground} accentColor={theme.primaryAction}>
-            <Stack screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
-              <Stack.Screen name="transactions/[id]" options={{ presentation: 'fullScreenModal' }} />
-              <Stack.Screen name="account-form" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="more" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="security" />
-              <Stack.Screen name="backup" />
-              <Stack.Screen name="reports" />
-              <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
-              <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />
-              <Stack.Screen name="recurring-form" options={{ presentation: 'fullScreenModal' }} />
-              <Stack.Screen name="recurring-occurrence" options={{ presentation: 'fullScreenModal' }} />
-            </Stack>
+            <NotificationRuntime>
+              <Stack screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="transactions/[id]" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="account-form" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="categories" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="category-form" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="more" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="security" />
+                <Stack.Screen name="notifications-settings" />
+                <Stack.Screen name="backup" />
+                <Stack.Screen name="reports" />
+                <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="recurring-form" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="recurring-occurrence" options={{ presentation: 'fullScreenModal' }} />
+              </Stack>
+            </NotificationRuntime>
           </DatabaseGate>
         </AppLockBoundary>
         <StatusBar style="auto" />

@@ -7,6 +7,7 @@ export interface BudgetRepository {
   findById(id: string): Promise<BudgetRecord | null>;
   findDuplicate(categoryId: string, month: string, excludingId?: string): Promise<BudgetRecord | null>;
   listMonth(month: string): Promise<BudgetSpendingRecord[]>;
+  listAll(): Promise<BudgetSpendingRecord[]>;
   remove(id: string): Promise<void>;
   update(id: string, budget: BudgetUpdateRecord): Promise<void>;
 }

@@ -144,7 +144,7 @@ export class TransactionService {
       : { ...normalized, ...metadata, destinationAccountId: null };
 
     await persist(transaction);
-    notifyFinancialDataChanged();
+    notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
     return transaction;
   }
 
@@ -184,7 +184,7 @@ export class TransactionService {
       await this.throwFailedWrite(id, 'edit');
     }
     const updated = await this.requireTransaction(id);
-    notifyFinancialDataChanged();
+    notifyFinancialDataChanged({ kind: 'transaction', operation: 'update', before: current, after: updated });
     return updated;
   }
 
@@ -200,7 +200,7 @@ export class TransactionService {
       await this.throwFailedWrite(id, 'void');
     }
     const voided = await this.requireTransaction(id);
-    notifyFinancialDataChanged();
+    notifyFinancialDataChanged({ kind: 'transaction', operation: 'void', before: current, after: voided });
     return voided;
   }
 

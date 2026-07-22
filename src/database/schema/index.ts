@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -286,5 +287,75 @@ export const recurringOccurrences = sqliteTable(
     index('recurring_occurrences_account_idx').on(table.accountId),
     index('recurring_occurrences_destination_account_idx').on(table.destinationAccountId),
     index('recurring_occurrences_category_idx').on(table.categoryId),
+  ],
+);
+
+export const notificationSettings = sqliteTable(
+  'notification_settings',
+  {
+    id: text('id').primaryKey(),
+    settingsVersion: integer('settings_version').notNull().default(1),
+    notificationsEnabled: integer('notifications_enabled', { mode: 'boolean' }).notNull().default(false),
+    recurringRemindersEnabled: integer('recurring_reminders_enabled', { mode: 'boolean' }).notNull().default(false),
+    recurringReminderTime: text('recurring_reminder_time').notNull().default('09:00'),
+    recurringAdvanceDays: integer('recurring_advance_days').notNull().default(0),
+    budgetAlertsEnabled: integer('budget_alerts_enabled', { mode: 'boolean' }).notNull().default(false),
+    dailyReminderEnabled: integer('daily_reminder_enabled', { mode: 'boolean' }).notNull().default(false),
+    dailyReminderTime: text('daily_reminder_time').notNull().default('19:00'),
+    notificationContentMode: text('notification_content_mode', { enum: ['private', 'detailed'] }).notNull().default('private'),
+    permissionPrompted: integer('permission_prompted', { mode: 'boolean' }).notNull().default(false),
+    lastErrorCode: text('last_error_code'),
+    lastErrorAt: text('last_error_at'),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    check('notification_settings_singleton', sql`${table.id} = 'device'`),
+    check('notification_settings_version_valid', sql`${table.settingsVersion} = 1`),
+    check('notification_recurring_time_valid', sql`${table.recurringReminderTime} GLOB '[0-2][0-9]:[0-5][0-9]' AND substr(${table.recurringReminderTime}, 1, 2) <= '23'`),
+    check('notification_daily_time_valid', sql`${table.dailyReminderTime} GLOB '[0-2][0-9]:[0-5][0-9]' AND substr(${table.dailyReminderTime}, 1, 2) <= '23'`),
+    check('notification_advance_days_valid', sql`${table.recurringAdvanceDays} BETWEEN 0 AND 3`),
+    check('notification_content_mode_valid', sql`${table.notificationContentMode} IN ('private', 'detailed')`),
+    check('notification_settings_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('notification_settings_error_at_utc', sql`${table.lastErrorAt} IS NULL OR ${table.lastErrorAt} GLOB '????-??-??T??:??:??*Z'`),
+  ],
+);
+
+export const scheduledNotifications = sqliteTable(
+  'scheduled_notifications',
+  {
+    id: text('id').primaryKey(),
+    domainType: text('domain_type', { enum: ['recurring-occurrence', 'daily-reminder', 'test-notification'] }).notNull(),
+    domainId: text('domain_id').notNull(),
+    notificationKind: text('notification_kind').notNull(),
+    scheduledNotificationId: text('scheduled_notification_id').notNull(),
+    scheduledAt: text('scheduled_at').notNull(),
+    triggerAt: text('trigger_at').notNull(),
+    revision: text('revision').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    check('scheduled_notification_domain_valid', sql`${table.domainType} IN ('recurring-occurrence', 'daily-reminder', 'test-notification')`),
+    check('scheduled_notification_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('scheduled_notification_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('scheduled_notification_scheduled_at_utc', sql`${table.scheduledAt} GLOB '????-??-??T??:??:??*Z'`),
+    uniqueIndex('scheduled_notifications_domain_uidx').on(table.domainType, table.domainId, table.notificationKind),
+    uniqueIndex('scheduled_notifications_native_id_uidx').on(table.scheduledNotificationId),
+  ],
+);
+
+export const budgetNotificationState = sqliteTable(
+  'budget_notification_state',
+  {
+    budgetId: text('budget_id').notNull(),
+    month: text('month').notNull(),
+    threshold80Notified: integer('threshold_80_notified', { mode: 'boolean' }).notNull().default(false),
+    threshold100Notified: integer('threshold_100_notified', { mode: 'boolean' }).notNull().default(false),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.budgetId, table.month] }),
+    check('budget_notification_month_valid', sql`${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`),
+    check('budget_notification_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
   ],
 );

@@ -161,7 +161,14 @@ Every schema change uses an ordered migration. A released or externally applied 
 
 Full reporting behavior and limitations are in [reports.md](reports.md).
 
-## 14. Decisions still unresolved
+## 14. Notification-derived rules
+
+- Recurring notification dates use the existing Bogotá-local rule/occurrence schedule and never create or confirm a financial transaction.
+- Budget alerts consume the existing posted-expense budget read model. Income, transfers, and voided transactions do not count.
+- Threshold comparison uses integer/`BigInt` intermediates: 80% and 100% crossings do not introduce floating-point monetary arithmetic.
+- Notification failure is outside financial transactions and cannot roll back a persisted transaction, occurrence transition, budget, or restore.
+
+## 15. Decisions still unresolved
 
 - Adjustment transaction representation and category treatment.
 - Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.

@@ -44,6 +44,7 @@ All monetary values remain safe integers in the same whole-COP representation us
 - SecureStore values, OS credentials, device-local secrets, cache files, logs, and transient hook/UI state.
 - App Lock configuration, biometric preference, PIN salts/verifiers, staged verifier changes, and failed-attempt/lockout records.
 - App configuration and seeded defaults as a separate concept; existing category rows, including defaults that the user renamed or archived, are already included as categories.
+- Device notification preferences, scheduled notification identifiers, notification error state, and budget threshold-delivery state.
 
 Migration history remains owned by the installed app. Restore writes logical rows into the current migrated schema; a backup never rewinds or fabricates migration metadata.
 
@@ -110,6 +111,7 @@ Only after commit does the service publish one global financial-data invalidatio
 - Version 1 supports only COP and the current Money Control logical model.
 - Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret version 1 plaintext files.
 - Restoring a financial backup never reads or writes SecureStore. It therefore cannot enable, disable, or alter the current device's App Lock, biometric preference, PIN verifier, or failed-attempt state. Restored financial data remains behind the current device lock when that lock is enabled.
+- Restore preserves the current device's notification preferences. After the financial replacement commits, it cancels known local schedules, clears device-specific schedule/threshold metadata, rebuilds allowed recurring and daily work, and baselines restored budgets without historical alerts. It never requests notification permission or enables a reminder category. Notification cleanup failure cannot roll back the already committed financial restore.
 
 ## Verification
 

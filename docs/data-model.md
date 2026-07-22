@@ -92,6 +92,10 @@ Rules do not reserve funds and never post transactions automatically. Active ref
 
 Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applied migrations are never edited; later changes receive new ordered migrations.
 
+### Device-local notification tables
+
+Migration 0006 adds `notification_settings`, `scheduled_notifications`, and `budget_notification_state`. They contain versioned device preferences, Expo schedule identifiers/idempotency metadata, and threshold delivery state. They contain no transaction notes, notification bodies, PIN/security records, or portable financial data and have no financial foreign keys. Logical backup deliberately excludes all three tables; restore preserves preferences and rebuilds device metadata.
+
 ## 3. Derived models
 
 - Account balances use opening balance plus posted income, minus posted expenses, and equal source/destination effects for posted transfers. Voided transactions are excluded.

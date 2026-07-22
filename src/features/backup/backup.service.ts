@@ -19,6 +19,7 @@ type BackupServiceOptions = {
   schemaVersion: string;
   now?: () => string;
   notifyRestored: () => void;
+  afterRestore?: () => Promise<void>;
 };
 
 export type SelectBackupResult =
@@ -97,6 +98,7 @@ export class BackupService {
   async restore(candidate: RestoreCandidate): Promise<BackupRestoreResult> {
     const parsed = await this.validateFile(candidate.file);
     const result = await this.repository.replaceAll(parsed.data);
+    await this.options.afterRestore?.();
     this.options.notifyRestored();
     return result;
   }

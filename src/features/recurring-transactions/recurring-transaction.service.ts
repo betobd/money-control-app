@@ -66,6 +66,11 @@ export class RecurringTransactionService {
     return this.repository.listPendingDue(this.today());
   }
 
+  listPendingThrough(throughDate: string) {
+    if (!isValidCalendarDate(throughDate)) throw new Error('Recurring reminder horizon must be a valid calendar date.');
+    return this.repository.listPendingDue(throughDate);
+  }
+
   listRecentOccurrences(limit = 20) {
     return this.repository.listRecentOccurrences(limit);
   }

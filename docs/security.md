@@ -138,7 +138,7 @@ Money Control has no recovery server and cannot recover an existing PIN. No part
 
 While App Lock is enabled, Expo ScreenCapture applies Android `FLAG_SECURE` to prevent normal screenshots/screen recordings and show a blank recent-app preview. An opaque AppState overlay is additional defense during inactive transitions. A ScreenCapture failure is reported without disabling the underlying lock. Platform and vendor limitations mean this does not prevent every rooted-device, overlay, external-camera, or older-Android capture technique.
 
-Future financial notifications must avoid sensitive amounts when App Lock privacy requires hidden content. Notification scheduling is not part of this slice.
+Local financial notifications are implemented as a separate preference under More. Private content is the default and is recommended while App Lock is enabled, but App Lock never overwrites the saved notification content choice. The notification runtime and financial tap resolver are mounted only inside the unlocked App Lock/database boundary. Previously scheduled Android notifications may still appear while locked, but a tap cannot mount protected routes until unlock. See [notifications.md](notifications.md).
 
 The logical backup type contains only financial collections. It has no security fields and never reads SecureStore. Restore replaces only SQLite-owned financial rows and cannot enable, disable, or change App Lock, biometric preference, verifier, or failed-attempt state. A backup contains no PIN, but its financial contents remain plaintext.
 

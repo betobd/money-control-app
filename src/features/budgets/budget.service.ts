@@ -1,6 +1,7 @@
 import type { CategoryRepository } from '@/features/categories/category.repository';
 import type { Category } from '@/features/categories/category.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import type { FinancialDataChange } from '@/features/transactions/financial-data-events';
 import { isValidBudgetMonth } from './budget-month';
 import type { BudgetRepository } from './budget.repository';
 import type {
@@ -33,7 +34,7 @@ export class BudgetActionError extends Error {
 type BudgetServiceOptions = {
   createId?: () => string;
   now?: () => string;
-  notifyChanged?: () => void;
+  notifyChanged?: (change: FinancialDataChange) => void;
 };
 
 function createFallbackId(): string {
@@ -106,7 +107,7 @@ export function calculateBudgetSummary(budgets: BudgetView[]): BudgetSummary {
 export class BudgetService {
   private readonly createId: () => string;
   private readonly now: () => string;
-  private readonly notifyChanged: () => void;
+  private readonly notifyChanged: (change: FinancialDataChange) => void;
 
   constructor(
     private readonly repository: BudgetRepository,
@@ -126,6 +127,10 @@ export class BudgetService {
     return { budgets, summary: calculateBudgetSummary(budgets) };
   }
 
+  async listAll(): Promise<BudgetView[]> {
+    return (await this.repository.listAll()).map(calculateBudget);
+  }
+
   get(id: string): Promise<BudgetRecord | null> {
     return this.repository.findById(id);
   }
@@ -140,7 +145,7 @@ export class BudgetService {
       updatedAt: timestamp,
     };
     await this.repository.create(budget);
-    this.notifyChanged();
+    this.notifyChanged({ kind: 'budget', operation: 'create', budgetId: budget.id });
     return budget;
   }
 
@@ -148,13 +153,13 @@ export class BudgetService {
     const current = await this.requireBudget(id);
     const normalized = await this.validate(input, current);
     await this.repository.update(id, { ...normalized, updatedAt: this.now() });
-    this.notifyChanged();
+    this.notifyChanged({ kind: 'budget', operation: 'update', budgetId: id });
   }
 
   async remove(id: string): Promise<void> {
     await this.requireBudget(id);
     await this.repository.remove(id);
-    this.notifyChanged();
+    this.notifyChanged({ kind: 'budget', operation: 'remove', budgetId: id });
   }
 
   private async validate(input: BudgetInput, current?: BudgetRecord): Promise<BudgetInput> {

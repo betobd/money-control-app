@@ -83,6 +83,29 @@ export class SQLiteBudgetRepository implements BudgetRepository {
     return rows.map((row) => ({ ...mapRecord(row), spent: Number(row.spent) }));
   }
 
+  async listAll(): Promise<BudgetSpendingRecord[]> {
+    const rows = await database
+      .select({
+        ...recordSelection,
+        spent: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+      })
+      .from(budgets)
+      .innerJoin(categories, eq(budgets.categoryId, categories.id))
+      .leftJoin(
+        transactions,
+        and(
+          eq(transactions.categoryId, budgets.categoryId),
+          eq(transactions.type, 'expense'),
+          eq(transactions.status, 'posted'),
+          gte(transactions.transactionDate, sql<string>`${budgets.month} || '-01'`),
+          lt(transactions.transactionDate, sql<string>`date(${budgets.month} || '-01', '+1 month')`),
+        ),
+      )
+      .groupBy(budgets.id, categories.id)
+      .orderBy(asc(budgets.month), asc(categories.name), asc(budgets.createdAt));
+    return rows.map((row) => ({ ...mapRecord(row), spent: Number(row.spent) }));
+  }
+
   async update(id: string, budget: BudgetUpdateRecord): Promise<void> {
     await database.update(budgets).set(budget).where(eq(budgets.id, id));
   }
