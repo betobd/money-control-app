@@ -15,9 +15,12 @@ type ProgressBarProps = ViewProps & {
 export function ProgressBar({ value, color, trackColor, height = 6, style, ...rest }: ProgressBarProps) {
   const theme = useAppTheme();
   const clamped = Math.max(0, Math.min(value, 1));
+  const percent = Math.round(clamped * 100);
 
   return (
     <View
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: percent }}
       style={[styles.track, { backgroundColor: trackColor ?? theme.progressTrack, height, borderRadius: borderRadii.full }, style]}
       {...rest}>
       <View style={[styles.fill, { backgroundColor: color, width: `${clamped * 100}%` }]} />

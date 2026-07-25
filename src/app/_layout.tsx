@@ -1,11 +1,13 @@
 import { useFonts } from 'expo-font';
+import type { ErrorBoundaryProps } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 import { colors } from '@/constants/theme';
+import { toUserMessage } from '@/errors/user-error';
 import { AppLockProvider } from '@/features/security/app-lock-provider';
 import { AppLockBoundary } from '@/features/security/components/app-lock-gate';
 import { NotificationRuntime } from '@/features/notifications/notification-runtime';
@@ -21,6 +23,31 @@ const appFonts = {
   JetBrainsMono_600SemiBold: require('../../assets/fonts/JetBrainsMono_600SemiBold.ttf'),
   JetBrainsMono_700Bold: require('../../assets/fonts/JetBrainsMono_700Bold.ttf'),
 };
+
+/**
+ * Root error boundary. Expo Router renders this when any screen throws during
+ * render (including a failed database initialization surfaced by DatabaseGate),
+ * replacing the default developer overlay in production with a recoverable,
+ * theme-aware screen. No technical detail is exposed to the user.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === 'dark' ? colors.dark : colors.light;
+  return (
+    <View style={[styles.errorScreen, { backgroundColor: theme.appBackground }]}>
+      <Text style={[styles.errorTitle, { color: theme.primaryText }]}>Something went wrong</Text>
+      <Text style={[styles.errorBody, { color: theme.secondaryText }]}>
+        {toUserMessage(error, 'Money Control ran into an unexpected problem. Your data is safe on this device.')}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => void retry()}
+        style={[styles.errorButton, { backgroundColor: theme.primaryAction }]}>
+        <Text style={[styles.errorButtonLabel, { color: theme.onPrimaryAction }]}>Try again</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function DatabaseGate({ children, backgroundColor, accentColor }: {
   children: React.ReactNode;
@@ -119,4 +146,9 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  errorScreen: { alignItems: 'center', flex: 1, gap: 16, justifyContent: 'center', padding: 24 },
+  errorTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  errorBody: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
+  errorButton: { borderRadius: 999, minHeight: 44, justifyContent: 'center', paddingHorizontal: 24 },
+  errorButtonLabel: { fontSize: 15, fontWeight: '600' },
 });

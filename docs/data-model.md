@@ -102,6 +102,8 @@ Rules do not reserve funds and never post transactions automatically. Active ref
 
 Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applied migrations are never edited; later changes receive new ordered migrations.
 
+Migrations are **hand-authored** `.sql` files (several include triggers and guard constraints Drizzle Kit does not model). `drizzle-kit generate` is therefore not the source of truth and must not be used to author new migrations — add new ordered files by hand following the existing pattern. The `meta/` snapshot files are complete only for the earliest migrations, so `drizzle-kit generate` diffs against them would be misleading; ignore them when authoring migrations. The runtime migrator uses `_journal.json` plus the bundled `.sql` files and is unaffected. See [known-limitations.md](known-limitations.md).
+
 ### Device-local notification tables
 
 Migration 0006 adds `notification_settings`, `scheduled_notifications`, and `budget_notification_state`. They contain versioned device preferences, Expo schedule identifiers/idempotency metadata, and threshold delivery state. They contain no transaction notes, notification bodies, PIN/security records, or portable financial data and have no financial foreign keys. Logical backup deliberately excludes all three tables; restore preserves preferences and rebuilds device metadata.

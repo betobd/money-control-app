@@ -44,7 +44,12 @@ export function AccountPicker({
             <Text style={{ color: theme.primaryAction }}>Close</Text>
           </Pressable>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled">
+        <ScrollView accessibilityRole="radiogroup" keyboardShouldPersistTaps="handled">
+          {accounts.length === 0 ? (
+            <Text style={[styles.empty, { color: theme.secondaryText }]}>
+              No active accounts yet. Add an account first, then choose it here.
+            </Text>
+          ) : null}
           {accounts.map((account) => {
             const selected = account.id === selectedId;
             return (
@@ -110,4 +115,5 @@ const styles = StyleSheet.create({
   name: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   type: { ...typography.caption, fontSize: 12, lineHeight: 16 },
   balance: { ...typography.moneyRow, fontWeight: '500', textAlign: 'right' },
+  empty: { ...typography.body, padding: spacing.lg, textAlign: 'center' },
 });

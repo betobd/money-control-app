@@ -539,3 +539,67 @@ test('query changes and invalidation reset pagination to the first page', () => 
     cursor: undefined,
   });
 });
+
+// Accounts view whose balances reflect already-persisted transactions, so a
+// second validation observes the first write's effect — the condition the
+// write-serialization lock must guarantee.
+class DerivedAccounts {
+  constructor(repository, opening) {
+    this.repository = repository;
+    this.opening = opening;
+  }
+  balanceOf(id) {
+    let balance = this.opening.get(id) ?? 0;
+    for (const record of this.repository.records) {
+      if (record.status !== 'posted') continue;
+      if (record.type === 'expense' && record.accountId === id) balance -= record.amount;
+      else if (record.type === 'income' && record.accountId === id) balance += record.amount;
+      else if (record.type === 'refund' && record.accountId === id) balance += record.amount;
+      else if (record.type === 'transfer' && record.accountId === id) balance -= record.amount;
+      else if (record.type === 'transfer' && record.destinationAccountId === id) balance += record.amount;
+    }
+    return balance;
+  }
+  view(id) {
+    return { id, type: 'checking', balance: this.balanceOf(id), isArchived: false };
+  }
+  async findById(id) {
+    return this.opening.has(id) ? this.view(id) : null;
+  }
+  async list() {
+    return [...this.opening.keys()].map((id) => this.view(id));
+  }
+}
+
+test('serializes concurrent transfers so a shared source cannot be overdrawn', async () => {
+  const repository = new Repo();
+  const opening = new Map([['active', 1_000_000], ['savings', 500_000]]);
+  const accounts = new DerivedAccounts(repository, opening);
+  const categories = new Categories();
+  let counter = 0;
+  const service = new TransactionService(repository, accounts, categories, () => `tx-${++counter}`, () => NOW);
+  const transfer = (amount) => ({
+    type: 'transfer',
+    amount,
+    accountId: 'active',
+    destinationAccountId: 'savings',
+    categoryId: null,
+    transactionDate: '2026-07-12',
+    note: null,
+  });
+
+  // Each 700k transfer is valid alone (<= 1,000,000) but together they overdraw.
+  const results = await Promise.allSettled([
+    service.create(transfer(700_000)),
+    service.create(transfer(700_000)),
+  ]);
+  const fulfilled = results.filter((result) => result.status === 'fulfilled');
+  const rejected = results.filter((result) => result.status === 'rejected');
+
+  assert.equal(fulfilled.length, 1, 'exactly one transfer should succeed');
+  assert.equal(rejected.length, 1, 'the second transfer should be rejected');
+  assert.ok(rejected[0].reason instanceof TransactionValidationError);
+  assert.equal(rejected[0].reason.fields.amount, 'Transfer would leave an asset account with insufficient funds.');
+  assert.equal(repository.records.filter((record) => record.type === 'transfer').length, 1);
+  assert.equal(accounts.balanceOf('active'), 300_000);
+});

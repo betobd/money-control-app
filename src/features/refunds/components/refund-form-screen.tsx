@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
@@ -53,7 +54,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
       } else if (cause instanceof RefundActionError) {
         setGeneralError(cause.message);
       } else {
-        setGeneralError(cause instanceof Error ? cause.message : 'Unable to save the refund.');
+        setGeneralError(toUserMessage(cause, 'Unable to save the refund.'));
       }
       setSaving(false);
     }

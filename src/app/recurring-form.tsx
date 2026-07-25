@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
@@ -21,7 +22,7 @@ export default function RecurringFormRoute() {
         if (!value) throw new Error('Recurring transaction not found.');
         setRule(value);
       })
-      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load recurring transaction.'));
+      .catch((cause) => setError(toUserMessage(cause, 'Unable to load recurring transaction.')));
   }, [id]);
 
   if (error) return <View style={[styles.center, { backgroundColor: theme.appBackground }]}><Text style={{ color: theme.destructive }}>{error}</Text></View>;

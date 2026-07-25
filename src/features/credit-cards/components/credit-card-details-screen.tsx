@@ -88,9 +88,9 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
               <Metric label="Credit limit" value={account.creditLimit === null ? 'Unavailable' : formatCop(account.creditLimit)} />
               <Metric label="Available credit" value={utilization.availableCredit === null ? 'Unavailable' : formatCop(utilization.availableCredit)} />
             </View>
-            <View accessibilityLabel={`Utilization ${utilizationPercent}, ${utilizationLabels[utilization.status]}`} style={styles.progressSection}>
+            <View accessibilityLabel={`Credit utilization ${utilizationPercent}, ${utilizationLabels[utilization.status]}`} style={styles.progressSection}>
               <View style={styles.metricRow}>
-                <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Utilization {utilizationPercent}</Text>
+                <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Credit utilization {utilizationPercent}</Text>
                 <Text style={[styles.bodyStrong, { color: utilization.status === 'over-limit' ? theme.destructive : theme.secondaryText }]}>{utilizationLabels[utilization.status]}</Text>
               </View>
               <View style={[styles.progressTrack, { backgroundColor: theme.progressTrack }]}>
@@ -203,10 +203,12 @@ function TransactionSection({ title, items, empty }: { title: string; items: Tra
                   {item.type === 'transfer' ? item.accountName : item.type === 'refund' ? 'Refund' : item.categoryName ?? 'Expense'}
                 </Text>
                 <Text style={[styles.bodyStrong, styles.moneyText, { color: item.type === 'transfer' ? theme.income : item.type === 'refund' ? theme.primaryAction : theme.expense }]}>
-                  {item.type === 'refund' ? '+' : ''}{formatCop(item.amount)}
+                  {item.type === 'expense' ? '−' : '+'}{formatCop(item.amount)}
                 </Text>
               </View>
-              <Text style={[styles.caption, { color: theme.secondaryText }]}>{formatTransactionDate(item.transactionDate)}</Text>
+              <Text style={[styles.caption, { color: theme.secondaryText }]}>
+                {formatTransactionDate(item.transactionDate)} · {item.type === 'transfer' ? 'Payment' : item.type === 'refund' ? 'Merchant refund' : 'Charge'}
+              </Text>
             </Pressable>
           ))
         : <View style={[styles.empty, { backgroundColor: theme.surface }]}><Text style={[styles.body, { color: theme.secondaryText }]}>{empty}</Text></View>}

@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View, type AlertButton } from 'react-native';
 
@@ -32,7 +33,7 @@ export default function AccountsScreen() {
     try {
       canDelete = await accountService.canPermanentlyDelete(account.id);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : 'Unable to load account actions.');
+      setActionError(toUserMessage(cause, 'Unable to load account actions.'));
       return;
     }
     const actions: AlertButton[] = [
@@ -65,7 +66,7 @@ export default function AccountsScreen() {
       await reload();
     } catch (cause) {
       if (cause instanceof AccountActionError) Alert.alert('Unable to restore account', cause.message);
-      else setActionError(cause instanceof Error ? cause.message : 'Unable to restore account.');
+      else setActionError(toUserMessage(cause, 'Unable to restore account.'));
     }
   }
 
@@ -87,7 +88,7 @@ export default function AccountsScreen() {
       await reload();
     } catch (cause) {
       if (cause instanceof AccountActionError) Alert.alert('Unable to delete account', cause.message);
-      else setActionError(cause instanceof Error ? cause.message : 'Unable to delete account.');
+      else setActionError(toUserMessage(cause, 'Unable to delete account.'));
     }
   }
 
@@ -112,7 +113,7 @@ export default function AccountsScreen() {
         </Text>
       ) : null}
 
-      <NetWorthSummary amount={formatCop(netWorth)} currency="COP" />
+      {!loading && !error ? <NetWorthSummary amount={formatCop(netWorth)} currency="COP" /> : null}
 
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Active accounts</Text>

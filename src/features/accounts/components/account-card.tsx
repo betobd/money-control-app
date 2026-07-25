@@ -19,15 +19,17 @@ type AccountCardProps = {
 
 export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
   const theme = useAppTheme();
-  const isDebt = account.type === 'credit_card' && account.balance < 0;
-  const balanceLabel = account.type === 'credit_card'
-    ? 'Amount owed'
+  const isCard = account.type === 'credit_card';
+  const isDebt = isCard && account.balance < 0;
+  const isCredit = isCard && account.balance > 0;
+  const balanceLabel = isCard
+    ? isCredit
+      ? 'Credit balance'
+      : 'Current debt'
     : account.type === 'cash'
       ? 'Current balance'
       : 'Available balance';
-  const formattedBalance = formatCop(
-    account.type === 'credit_card' ? Math.abs(account.balance) : account.balance,
-  );
+  const formattedBalance = formatCop(isCard ? Math.abs(account.balance) : account.balance);
   const utilization = account.type === 'credit_card'
     ? calculateCreditCardUtilization(account.balance, account.creditLimit)
     : null;
@@ -91,15 +93,21 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
         {isDebt ? (
           <Text style={[styles.debtNote, { color: theme.expense }]}>Debt · reduces net worth</Text>
         ) : null}
+        {isCredit ? (
+          <Text style={[styles.debtNote, { color: theme.income }]}>Credit balance · increases net worth</Text>
+        ) : null}
+        {isCard && account.balance === 0 ? (
+          <Text style={[styles.debtNote, { color: theme.secondaryText }]}>No debt</Text>
+        ) : null}
         {utilization ? (
           <View style={styles.cardDetails}>
             {utilization.utilizationBasisPoints !== null ? (
               <ProgressBar
-                color={utilization.utilizationBasisPoints > 10000 ? theme.destructive : theme.warning}
+                color={utilization.utilizationBasisPoints >= 10000 ? theme.destructive : theme.warning}
                 value={utilization.utilizationBasisPoints / 10000}
               />
             ) : null}
-            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available {utilization.availableCredit === null ? 'unavailable' : formatCop(utilization.availableCredit)} · Utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
+            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available credit {utilization.availableCredit === null ? 'unavailable' : formatCop(utilization.availableCredit)} · Credit utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
             {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
           </View>
         ) : null}

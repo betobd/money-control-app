@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -100,7 +101,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       void creditCardPaymentService.preview(input).then((value) => {
         if (active) setPreview(value);
       }, (cause: unknown) => {
-        if (active) setServiceError(cause instanceof Error ? cause.message : 'Unable to calculate payment.');
+        if (active) setServiceError(toUserMessage(cause, 'Unable to calculate payment.'));
       });
     }, 0);
     return () => {
@@ -143,7 +144,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         ]);
         return;
       }
-      setServiceError(cause instanceof Error ? cause.message : 'Unable to create card payment.');
+      setServiceError(toUserMessage(cause, 'Unable to create card payment.'));
       setSaving(false);
     }
   }
@@ -263,9 +264,9 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               <Value label="Source available balance" value={formatCop(preview.sourceBalance)} />
               <Value label="Selected payment option" value={preview.optionLabel} />
               <Value label="Payment amount" value={formatCop(preview.amount)} />
-              <Value label="Current card debt" value={formatCop(preview.currentDebt)} />
-              <Value label="Statement remaining" value={details.latestStatement ? formatCop(preview.statementRemaining) : 'No statement recorded'} />
-              <Value label="Expected card debt" value={formatCop(preview.expectedDebt)} />
+              <Value label="Current debt" value={formatCop(preview.currentDebt)} />
+              <Value label="Remaining statement" value={details.latestStatement ? formatCop(preview.statementRemaining) : 'No statement recorded'} />
+              <Value label="Expected debt" value={formatCop(preview.expectedDebt)} />
               <Value label="Expected statement remaining" value={details.latestStatement ? formatCop(preview.expectedStatementRemaining) : 'No statement recorded'} />
               <Value label="Payment date" value={date} />
               {preview.amountBeyondStatement > 0 && preview.overpaymentAmount === 0 ? (

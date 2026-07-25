@@ -37,7 +37,8 @@ function normalizeName(name: string): string {
 export function validateAccountInput(input: AccountInput): AccountValidationErrors {
   const errors: AccountValidationErrors = {};
   if (!input.name.trim()) errors.name = 'Enter an account name.';
-  if (!accountTypes.includes(input.type)) errors.type = 'Select a supported account type.';
+  // `other` is a legacy/backup value only; new accounts must use a creatable type.
+  if (!(accountTypes as readonly string[]).includes(input.type)) errors.type = 'Select a supported account type.';
   if (!Number.isSafeInteger(input.openingBalance)) {
     errors.openingBalance = 'Opening balance must be a whole, safe COP amount.';
   }

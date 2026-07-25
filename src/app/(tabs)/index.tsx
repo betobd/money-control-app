@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
-import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link, useRouter } from 'expo-router';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
@@ -13,6 +13,7 @@ import { SectionHeader } from '@/features/home/components/section-header';
 import { TransactionListItem } from '@/features/home/components/transaction-list-item';
 import { useHomeDashboard } from '@/features/home/use-home-dashboard';
 import { formatCop } from '@/features/accounts/account-format';
+import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import {
   signedTransactionAmount,
   transactionAccountLabel,
@@ -35,6 +36,7 @@ function MonthPill({ label }: { label: string }) {
 
 export default function HomeScreen() {
   const theme = useAppTheme();
+  const router = useRouter();
   const dashboard = useHomeDashboard();
   const monthDate = new Date(`${dashboard.month}-01T00:00:00Z`);
   const monthShort = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(monthDate).toUpperCase();
@@ -45,9 +47,43 @@ export default function HomeScreen() {
   const netColor = netUp ? theme.income : theme.expense;
   const netLabel = `${netUp ? '+' : '-'}${formatCop(Math.abs(net))}`;
 
+  if (!dashboard.hasLoaded && dashboard.loading) {
+    return (
+      <ScreenContainer contentStyle={styles.content}>
+        <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+        <View accessibilityLabel="Loading your dashboard" style={styles.stateArea}>
+          <ActivityIndicator color={theme.primaryAction} size="large" />
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!dashboard.hasLoaded && dashboard.error) {
+    return (
+      <ScreenContainer contentStyle={styles.content}>
+        <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+        <View accessibilityLiveRegion="assertive" style={styles.stateArea}>
+          <Text style={[styles.stateText, { color: theme.secondaryText }]}>{dashboard.error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void dashboard.reload()}
+            style={[styles.retryButton, { backgroundColor: theme.primaryAction }]}>
+            <Text style={[styles.retryLabel, { color: theme.onPrimaryAction }]}>Try again</Text>
+          </Pressable>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer contentStyle={styles.content}>
       <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+
+      {dashboard.error ? (
+        <Text accessibilityLiveRegion="polite" style={[styles.inlineError, { color: theme.warning }]}>
+          {dashboard.error}
+        </Text>
+      ) : null}
 
       <Card accessibilityLabel={`Total balance ${formatCop(dashboard.totalBalance)} Colombian pesos`} style={styles.hero} variant="hero">
         <Overline color={theme.mutedText}>Total balance · COP</Overline>
@@ -92,7 +128,8 @@ export default function HomeScreen() {
             key={transaction.id}
             amount={signedTransactionAmount(transaction)}
             icon={transactionIcon(transaction)}
-            subtitle={`${transaction.transactionDate} · ${transactionTypeLabel(transaction)}${transaction.type === 'transfer' ? ` · ${transactionAccountLabel(transaction)}` : ''}`}
+            onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: transaction.id } })}
+            subtitle={`${formatTransactionDate(transaction.transactionDate)} · ${transactionTypeLabel(transaction)}${transaction.type === 'transfer' ? ` · ${transactionAccountLabel(transaction)}` : ''}`}
             title={transactionTitle(transaction)}
             tone={transaction.type}
           />
@@ -161,5 +198,27 @@ const styles = StyleSheet.create({
     ...typography.caption,
     paddingVertical: spacing.lg,
     textAlign: 'center',
+  },
+  stateArea: {
+    alignItems: 'center',
+    gap: spacing.md,
+    justifyContent: 'center',
+    paddingVertical: spacing.xxl,
+  },
+  stateText: {
+    ...typography.body,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderRadius: borderRadii.full,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  retryLabel: {
+    ...typography.label,
+  },
+  inlineError: {
+    ...typography.caption,
   },
 });

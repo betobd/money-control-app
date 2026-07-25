@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
@@ -154,7 +155,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
       router.back();
     } catch (cause) {
       if (cause instanceof RecurringRuleValidationError) setErrors(cause.fields);
-      else setGeneralError(cause instanceof Error ? cause.message : 'Unable to save recurring transaction.');
+      else setGeneralError(toUserMessage(cause, 'Unable to save recurring transaction.'));
     } finally {
       setSaving(false);
     }

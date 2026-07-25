@@ -1,4 +1,5 @@
 import { SymbolView } from 'expo-symbols';
+import { toUserMessage } from '@/errors/user-error';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -65,7 +66,7 @@ export function TransactionFilterModal({
       setDateError(undefined);
       onApply(draft);
     } catch (cause) {
-      setDateError(cause instanceof Error ? cause.message : 'Enter a valid date range.');
+      setDateError(toUserMessage(cause, 'Enter a valid date range.'));
     }
   };
 

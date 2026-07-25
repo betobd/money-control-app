@@ -15,7 +15,7 @@ export function NetWorthSummary({ amount, currency }: NetWorthSummaryProps) {
 
   return (
     <Card
-      accessibilityLabel={`Total net worth, ${amount} ${currency}. Includes assets minus debt.`}
+      accessibilityLabel={`Total net worth, ${amount} ${currency}. Assets minus current debt.`}
       style={styles.card}
       variant="raised">
       <Overline>Total net worth</Overline>
@@ -29,7 +29,7 @@ export function NetWorthSummary({ amount, currency }: NetWorthSummaryProps) {
         </Text>
         <Text style={[styles.currency, { color: theme.mutedText }]}>{currency}</Text>
       </View>
-      <Text style={[styles.note, { color: theme.mutedText }]}>Assets minus amounts owed</Text>
+      <Text style={[styles.note, { color: theme.mutedText }]}>Assets minus current debt</Text>
     </Card>
   );
 }

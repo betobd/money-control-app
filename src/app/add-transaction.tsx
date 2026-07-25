@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -120,16 +121,16 @@ export default function AddTransactionModal() {
       if (cause instanceof TransactionValidationError) {
         setErrors(cause.fields);
       } else {
-        setGeneralError(cause instanceof Error ? cause.message : 'Unable to save transaction.');
+        setGeneralError(toUserMessage(cause, 'Unable to save transaction.'));
       }
       setSaving(false);
     }
   }
 
   const transferHelper = destinationAccount?.type === 'credit_card'
-    ? 'Payment reduces the amount owed.'
+    ? 'This transfer reduces the card’s current debt.'
     : selectedAccount?.type === 'credit_card'
-      ? 'This increases the card amount owed or reduces a card credit balance.'
+      ? 'This increases the card’s current debt or reduces a credit balance.'
       : undefined;
   const pickerTitle = accountPickerField === 'source'
     ? 'Select source account'

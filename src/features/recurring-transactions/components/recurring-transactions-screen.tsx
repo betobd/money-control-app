@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
+import { toUserMessage } from '@/errors/user-error';
 import { formatCop } from '@/features/accounts/account-format';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
@@ -28,12 +30,16 @@ export function RecurringTransactionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
-  const { error, history, limited, loading, pending, reload: load, rules } = useRecurringTransactions();
+  const { error, hasLoaded, history, limited, loading, pending, reload: load, rules } = useRecurringTransactions();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const busy = busyId !== null;
   const activeRules = rules.filter((rule) => rule.isActive && !rule.endedAt);
   const pausedRules = rules.filter((rule) => !rule.isActive && !rule.endedAt);
   const endedRules = rules.filter((rule) => Boolean(rule.endedAt));
 
   async function confirm(occurrence: RecurringOccurrenceListItem) {
+    if (busy) return;
+    setBusyId(occurrence.id);
     try {
       await recurringTransactionService.confirmOccurrence(occurrence.id);
       await load();
@@ -43,12 +49,15 @@ export function RecurringTransactionsScreen() {
         : undefined;
       Alert.alert(
         'Unable to confirm',
-        validationMessage || (cause instanceof Error ? cause.message : 'Review the occurrence and try again.'),
+        validationMessage || toUserMessage(cause, 'Review the occurrence and try again.'),
       );
+    } finally {
+      setBusyId(null);
     }
   }
 
   function skip(occurrence: RecurringOccurrenceListItem) {
+    if (busy) return;
     Alert.alert(
       'Skip this occurrence?',
       'It will remain in recurring history and will not affect balances or reports.',
@@ -58,12 +67,12 @@ export function RecurringTransactionsScreen() {
           text: 'Skip',
           style: 'destructive',
           onPress: () => {
+            if (busy) return;
+            setBusyId(occurrence.id);
             void recurringTransactionService.skipOccurrence(occurrence.id)
               .then(load)
-              .catch((cause) => Alert.alert(
-                'Unable to skip',
-                cause instanceof Error ? cause.message : 'Try again.',
-              ));
+              .catch((cause) => Alert.alert('Unable to skip', toUserMessage(cause, 'Try again.')))
+              .finally(() => setBusyId(null));
           },
         },
       ],
@@ -71,16 +80,21 @@ export function RecurringTransactionsScreen() {
   }
 
   async function toggleRule(rule: RecurringRuleListItem) {
+    if (busy) return;
+    setBusyId(rule.id);
     try {
       if (rule.isActive) await recurringTransactionService.pauseRule(rule.id);
       else await recurringTransactionService.resumeRule(rule.id);
       await load();
     } catch (cause) {
-      Alert.alert('Unable to update rule', cause instanceof Error ? cause.message : 'Try again.');
+      Alert.alert('Unable to update rule', toUserMessage(cause, 'Try again.'));
+    } finally {
+      setBusyId(null);
     }
   }
 
   function endRule(rule: RecurringRuleListItem) {
+    if (busy) return;
     Alert.alert(
       'End recurring transaction?',
       'No future occurrences will be generated. Existing history and pending items are preserved.',
@@ -90,7 +104,12 @@ export function RecurringTransactionsScreen() {
           text: 'End',
           style: 'destructive',
           onPress: () => {
-            void recurringTransactionService.endRule(rule.id).then(load);
+            if (busy) return;
+            setBusyId(rule.id);
+            void recurringTransactionService.endRule(rule.id)
+              .then(load)
+              .catch((cause) => Alert.alert('Unable to end rule', toUserMessage(cause, 'Try again.')))
+              .finally(() => setBusyId(null));
           },
         },
       ],
@@ -119,10 +138,13 @@ export function RecurringTransactionsScreen() {
         </Pressable>
       </View>
 
-      {loading ? (
+      {loading && !hasLoaded ? (
         <View style={styles.center}><ActivityIndicator color={theme.primaryAction} /></View>
       ) : (
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+          {loading ? (
+            <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.secondaryText }]}>Updating…</Text>
+          ) : null}
           {error ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{error}</Text>
           ) : null}
@@ -138,6 +160,8 @@ export function RecurringTransactionsScreen() {
           ) : pending.map((occurrence) => (
             <OccurrenceCard
               key={occurrence.id}
+              busy={busy}
+              confirming={busyId === occurrence.id}
               occurrence={occurrence}
               onConfirm={() => void confirm(occurrence)}
               onEdit={() => router.push({ pathname: '/recurring-occurrence', params: { id: occurrence.id } })}
@@ -176,6 +200,7 @@ export function RecurringTransactionsScreen() {
           ) : activeRules.map((rule) => (
             <RuleCard
               key={rule.id}
+              busy={busy}
               onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
               onEnd={() => endRule(rule)}
               onToggle={() => void toggleRule(rule)}
@@ -189,6 +214,7 @@ export function RecurringTransactionsScreen() {
               {pausedRules.map((rule) => (
                 <RuleCard
                   key={rule.id}
+                  busy={busy}
                   onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
                   onEnd={() => endRule(rule)}
                   onToggle={() => void toggleRule(rule)}
@@ -260,11 +286,15 @@ function EmptyCard({ text }: { text: string }) {
 
 function OccurrenceCard({
   occurrence,
+  busy,
+  confirming,
   onConfirm,
   onEdit,
   onSkip,
 }: {
   occurrence: RecurringOccurrenceListItem;
+  busy: boolean;
+  confirming: boolean;
   onConfirm: () => void;
   onEdit: () => void;
   onSkip: () => void;
@@ -285,13 +315,17 @@ function OccurrenceCard({
         <Text style={[styles.amount, { color: typeColor(occurrence.type, theme) }]}>{formatCop(occurrence.amount)}</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" onPress={onConfirm} style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
-          <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Confirm</Text>
+        <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: confirming }} disabled={busy} onPress={onConfirm} style={[styles.actionButton, { backgroundColor: theme.primaryAction, opacity: busy && !confirming ? 0.5 : 1 }]}>
+          {confirming ? (
+            <ActivityIndicator color={theme.onPrimaryAction} size="small" />
+          ) : (
+            <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Confirm</Text>
+          )}
         </Pressable>
-        <Pressable accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
+        <Pressable accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
           <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit</Text>
         </Pressable>
-        <Pressable accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onSkip} style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
+        <Pressable accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onSkip} style={[styles.actionButton, { backgroundColor: theme.tintDestructive, opacity: busy ? 0.5 : 1 }]}>
           <Text style={[styles.actionLabel, { color: theme.destructive }]}>Skip</Text>
         </Pressable>
       </View>
@@ -301,11 +335,13 @@ function OccurrenceCard({
 
 function RuleCard({
   rule,
+  busy = false,
   onEdit,
   onToggle,
   onEnd,
 }: {
   rule: RecurringRuleListItem;
+  busy?: boolean;
   onEdit: () => void;
   onToggle: () => void;
   onEnd: () => void;
@@ -332,13 +368,13 @@ function RuleCard({
       </View>
       {!ended ? (
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
             <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit future</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onToggle} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onToggle} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
             <Text style={[styles.actionLabel, { color: theme.primaryText }]}>{rule.isActive ? 'Pause' : 'Resume'}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onEnd} style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEnd} style={[styles.actionButton, { backgroundColor: theme.tintDestructive, opacity: busy ? 0.5 : 1 }]}>
             <Text style={[styles.actionLabel, { color: theme.destructive }]}>End</Text>
           </Pressable>
         </View>

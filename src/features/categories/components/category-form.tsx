@@ -1,4 +1,5 @@
 import { SymbolView } from 'expo-symbols';
+import { toUserMessage } from '@/errors/user-error';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -17,8 +18,8 @@ export function CategoryForm({ categoryId, initialType = 'expense' }: { category
   const [iconSearch, setIconSearch] = useState('');
   const [errors, setErrors] = useState<CategoryValidationErrors>({}); const [generalError, setGeneralError] = useState<string>();
   const [loading, setLoading] = useState(Boolean(categoryId)); const [saving, setSaving] = useState(false);
-  useEffect(() => { if (!categoryId) return; categoryService.get(categoryId).then((category) => { if (!category) throw new Error('Category not found.'); setName(category.name); setType(category.type); setIcon(isCategoryIcon(category.icon) ? category.icon : fallbackCategoryIcon); }, (cause) => setGeneralError(cause instanceof Error ? cause.message : 'Unable to load category.')).finally(() => setLoading(false)); }, [categoryId]);
-  async function save() { setSaving(true); setErrors({}); setGeneralError(undefined); try { const input = { name, type, icon }; if (categoryId) await categoryService.update(categoryId, input); else await categoryService.create(input); router.back(); } catch (cause) { if (cause instanceof CategoryValidationError) setErrors(cause.fields); else setGeneralError(cause instanceof Error ? cause.message : 'Unable to save category.'); } finally { setSaving(false); } }
+  useEffect(() => { if (!categoryId) return; categoryService.get(categoryId).then((category) => { if (!category) throw new Error('Category not found.'); setName(category.name); setType(category.type); setIcon(isCategoryIcon(category.icon) ? category.icon : fallbackCategoryIcon); }, (cause) => setGeneralError(toUserMessage(cause, 'Unable to load category.'))).finally(() => setLoading(false)); }, [categoryId]);
+  async function save() { setSaving(true); setErrors({}); setGeneralError(undefined); try { const input = { name, type, icon }; if (categoryId) await categoryService.update(categoryId, input); else await categoryService.create(input); router.back(); } catch (cause) { if (cause instanceof CategoryValidationError) setErrors(cause.fields); else setGeneralError(toUserMessage(cause, 'Unable to save category.')); } finally { setSaving(false); } }
   if (loading) return <View style={[styles.loading, { backgroundColor: theme.appBackground }]}><ActivityIndicator color={theme.primaryAction} /></View>;
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
     <View style={styles.header}><Pressable accessibilityLabel="Close category form" onPress={() => router.back()} style={styles.headerButton}><SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} /></Pressable><Text style={[styles.headerTitle, { color: theme.primaryText }]}>{categoryId ? 'Edit Category' : 'New Category'}</Text><View style={styles.headerButton} /></View>

@@ -55,6 +55,7 @@ def derived_values(database):
             WHEN t.status <> 'posted' THEN 0
             WHEN t.type = 'income' AND t.account_id = a.id THEN t.amount
             WHEN t.type = 'expense' AND t.account_id = a.id THEN -t.amount
+            WHEN t.type = 'refund' AND t.account_id = a.id THEN t.amount
             WHEN t.type = 'transfer' AND t.account_id = a.id THEN -t.amount
             WHEN t.type = 'transfer' AND t.destination_account_id = a.id THEN t.amount
             ELSE 0
@@ -96,6 +97,12 @@ def restore_atomically(database, backup, fail_after=None):
     database.execute('BEGIN IMMEDIATE')
     try:
         for table in delete_order:
+            # Refunds self-reference their original expense via
+            # transactions.original_transaction_id (ON DELETE RESTRICT), enforced
+            # per row. Delete refund children before the parent expenses so the
+            # bulk transactions delete cannot trip the constraint mid-statement.
+            if table == 'transactions':
+                database.execute("DELETE FROM transactions WHERE type = 'refund'")
             database.execute(f'DELETE FROM {table}')
 
         for table in tables:
@@ -161,6 +168,13 @@ connection.executemany(
         ('recurring-posted', 'expense', 'posted', 50_000, 'COP', 'checking', None, 'food', 'Internet', '2026-07-16', utc, utc),
     ],
 )
+# A posted linked refund against the 'expense' row exercises the self-referential
+# ON DELETE RESTRICT path during restore-over-existing-data. The id sorts after
+# its parent so the snapshot-ordered insert satisfies the FK on the insert side too.
+connection.execute(
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,original_transaction_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ('refund-expense', 'refund', 'posted', 40_000, 'COP', 'checking', None, None, 'expense', None, '2026-07-10', utc, utc),
+)
 connection.execute(
     'INSERT INTO transaction_splits VALUES (?,?,?,?,?)',
     ('split-expense', 'expense', 'checking', -120_000, 0),
@@ -192,7 +206,7 @@ assert baseline_derived == {
     'balances': {
         'archived-account': 100_000,
         'card': -380_000,
-        'checking': 2_130_000,
+        'checking': 2_170_000,
         'savings': 700_000,
     },
     'income': 500_000,
@@ -203,7 +217,7 @@ assert baseline_derived == {
 
 # Later local changes make the current database observably different from the backup.
 connection.execute("UPDATE accounts SET name = 'Renamed checking' WHERE id = 'checking'")
-connection.execute("UPDATE transactions SET status = 'voided' WHERE id = 'expense'")
+connection.execute("UPDATE transactions SET status = 'voided' WHERE id = 'recurring-posted'")
 connection.execute(
     'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     ('later-income', 'income', 'posted', 1, 'COP', 'savings', None, 'salary', None, '2026-07-20', utc, utc),

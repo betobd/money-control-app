@@ -5,6 +5,7 @@ export const accountTypeLabels: Record<AccountType, string> = {
   savings: 'Savings account',
   cash: 'Cash account',
   credit_card: 'Credit card',
+  other: 'Other account',
 };
 
 export function formatCop(amount: number): string {

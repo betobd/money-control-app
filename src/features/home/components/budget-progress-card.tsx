@@ -17,14 +17,16 @@ export function BudgetProgressCard({ summary }: { summary: BudgetSummary }) {
     <Card
       accessibilityLabel={
         hasBudget
-          ? `Monthly budget, ${formatCop(summary.totalSpent)} spent of ${formatCop(summary.totalBudget)}, ${summary.percentageUsed}% used`
+          ? `Monthly budget, ${formatCop(summary.totalSpent)} spent of ${formatCop(summary.totalBudget)}, ${summary.percentageUsed}% used${overBudget ? ', over budget' : ''}`
           : 'No budgets set for this month'
       }
       style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: theme.primaryText }]}>Monthly budget</Text>
         {hasBudget ? (
-          <Text style={[styles.meta, { color: overBudget ? theme.destructive : theme.secondaryText }]}>{summary.percentageUsed}% used</Text>
+          <Text style={[styles.meta, { color: overBudget ? theme.destructive : theme.secondaryText }]}>
+            {summary.percentageUsed}% used{overBudget ? ' · Over budget' : ''}
+          </Text>
         ) : null}
       </View>
 

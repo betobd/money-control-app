@@ -1,6 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 
+import { toUserMessage } from '@/errors/user-error';
 import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
 import { subscribeToRecurringDataChanges } from './recurring-data-events';
 import { recurringTransactionService } from './recurring-transactions';
@@ -14,6 +15,7 @@ export function useRecurringTransactions() {
   const [pending, setPending] = useState<RecurringOccurrenceListItem[]>([]);
   const [history, setHistory] = useState<RecurringOccurrenceListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string>();
   const [limited, setLimited] = useState(false);
 
@@ -31,8 +33,9 @@ export function useRecurringTransactions() {
       setPending(nextPending);
       setHistory(nextHistory);
       setLimited(generation.limitedRules > 0);
+      setHasLoaded(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load recurring transactions.');
+      setError(toUserMessage(cause, 'Unable to load recurring transactions.'));
     } finally {
       setLoading(false);
     }
@@ -50,5 +53,5 @@ export function useRecurringTransactions() {
     void reload();
   }), [reload]);
 
-  return { rules, pending, history, loading, error, limited, reload };
+  return { rules, pending, history, loading, hasLoaded, error, limited, reload };
 }

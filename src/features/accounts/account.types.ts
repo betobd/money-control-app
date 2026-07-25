@@ -1,6 +1,10 @@
+// Types offered in the account form. `other` is intentionally excluded: it is a
+// schema/backup-permitted legacy value the UI can display but never creates.
 export const accountTypes = ['checking', 'savings', 'cash', 'credit_card'] as const;
 
-export type AccountType = (typeof accountTypes)[number];
+export type CreatableAccountType = (typeof accountTypes)[number];
+
+export type AccountType = CreatableAccountType | 'other';
 
 export type Account = {
   id: string;

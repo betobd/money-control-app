@@ -321,6 +321,11 @@ export class SQLiteBackupRepository implements BackupRepository {
         DELETE FROM transaction_splits;
         DELETE FROM budgets;
         DELETE FROM recurring_transactions;
+        -- Refunds self-reference their original expense via
+        -- transactions.original_transaction_id (ON DELETE RESTRICT), which is
+        -- enforced per row. Remove refund children before their parents so the
+        -- bulk delete below cannot trip the constraint mid-statement.
+        DELETE FROM transactions WHERE type = 'refund';
         DELETE FROM transactions;
         DELETE FROM categories;
         DELETE FROM accounts;

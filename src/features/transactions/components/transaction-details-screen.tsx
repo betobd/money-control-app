@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { toUserMessage } from '@/errors/user-error';
 import { formatCop } from '@/features/accounts/account-format';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
@@ -28,11 +29,9 @@ import type { TransactionFormType } from '@/features/add-transaction/transaction
 import { useCategories } from '@/features/categories/use-categories';
 import { refundService } from '@/features/refunds/refunds';
 import { useRefundSummary } from '@/features/refunds/use-refund-summary';
+import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { transactionTypeLabel } from '@/features/transactions/transaction-presentation';
-import {
-  TransactionActionError,
-  TransactionValidationError,
-} from '@/features/transactions/transaction.service';
+import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { transactionService } from '@/features/transactions/transactions';
 import type {
   TransactionListItem,
@@ -184,7 +183,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                   onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: refund.id } })}
                   style={[styles.refundLink, { borderTopColor: theme.hairline }]}>
                   <Text style={[styles.refundLinkText, { color: theme.primaryAction }]}>
-                    {refund.status === 'voided' ? 'Voided refund' : 'Refund'} · {refund.transactionDate}
+                    {refund.status === 'voided' ? 'Voided refund' : 'Refund'} · {formatTransactionDate(refund.transactionDate)}
                   </Text>
                   <Text style={[styles.refundLinkAmount, { color: refund.status === 'voided' ? theme.mutedText : theme.primaryAction }]}>
                     +{formatCop(refund.amount)}
@@ -212,7 +211,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                 <DetailRow label="Category" value={transaction.categoryName ?? 'Unknown category'} />
               </>
             )}
-            <DetailRow label="Transaction date" value={transaction.transactionDate} />
+            <DetailRow label="Transaction date" value={formatTransactionDate(transaction.transactionDate)} />
             <DetailRow label="Note" value={transaction.note ?? 'No note'} />
             <DetailRow label="Created" value={formatAuditTimestamp(transaction.createdAt)} />
             <DetailRow label="Updated" value={formatAuditTimestamp(transaction.updatedAt)} />
@@ -402,7 +401,7 @@ function TransactionEditForm({
           <TransferAccountFields
             destination={destinationAccount?.name ?? 'Select account'}
             destinationError={errors.destinationAccountId}
-            helperText={destinationAccount?.type === 'credit_card' ? 'Payment reduces the amount owed.' : undefined}
+            helperText={destinationAccount?.type === 'credit_card' ? 'This transfer reduces the card’s current debt.' : undefined}
             onSelectDestination={() => setPickerField('destination')}
             onSelectSource={() => setPickerField('source')}
             source={selectedAccount?.name ?? 'Select account'}
@@ -533,8 +532,9 @@ function formatAuditTimestamp(value: string): string {
 }
 
 function actionErrorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof TransactionActionError || cause instanceof Error) return cause.message;
-  return fallback;
+  // TransactionActionError carries curated, user-facing text; toUserMessage
+  // passes those through while replacing raw driver/technical messages.
+  return toUserMessage(cause, fallback);
 }
 
 const styles = StyleSheet.create({

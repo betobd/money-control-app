@@ -1,4 +1,5 @@
 import { SymbolView } from 'expo-symbols';
+import { toUserMessage } from '@/errors/user-error';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -58,7 +59,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         setPaymentDueDay(account.paymentDueDay === null ? '' : String(account.paymentDueDay));
         setOpeningBalanceEditable(canEdit);
       })
-      .catch((cause) => setGeneralError(cause instanceof Error ? cause.message : 'Unable to load account.'))
+      .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to load account.')))
       .finally(() => setLoading(false));
   }, [accountId]);
 
@@ -84,7 +85,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof AccountValidationError) setErrors(cause.fields);
-      else setGeneralError(cause instanceof Error ? cause.message : 'Unable to save account.');
+      else setGeneralError(toUserMessage(cause, 'Unable to save account.'));
     } finally {
       setSaving(false);
     }

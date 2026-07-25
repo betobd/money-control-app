@@ -83,14 +83,16 @@ The UI surfaces concise user-safe errors and never logs the backup contents or f
 
 Restore uses `withExclusiveTransactionAsync` with foreign keys still enabled. It deletes in dependency order:
 
-1. recurring occurrences
-2. transaction splits
-3. budgets
-4. recurring rules
-5. transactions
-6. credit-card statements
+1. credit-card statements
+2. recurring occurrences
+3. transaction splits
+4. budgets
+5. recurring rules
+6. refund transactions, then the remaining transactions
 7. categories
 8. accounts
+
+Because a refund self-references its original expense through `transactions.original_transaction_id` with `ON DELETE RESTRICT` — enforced per row while foreign keys are on — refund rows are deleted first (`DELETE FROM transactions WHERE type = 'refund'`) before the bulk `DELETE FROM transactions`. Without this, restoring over a database that already contains a linked refund would fail the foreign-key constraint mid-statement and roll back (no data loss, but restore could not complete). A regression test seeds a linked refund into the pre-existing database and restores over it.
 
 It inserts in dependency order:
 
@@ -110,7 +112,7 @@ Only after commit does the service publish one global financial-data invalidatio
 ## Security, privacy, and limitations
 
 - Backups contain sensitive financial data and notes in plaintext. The screen warns users to store them only in a trusted location.
-- Temporary export and picker copies live only in the app cache and are deleted on the best-effort cleanup path after use.
+- Temporary export and picker copies live only in the app cache and are deleted on the best-effort cleanup path after use. Backup files are written to a dedicated `money-control-backups` cache subdirectory; before each new backup, any plaintext file left behind by a previously interrupted share (older than 24 hours) is swept, mirroring the Data Export cleanup so an interrupted share cannot leave financial data lingering indefinitely.
 - The feature requests no broad storage permission and has no cloud/network component. The user chooses the destination/provider through Android system UI.
 - There is no password protection, encryption, signature/authenticity, cloud sync, scheduled backup, merge import, partial restore, or cross-currency conversion.
 - Version 3 supports only COP and the current Money Control logical model.

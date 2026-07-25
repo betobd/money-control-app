@@ -107,7 +107,7 @@ net     = income - expense
 - Transfers are excluded by type, not inferred from category or sign.
 - Voided transactions are always excluded.
 - Balances and totals are derived; they are never independently editable cached truth.
-- Credit-card cards display the absolute debt magnitude under **Amount owed**. Absolute values are presentation-only and are never used in net-worth calculations.
+- Credit-card cards display the absolute magnitude of the signed balance, labeled by state: a negative balance shows as **Current debt**, a zero balance as **No debt**, and a positive (overpaid) balance as **Credit balance**. Absolute values are presentation-only and are never used in net-worth calculations, which always use the signed balance. See [terminology.md](terminology.md).
 
 ## 9. Transaction splits
 

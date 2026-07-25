@@ -39,7 +39,7 @@ const menuItems: MenuItem[] = [
     accessibilityHint: 'Create a local backup or replace local data from a backup file',
     icon: { ios: 'externaldrive.fill', android: 'backup', web: 'backup' },
     label: 'Backup & Restore',
-    description: 'Save or restore a complete local copy',
+    description: 'Back up or restore a complete local copy',
     href: '/backup' as Href,
   },
   {

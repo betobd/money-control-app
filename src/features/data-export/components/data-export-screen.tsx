@@ -375,6 +375,7 @@ type Theme = ReturnType<typeof useAppTheme>;
 function ExportCard({
   children,
   description,
+  kind,
   recordCount,
   theme,
   title,
@@ -398,6 +399,9 @@ function ExportCard({
           <Text accessibilityLabel={`${recordCount} records`} style={[styles.count, { backgroundColor: theme.elevatedSurface, color: theme.primaryText }]}>{recordCount.toLocaleString('en-US')}</Text>
         )}
       </View>
+      {recordCount === 0 && kind !== 'transactions' ? (
+        <Text accessibilityLiveRegion="polite" style={[styles.emptyText, { color: theme.secondaryText }]}>Nothing to export here yet — this CSV would have no rows.</Text>
+      ) : null}
       {children}
       <Text style={[styles.notBackup, { color: theme.mutedText }]}>Human-readable CSV · Not a restorable backup</Text>
     </Card>

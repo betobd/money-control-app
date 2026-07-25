@@ -6,6 +6,7 @@ import { budgetService } from '@/features/budgets/budgets';
 import { bogotaToday, monthFromDate } from '@/features/transactions/transaction-date';
 import { transactionService } from '@/features/transactions/transactions';
 import type { MonthlyTransactionSummary, TransactionListItem } from '@/features/transactions/transaction.types';
+import { toUserMessage } from '@/errors/user-error';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
 
 type State = {
@@ -37,6 +38,7 @@ export function useHomeDashboard() {
     budget: emptyBudget,
   });
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string>();
   const month = monthFromDate(bogotaToday());
   const reload = useCallback(async () => {
@@ -55,12 +57,13 @@ export function useHomeDashboard() {
         recent,
         budget: budget.summary,
       });
+      setHasLoaded(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load dashboard.');
+      setError(toUserMessage(cause, 'Unable to load your dashboard right now.'));
     } finally {
       setLoading(false);
     }
   }, [month]);
   useFinancialDataRefresh(reload);
-  return { ...data, month, loading, error };
+  return { ...data, month, loading, hasLoaded, error, reload };
 }

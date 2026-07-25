@@ -34,13 +34,13 @@ export function FinancialSummaryCard({ income, expenses, refunds, netBalance }: 
         </Card>
       ) : null}
       <Card padding={spacing.sm + spacing.xs} style={styles.tile}>
-        <Overline>Expenses</Overline>
+        <Overline>Net expenses</Overline>
         <MoneyText style={styles.value} tone="expense">
           {expenses}
         </MoneyText>
       </Card>
       <Card padding={spacing.sm + spacing.xs} style={StyleSheet.flatten([styles.tile, { backgroundColor: theme.tintPrimary }])}>
-        <Overline color={theme.transfer}>Net</Overline>
+        <Overline color={theme.transfer}>Net result</Overline>
         <MoneyText style={styles.value}>{netBalance}</MoneyText>
       </Card>
     </View>

@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
@@ -68,7 +69,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         }
         setCategories(options);
       })
-      .catch((cause) => setGeneralError(cause instanceof Error ? cause.message : 'Unable to load budget.'))
+      .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to load budget.')))
       .finally(() => setLoading(false));
   }, [budgetId]);
 
@@ -87,7 +88,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
       router.back();
     } catch (cause) {
       if (cause instanceof BudgetValidationError) setErrors(cause.fields);
-      else setGeneralError(cause instanceof Error ? cause.message : 'Unable to save budget.');
+      else setGeneralError(toUserMessage(cause, 'Unable to save budget.'));
     } finally {
       setSaving(false);
     }
@@ -106,7 +107,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           onPress: () => {
             void budgetService.remove(budgetId)
               .then(() => router.back())
-              .catch((cause) => setGeneralError(cause instanceof Error ? cause.message : 'Unable to remove budget.'));
+              .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to remove budget.')));
           },
         },
       ],
@@ -158,7 +159,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           autoFocus={false}
           digits={digits}
           error={errors.limitAmount}
-          label="Limit amount"
+          label="Budget limit"
           onDigitsChange={(value) => { setDigits(value); clear('limitAmount'); }}
           type="expense"
         />

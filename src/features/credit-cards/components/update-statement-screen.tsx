@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
@@ -49,7 +50,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       setStatementBalance(latest?.closingDate === defaults.closingDate ? String(latest.statementBalance) : '');
       setMinimumPayment(latest?.closingDate === defaults.closingDate ? String(latest.minimumPayment) : '');
     }, (cause: unknown) => {
-      setGeneralError(cause instanceof Error ? cause.message : 'Unable to prepare statement.');
+      setGeneralError(toUserMessage(cause, 'Unable to prepare statement.'));
     });
   }, [accountId]);
 
@@ -90,7 +91,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof CreditCardStatementValidationError) setErrors(cause.fields);
-      else setGeneralError(cause instanceof Error ? cause.message : 'Unable to update statement.');
+      else setGeneralError(toUserMessage(cause, 'Unable to update statement.'));
       setSaving(false);
     }
   }
@@ -98,9 +99,16 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
   if (!dates) {
     return (
       <View style={[styles.center, { backgroundColor: theme.appBackground }]}>
-        {generalError
-          ? <Text style={[styles.body, { color: theme.destructive }]}>{generalError}</Text>
-          : <ActivityIndicator color={theme.primaryAction} size="large" />}
+        {generalError ? (
+          <>
+            <Text style={[styles.body, { color: theme.destructive }]}>{generalError}</Text>
+            <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.retry, { backgroundColor: theme.elevatedSurface }]}>
+              <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Go back</Text>
+            </Pressable>
+          </>
+        ) : (
+          <ActivityIndicator color={theme.primaryAction} size="large" />
+        )}
       </View>
     );
   }
@@ -170,7 +178,9 @@ function Input({ invalid, style, ...props }: React.ComponentProps<typeof TextInp
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  center: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg },
+  center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
+  retry: { borderRadius: borderRadii.md, minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  bodyStrong: { ...typography.body, fontWeight: '700' },
   header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },

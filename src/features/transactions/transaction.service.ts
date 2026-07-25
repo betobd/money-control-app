@@ -96,6 +96,17 @@ export class TransactionActionError extends Error {
 }
 
 export class TransactionService {
+  // Balance-affecting writes are serialized so a transfer's funds/safe-integer
+  // check and its persistence form a single critical section. Without this, two
+  // interleaved async flows (a double-tap, or a recurring confirmation running
+  // alongside a manual add) could both validate against the same pre-write
+  // balance and both commit, overdrawing an asset account past its derived
+  // balance — the invariant financial-rules.md §4 requires enforced before
+  // persistence. All create/update paths share the one transactionService
+  // singleton, so serializing here covers manual, recurring, refund-adjacent,
+  // and card-payment writes in this single-runtime app.
+  private writeLock: Promise<unknown> = Promise.resolve();
+
   constructor(
     private readonly repository: TransactionRepository,
     private readonly accounts: AccountRepository,
@@ -103,6 +114,15 @@ export class TransactionService {
     private readonly createId: () => string,
     private readonly now = () => new Date().toISOString(),
   ) {}
+
+  private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const run = this.writeLock.then(operation, operation);
+    this.writeLock = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
 
   list(query: TransactionListQuery = {}) {
     return this.repository.list(normalizeTransactionListQuery(query));
@@ -132,23 +152,25 @@ export class TransactionService {
     input: TransactionInput,
     persist: TransactionPersistence = (transaction) => this.repository.create(transaction),
   ): Promise<TransactionRecord> {
-    const normalized = this.normalize(input);
-    await this.validate(normalized);
-    const timestamp = this.now();
-    const metadata = {
-      id: this.createId(),
-      status: 'posted' as const,
-      currency: 'COP' as const,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-    const transaction: TransactionRecord = normalized.type === 'transfer'
-      ? { ...normalized, ...metadata, categoryId: null, originalTransactionId: null }
-      : { ...normalized, ...metadata, destinationAccountId: null, originalTransactionId: null };
+    return this.serializeWrite(async () => {
+      const normalized = this.normalize(input);
+      await this.validate(normalized);
+      const timestamp = this.now();
+      const metadata = {
+        id: this.createId(),
+        status: 'posted' as const,
+        currency: 'COP' as const,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      const transaction: TransactionRecord = normalized.type === 'transfer'
+        ? { ...normalized, ...metadata, categoryId: null, originalTransactionId: null }
+        : { ...normalized, ...metadata, destinationAccountId: null, originalTransactionId: null };
 
-    await persist(transaction);
-    notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
-    return transaction;
+      await persist(transaction);
+      notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
+      return transaction;
+    });
   }
 
   async validateTemplate(input: TransactionInput): Promise<TransactionInput> {
@@ -158,6 +180,10 @@ export class TransactionService {
   }
 
   async update(id: string, input: TransactionInput): Promise<TransactionListItem> {
+    return this.serializeWrite(() => this.performUpdate(id, input));
+  }
+
+  private async performUpdate(id: string, input: TransactionInput): Promise<TransactionListItem> {
     const current = await this.requireTransaction(id);
     if (current.type === 'refund') {
       throw new TransactionActionError(

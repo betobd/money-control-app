@@ -72,6 +72,13 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
 export function NetWorthLineChart({ points }: { points: NetWorthPoint[] }) {
   const theme = useAppTheme();
   const [width, setWidth] = useState(0);
+  if (points.length === 0) {
+    return (
+      <View style={[styles.lineChart, styles.chartEmpty, { backgroundColor: theme.elevatedSurface }]}>
+        <Text style={[styles.categoryMeta, { color: theme.secondaryText }]}>No net-worth history for this period.</Text>
+      </View>
+    );
+  }
   const values = points.map((point) => point.netWorth);
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
@@ -227,6 +234,7 @@ const styles = StyleSheet.create({
   categoryAmount: { ...typography.caption, fontWeight: '700' },
   categoryMeta: { ...typography.label },
   lineChart: { borderRadius: borderRadii.md, height: 152, overflow: 'hidden', position: 'relative' },
+  chartEmpty: { alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   lineSegment: { height: 2, position: 'absolute' },
   dot: { borderRadius: borderRadii.xs, borderWidth: borderWidths.thin, height: 8, position: 'absolute', width: 8 },
   axisLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },

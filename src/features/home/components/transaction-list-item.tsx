@@ -1,5 +1,5 @@
 import { type SymbolViewProps } from 'expo-symbols';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconChip } from '@/components/icon-chip';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
@@ -16,10 +16,12 @@ type TransactionListItemProps = {
   tone: Tone;
   icon: SymbolViewProps['name'];
   showDivider?: boolean;
+  onPress?: () => void;
 };
 
-export function TransactionListItem({ title, subtitle, amount, tone, icon }: TransactionListItemProps) {
+export function TransactionListItem({ title, subtitle, amount, tone, icon, onPress }: TransactionListItemProps) {
   const theme = useAppTheme();
+  const accessibilityLabel = `${title}, ${amount}, ${subtitle}`;
   const color = tone === 'income'
     ? theme.income
     : tone === 'transfer'
@@ -35,8 +37,8 @@ export function TransactionListItem({ title, subtitle, amount, tone, icon }: Tra
         ? theme.tintPrimary
         : theme.tintExpense;
 
-  return (
-    <View style={[styles.row, { backgroundColor: theme.surface }]}>
+  const content = (
+    <>
       <View style={[styles.accent, { backgroundColor: color }]} />
       <IconChip background={tint} color={color} icon={icon} iconSize={19} size={36} />
       <View style={styles.copy}>
@@ -50,6 +52,24 @@ export function TransactionListItem({ title, subtitle, amount, tone, icon }: Tra
       <MoneyText style={styles.amount} tone={tone}>
         {amount}
       </MoneyText>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={[styles.row, { backgroundColor: theme.surface }]}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return (
+    <View accessibilityLabel={accessibilityLabel} accessible style={[styles.row, { backgroundColor: theme.surface }]}>
+      {content}
     </View>
   );
 }

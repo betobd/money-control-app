@@ -149,7 +149,7 @@ export function ReportsScreen() {
             title="Previous period comparison">
             <View style={styles.comparisons}>
               <ComparisonRow label="Income" metric={data.comparison.income} />
-              <ComparisonRow label="Expenses" metric={data.comparison.expenses} />
+              <ComparisonRow label="Net expenses" metric={data.comparison.expenses} />
               <ComparisonRow label="Net result" metric={data.comparison.net} />
               <ComparisonRow label="Average expense" metric={data.comparison.averageExpense} />
               <ComparisonRow count label="Expense transactions" metric={data.comparison.expenseCount} />
