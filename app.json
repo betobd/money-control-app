@@ -6,9 +6,18 @@
     "orientation": "portrait",
     "scheme": "moneycontrolapp",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/icon.png",
     "android": {
       "package": "com.alber.moneycontrolapp",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#060E1E"
+      },
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "output": "static"
@@ -34,6 +43,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "18311772-b735-4d0b-beda-f5a79b64a7dc"
+      }
     }
   }
 }
