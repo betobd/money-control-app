@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import type {
   SupportedTransactionType,
   TransactionDateRangePreset,
@@ -14,6 +14,7 @@ export const typeFilterOptions: { label: string; value: SupportedTransactionType
   { label: 'Expense', value: 'expense' },
   { label: 'Income', value: 'income' },
   { label: 'Transfer', value: 'transfer' },
+  { label: 'Refund', value: 'refund' },
 ];
 
 export const statusFilterOptions: { label: string; value: TransactionStatus | null }[] = [
@@ -70,21 +71,18 @@ export function ChoicePill({ label, onPress, selected }: { label: string; onPres
       onPress={onPress}
       style={[
         styles.choice,
-        {
-          backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-          borderColor: selected ? theme.primaryAction : theme.border,
-        },
+        { backgroundColor: selected ? theme.primaryAction : theme.elevatedSurface },
       ]}>
       {selected ? (
         <SymbolView
           name={{ ios: 'checkmark', android: 'check', web: 'check' }}
           size={16}
-          tintColor={theme.selectedNavigationForeground}
+          tintColor={theme.onPrimaryAction}
         />
       ) : null}
       <Text
         numberOfLines={1}
-        style={[styles.choiceLabel, { color: selected ? theme.selectedNavigationForeground : theme.secondaryText }]}>
+        style={[styles.choiceLabel, { color: selected ? theme.onPrimaryAction : theme.secondaryText }]}>
         {label}
       </Text>
     </Pressable>
@@ -101,14 +99,11 @@ export function SelectionRow({ label, onPress, selected }: { label: string; onPr
       onPress={onPress}
       style={[
         styles.selectionRow,
-        {
-          backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-          borderColor: selected ? theme.primaryAction : theme.border,
-        },
+        { backgroundColor: selected ? theme.tintPrimary : theme.surface },
       ]}>
       <Text
         numberOfLines={1}
-        style={[styles.selectionLabel, { color: selected ? theme.selectedNavigationForeground : theme.primaryText }]}>
+        style={[styles.selectionLabel, { color: selected ? theme.primaryAction : theme.primaryText }]}>
         {label}
       </Text>
       <SymbolView
@@ -116,7 +111,7 @@ export function SelectionRow({ label, onPress, selected }: { label: string; onPr
           ? { ios: 'checkmark.circle.fill', android: 'radio_button_checked', web: 'radio_button_checked' }
           : { ios: 'circle', android: 'radio_button_unchecked', web: 'radio_button_unchecked' }}
         size={22}
-        tintColor={selected ? theme.selectedNavigationForeground : theme.mutedText}
+        tintColor={selected ? theme.primaryAction : theme.mutedText}
       />
     </Pressable>
   );
@@ -136,7 +131,7 @@ export function DateField({ label, onChangeText, value }: { label: string; onCha
         onChangeText={onChangeText}
         placeholder="YYYY-MM-DD"
         placeholderTextColor={theme.mutedText}
-        style={[styles.dateInput, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.primaryText }]}
+        style={[styles.dateInput, { backgroundColor: theme.surface, color: theme.primaryText }]}
         value={value}
       />
     </View>
@@ -150,10 +145,9 @@ const styles = StyleSheet.create({
   choice: {
     alignItems: 'center',
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
     gap: spacing.xs,
-    minHeight: 48,
+    minHeight: 44,
     maxWidth: '100%',
     paddingHorizontal: spacing.md,
   },
@@ -161,7 +155,6 @@ const styles = StyleSheet.create({
   selectionRow: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
@@ -177,7 +170,6 @@ const styles = StyleSheet.create({
   dateInput: {
     ...typography.body,
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     minHeight: 52,
     paddingHorizontal: spacing.md,
   },

@@ -29,7 +29,7 @@ database.execute(
 )
 assert database.execute('SELECT count(*) FROM credit_card_statements').fetchone()[0] == 1
 database.executemany(
-    'INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     [
         ('purchase', 'expense', 'posted', 100000, 'COP', 'card', None, 'food', None, '2026-07-20', utc, utc),
         ('payment', 'transfer', 'posted', 40000, 'COP', 'checking', 'card', None, None, '2026-07-21', utc, utc),

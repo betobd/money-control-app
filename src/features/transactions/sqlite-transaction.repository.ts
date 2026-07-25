@@ -29,12 +29,16 @@ import type {
 } from './transaction.types';
 
 const destinationAccounts = alias(accounts, 'destination_accounts');
+const originalTransactions = alias(transactions, 'original_transactions');
+const originalCategories = alias(categories, 'original_categories');
 const selection = {
   transaction: transactions,
   accountName: accounts.name,
   destinationAccountName: destinationAccounts.name,
-  categoryName: categories.name,
-  categoryIcon: categories.icon,
+  categoryName: sql<string | null>`coalesce(${categories.name}, ${originalCategories.name})`,
+  categoryIcon: sql<string | null>`coalesce(${categories.icon}, ${originalCategories.icon})`,
+  originalTransactionDate: originalTransactions.transactionDate,
+  originalTransactionNote: originalTransactions.note,
 };
 
 function escapeLikePattern(value: string): string {
@@ -47,6 +51,8 @@ type TransactionRow = {
   destinationAccountName: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
+  originalTransactionDate: string | null;
+  originalTransactionNote: string | null;
 };
 
 function mapRow(row: TransactionRow): TransactionListItem {
@@ -65,6 +71,8 @@ function mapRow(row: TransactionRow): TransactionListItem {
     destinationAccountName: row.destinationAccountName,
     categoryName: row.categoryName,
     categoryIcon: row.categoryIcon,
+    originalTransactionDate: row.originalTransactionDate,
+    originalTransactionNote: row.originalTransactionNote,
   };
 }
 
@@ -157,7 +165,8 @@ export class SQLiteTransactionRepository implements TransactionRepository {
     const [row] = await database
       .select({
         income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-        expenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
       })
       .from(transactions)
       .where(
@@ -168,15 +177,39 @@ export class SQLiteTransactionRepository implements TransactionRepository {
         ),
       );
     const income = Number(row.income);
-    const expenses = Number(row.expenses);
-    return { income, expenses, net: income - expenses };
+    const grossExpenses = Number(row.grossExpenses);
+    const refunds = Number(row.refunds);
+    const netExpenses = grossExpenses - refunds;
+    return { income, grossExpenses, refunds, netExpenses, net: income - netExpenses };
+  }
+
+  async hasPostedRefunds(id: string): Promise<boolean> {
+    const [row] = await database
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, 'refund'),
+        eq(transactions.status, 'posted'),
+        eq(transactions.originalTransactionId, id),
+      ))
+      .limit(1);
+    return Boolean(row);
   }
 
   async updatePosted(id: string, transaction: TransactionUpdateRecord): Promise<boolean> {
     const rows = await database
       .update(transactions)
       .set(transaction)
-      .where(and(eq(transactions.id, id), eq(transactions.status, 'posted')))
+      .where(and(
+        eq(transactions.id, id),
+        eq(transactions.status, 'posted'),
+        sql<boolean>`not exists (
+          select 1 from transactions linked_refunds
+          where linked_refunds.original_transaction_id = ${transactions.id}
+            and linked_refunds.type = 'refund'
+            and linked_refunds.status = 'posted'
+        )`,
+      ))
       .returning({ id: transactions.id });
     return rows.length === 1;
   }
@@ -185,7 +218,16 @@ export class SQLiteTransactionRepository implements TransactionRepository {
     const rows = await database
       .update(transactions)
       .set({ status: 'voided', updatedAt })
-      .where(and(eq(transactions.id, id), eq(transactions.status, 'posted')))
+      .where(and(
+        eq(transactions.id, id),
+        eq(transactions.status, 'posted'),
+        sql<boolean>`not exists (
+          select 1 from transactions linked_refunds
+          where linked_refunds.original_transaction_id = ${transactions.id}
+            and linked_refunds.type = 'refund'
+            and linked_refunds.status = 'posted'
+        )`,
+      ))
       .returning({ id: transactions.id });
     return rows.length === 1;
   }
@@ -199,6 +241,8 @@ export class SQLiteTransactionRepository implements TransactionRepository {
         sql<boolean>`lower(${accounts.name}) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${destinationAccounts.name}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${categories.name}, '')) like ${pattern} escape '\\'`,
+        sql<boolean>`lower(coalesce(${originalCategories.name}, '')) like ${pattern} escape '\\'`,
+        sql<boolean>`lower(coalesce(${originalTransactions.note}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(${transactions.type}) like ${pattern} escape '\\'`,
       )!);
     }
@@ -210,7 +254,18 @@ export class SQLiteTransactionRepository implements TransactionRepository {
         eq(transactions.destinationAccountId, query.accountId),
       )!);
     }
-    if (query.categoryId) conditions.push(eq(transactions.categoryId, query.categoryId));
+    if (query.categoryId) {
+      conditions.push(or(
+        eq(transactions.categoryId, query.categoryId),
+        and(
+          eq(transactions.type, 'refund'),
+          eq(originalTransactions.categoryId, query.categoryId),
+        ),
+      )!);
+    }
+    if (query.originalTransactionId) {
+      conditions.push(eq(transactions.originalTransactionId, query.originalTransactionId));
+    }
     if (query.dateFrom) conditions.push(gte(transactions.transactionDate, query.dateFrom));
     if (query.dateTo) conditions.push(lte(transactions.transactionDate, query.dateTo));
     if (query.cursor) {
@@ -237,6 +292,8 @@ export class SQLiteTransactionRepository implements TransactionRepository {
       .innerJoin(accounts, eq(transactions.accountId, accounts.id))
       .leftJoin(destinationAccounts, eq(transactions.destinationAccountId, destinationAccounts.id))
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(originalTransactions, eq(transactions.originalTransactionId, originalTransactions.id))
+      .leftJoin(originalCategories, eq(originalTransactions.categoryId, originalCategories.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(
         desc(transactions.transactionDate),

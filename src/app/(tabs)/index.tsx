@@ -2,87 +2,104 @@ import { SymbolView } from 'expo-symbols';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Card } from '@/components/card';
+import { Overline } from '@/components/overline';
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { BudgetProgressCard } from '@/features/home/components/budget-progress-card';
 import { FinancialSummaryCard } from '@/features/home/components/financial-summary-card';
-import { MoneyText } from '@/features/home/components/money-text';
 import { SectionHeader } from '@/features/home/components/section-header';
 import { TransactionListItem } from '@/features/home/components/transaction-list-item';
 import { useHomeDashboard } from '@/features/home/use-home-dashboard';
 import { formatCop } from '@/features/accounts/account-format';
-import { signedTransactionAmount, transactionAccountLabel, transactionIcon, transactionTitle, transactionTypeLabel } from '@/features/transactions/transaction-presentation';
+import {
+  signedTransactionAmount,
+  transactionAccountLabel,
+  transactionIcon,
+  transactionTitle,
+  transactionTypeLabel,
+} from '@/features/transactions/transaction-presentation';
 import { useAppTheme } from '@/hooks/use-app-theme';
+
+function MonthPill({ label }: { label: string }) {
+  const theme = useAppTheme();
+  return (
+    <View style={[styles.monthPill, { backgroundColor: theme.elevatedSurface }]}>
+      <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={16} tintColor={theme.mutedText} />
+      <Text style={[styles.monthLabel, { color: theme.primaryText }]}>{label}</Text>
+      <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.mutedText} />
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const theme = useAppTheme();
   const dashboard = useHomeDashboard();
-  const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${dashboard.month}-01T00:00:00Z`));
+  const monthDate = new Date(`${dashboard.month}-01T00:00:00Z`);
+  const monthShort = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(monthDate).toUpperCase();
+  const monthLong = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthDate);
+
+  const net = dashboard.summary.net;
+  const netUp = net >= 0;
+  const netColor = netUp ? theme.income : theme.expense;
+  const netLabel = `${netUp ? '+' : '-'}${formatCop(Math.abs(net))}`;
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <PrimaryScreenHeader />
+      <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
 
-      <View accessibilityLabel={`Selected month, ${monthLabel}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView
-          name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }}
-          size={20}
-          tintColor={theme.secondaryText}
-        />
-        <Text style={[styles.month, { color: theme.primaryText }]}>{monthLabel}</Text>
-        <SymbolView
-          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-          size={20}
-          tintColor={theme.secondaryText}
-        />
-      </View>
-
-      <View style={styles.balanceBlock}>
-        <Text style={[styles.eyebrow, { color: theme.secondaryText }]}>Total balance</Text>
-        <View style={styles.balanceRow}>
-          <MoneyText style={styles.totalBalance}>{formatCop(dashboard.totalBalance)}</MoneyText>
-          <Text style={[styles.currency, { color: theme.mutedText }]}>COP</Text>
+      <Card accessibilityLabel={`Total balance ${formatCop(dashboard.totalBalance)} Colombian pesos`} style={styles.hero} variant="hero">
+        <Overline color={theme.mutedText}>Total balance · COP</Overline>
+        <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.primaryText }]}>
+          {formatCop(dashboard.totalBalance)}
+        </Text>
+        <View style={styles.trendRow}>
+          <SymbolView
+            name={netUp ? { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' } : { ios: 'arrow.down', android: 'arrow_downward', web: 'arrow_downward' }}
+            size={16}
+            tintColor={netColor}
+          />
+          <Text style={[styles.trendValue, { color: netColor }]}>{netLabel}</Text>
+          <Text style={[styles.trendMeta, { color: theme.mutedText }]}>net in {monthLong}</Text>
         </View>
-      </View>
+      </Card>
 
       <FinancialSummaryCard
-        expenses={`-${formatCop(dashboard.summary.expenses)}`}
+        expenses={`${dashboard.summary.netExpenses < 0 ? '+' : '-'}${formatCop(Math.abs(dashboard.summary.netExpenses))}`}
         income={`+${formatCop(dashboard.summary.income)}`}
-        netBalance={`${dashboard.summary.net < 0 ? '-' : '+'}${formatCop(Math.abs(dashboard.summary.net))}`}
+        refunds={dashboard.summary.refunds > 0 ? `+${formatCop(dashboard.summary.refunds)}` : undefined}
+        netBalance={`${net < 0 ? '-' : '+'}${formatCop(Math.abs(net))}`}
       />
 
       <BudgetProgressCard summary={dashboard.budget} />
 
       <SectionHeader
         action={
-          <Link href="/transactions" asChild>
-            <Pressable
-              accessibilityLabel="View all transactions"
-              style={StyleSheet.flatten([
-                styles.viewAll,
-                { backgroundColor: theme.elevatedSurface },
-              ])}>
-              <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View All</Text>
+          <Link asChild href="/transactions">
+            <Pressable accessibilityLabel="View all transactions" style={styles.viewAll}>
+              <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View all</Text>
+              <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />
             </Pressable>
           </Link>
         }
         title="Recent transactions"
       />
 
-      <View style={[styles.transactions, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {dashboard.recent.map((transaction, index) => (
+      <View style={styles.transactions}>
+        {dashboard.recent.map((transaction) => (
           <TransactionListItem
             key={transaction.id}
             amount={signedTransactionAmount(transaction)}
             icon={transactionIcon(transaction)}
-            showDivider={index < dashboard.recent.length - 1}
             subtitle={`${transaction.transactionDate} · ${transactionTypeLabel(transaction)}${transaction.type === 'transfer' ? ` · ${transactionAccountLabel(transaction)}` : ''}`}
             title={transactionTitle(transaction)}
             tone={transaction.type}
           />
         ))}
-        {!dashboard.loading && !dashboard.error && dashboard.recent.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No recent transactions.</Text> : null}
+        {!dashboard.loading && !dashboard.error && dashboard.recent.length === 0 ? (
+          <Text style={[styles.empty, { color: theme.secondaryText }]}>No recent transactions.</Text>
+        ) : null}
       </View>
     </ScreenContainer>
   );
@@ -90,56 +107,59 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    gap: spacing.lg,
+    gap: spacing.md - spacing.xs,
   },
-  monthSelector: {
+  monthPill: {
     alignItems: 'center',
-    alignSelf: 'center',
     borderRadius: borderRadii.full,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-  },
-  month: {
-    ...typography.sectionTitle,
-  },
-  balanceBlock: {
-    alignItems: 'center',
     gap: spacing.xs,
+    height: 32,
+    paddingHorizontal: spacing.sm + spacing.xs,
   },
-  eyebrow: {
-    ...typography.body,
-    fontWeight: '600',
+  monthLabel: {
+    fontFamily: fonts.mono.bold,
+    fontSize: 12,
+    lineHeight: 16,
   },
-  balanceRow: {
-    alignItems: 'baseline',
+  hero: {
+    gap: spacing.xs + 2,
+  },
+  heroBalance: {
+    ...typography.moneyHero,
+  },
+  trendRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'center',
-    maxWidth: '100%',
+    gap: spacing.xs + 2,
   },
-  totalBalance: {
-    ...typography.display,
-    flexShrink: 1,
+  trendValue: {
+    fontFamily: fonts.sans.semibold,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
-  currency: {
-    ...typography.body,
-    marginLeft: spacing.xs,
+  trendMeta: {
+    fontFamily: fonts.sans.medium,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   viewAll: {
     alignItems: 'center',
-    borderRadius: borderRadii.full,
-    justifyContent: 'center',
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    gap: 2,
+    minHeight: 32,
   },
   viewAllText: {
     ...typography.label,
   },
   transactions: {
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
-    paddingHorizontal: spacing.md,
+    gap: spacing.sm - 2,
   },
-  empty: { ...typography.caption, padding: spacing.lg, textAlign: 'center' },
+  empty: {
+    ...typography.caption,
+    paddingVertical: spacing.lg,
+    textAlign: 'center',
+  },
 });

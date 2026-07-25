@@ -3,7 +3,9 @@ import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { Overline } from '@/components/overline';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { calendarDaysBetween } from '@/features/credit-cards/credit-card-cycle.service';
 import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
@@ -60,7 +62,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
         <Pressable accessibilityLabel="Back from credit card" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -70,7 +72,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         {!details.setupComplete ? (
-          <View style={[styles.notice, { backgroundColor: theme.elevatedSurface, borderColor: theme.warning }]}>
+          <View style={[styles.notice, { backgroundColor: theme.tintWarning }]}>
             <Text style={[styles.cardTitle, { color: theme.primaryText }]}>Complete card setup</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>Add a positive credit limit, closing day, and payment due day to calculate cycles and reminders.</Text>
             <Action label="Complete setup" onPress={() => router.push({ pathname: '/account-form', params: { id: account.id } })} primary />
@@ -78,8 +80,8 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
         ) : null}
 
         <Section title="Current card position">
-          <View style={[styles.hero, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Current debt</Text>
+          <Card variant="hero" padding={spacing.lg} style={styles.hero}>
+            <Overline color={theme.secondaryText}>Current debt</Overline>
             <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={[styles.amount, { color: utilization.currentDebt > 0 ? theme.expense : theme.primaryText }]}>{formatCop(utilization.currentDebt)}</Text>
             <Text style={[styles.caption, { color: theme.mutedText }]}>The total amount currently owed based on transactions recorded in Money Control.</Text>
             <View style={styles.metricRow}>
@@ -91,7 +93,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
                 <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Utilization {utilizationPercent}</Text>
                 <Text style={[styles.bodyStrong, { color: utilization.status === 'over-limit' ? theme.destructive : theme.secondaryText }]}>{utilizationLabels[utilization.status]}</Text>
               </View>
-              <View style={[styles.progressTrack, { backgroundColor: theme.disabledSurface }]}>
+              <View style={[styles.progressTrack, { backgroundColor: theme.progressTrack }]}>
                 <View style={[styles.progressFill, { backgroundColor: utilization.status === 'over-limit' ? theme.destructive : theme.primaryAction, width: utilization.visualProgressWidth }]} />
               </View>
               <Text style={[styles.caption, { color: theme.mutedText }]}>A spending guide, not a universal credit-score rule.</Text>
@@ -102,12 +104,12 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
                 <Text style={[styles.caption, { color: theme.mutedText }]}>{closingText(closingDays)}</Text>
               </View>
             ) : null}
-          </View>
+          </Card>
         </Section>
 
         <Section title="Latest statement">
           {latestStatement ? (
-            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
               <View style={styles.metricRow}>
                 <Text style={[styles.cardTitle, { color: theme.primaryText }]}>{statementLabels[latestStatement.status]}</Text>
                 <Text style={[styles.caption, { color: latestStatement.status === 'overdue' ? theme.destructive : theme.secondaryText }]}>{dueText(dueDays)}</Text>
@@ -125,7 +127,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
               <Text style={[styles.caption, { color: theme.mutedText }]}>Statement payment attribution is estimated from card payments recorded after the statement closing date. The bank remains the authoritative source.</Text>
             </View>
           ) : (
-            <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={[styles.empty, { backgroundColor: theme.surface }]}>
               <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>No bank statement has been recorded yet.</Text>
               <Text style={[styles.body, { color: theme.secondaryText }]}>Current debt comes from Money Control transactions and is not treated as statement balance.</Text>
               {!account.isArchived ? <Action label="Add latest statement" onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} primary /> : null}
@@ -146,7 +148,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
         {details.statements.length > 0 ? (
           <Section title="Statement history">
             {details.statements.map((statement) => (
-              <View key={statement.id} style={[styles.compactCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View key={statement.id} style={[styles.compactCard, { backgroundColor: theme.surface }]}>
                 <View style={styles.metricRow}>
                   <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>{formatTransactionDate(statement.periodStart)} – {formatTransactionDate(statement.periodEnd)}</Text>
                   <Text style={[styles.caption, { color: statement.status === 'overdue' ? theme.destructive : theme.secondaryText }]}>{statementLabels[statement.status]}{statement.status === 'paid' && !statement.paidOnTime ? ' · late' : ''}</Text>
@@ -162,6 +164,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
         ) : null}
 
         <TransactionSection title="Recent card purchases" items={details.recentPurchases} empty="No recent card purchases." />
+        <TransactionSection title="Recent merchant refunds" items={details.recentRefunds} empty="No recent merchant refunds." />
         <TransactionSection title="Recent card payments" items={details.recentPayments} empty="No recent card payments." />
       </ScrollView>
     </View>
@@ -175,7 +178,7 @@ function Section({ children, title }: { children: React.ReactNode; title: string
 
 function Metric({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
-  return <View style={styles.metric}><Text style={[styles.caption, { color: theme.secondaryText }]}>{label}</Text><Text style={[styles.bodyStrong, { color: theme.primaryText }]}>{value}</Text></View>;
+  return <View style={styles.metric}><Text style={[styles.caption, { color: theme.secondaryText }]}>{label}</Text><Text style={[styles.bodyStrong, styles.moneyText, { color: theme.primaryText }]}>{value}</Text></View>;
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
@@ -185,7 +188,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
 
 function Action({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
   const theme = useAppTheme();
-  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, { backgroundColor: primary ? theme.primaryAction : theme.surface, borderColor: primary ? theme.primaryAction : theme.border }]}><Text style={[styles.bodyStrong, { color: primary ? theme.onPrimaryAction : theme.primaryText }]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, { backgroundColor: primary ? theme.primaryAction : theme.elevatedSurface }]}><Text style={[styles.bodyStrong, { color: primary ? theme.onPrimaryAction : theme.primaryText }]}>{label}</Text></Pressable>;
 }
 
 function TransactionSection({ title, items, empty }: { title: string; items: TransactionListItem[]; empty: string }) {
@@ -194,15 +197,19 @@ function TransactionSection({ title, items, empty }: { title: string; items: Tra
     <Section title={title}>
       {items.length
         ? items.map((item) => (
-            <Pressable accessibilityRole="button" key={item.id} onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: item.id } })} style={[styles.compactCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Pressable accessibilityRole="button" key={item.id} onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: item.id } })} style={[styles.compactCard, { backgroundColor: theme.surface }]}>
               <View style={styles.metricRow}>
-                <Text numberOfLines={1} style={[styles.bodyStrong, { color: theme.primaryText }]}>{item.type === 'transfer' ? item.accountName : item.categoryName ?? 'Expense'}</Text>
-                <Text style={[styles.bodyStrong, { color: item.type === 'transfer' ? theme.income : theme.expense }]}>{formatCop(item.amount)}</Text>
+                <Text numberOfLines={1} style={[styles.bodyStrong, { color: theme.primaryText }]}>
+                  {item.type === 'transfer' ? item.accountName : item.type === 'refund' ? 'Refund' : item.categoryName ?? 'Expense'}
+                </Text>
+                <Text style={[styles.bodyStrong, styles.moneyText, { color: item.type === 'transfer' ? theme.income : item.type === 'refund' ? theme.primaryAction : theme.expense }]}>
+                  {item.type === 'refund' ? '+' : ''}{formatCop(item.amount)}
+                </Text>
               </View>
               <Text style={[styles.caption, { color: theme.secondaryText }]}>{formatTransactionDate(item.transactionDate)}</Text>
             </Pressable>
           ))
-        : <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}><Text style={[styles.body, { color: theme.secondaryText }]}>{empty}</Text></View>}
+        : <View style={[styles.empty, { backgroundColor: theme.surface }]}><Text style={[styles.body, { color: theme.secondaryText }]}>{empty}</Text></View>}
     </Section>
   );
 }
@@ -223,28 +230,28 @@ function closingText(days: number | null): string {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center' },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md },
-  hero: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.lg },
-  label: { ...typography.label, textTransform: 'uppercase' },
-  amount: { ...typography.display, fontVariant: ['tabular-nums'] },
+  hero: { gap: spacing.md },
+  amount: { ...typography.moneyHero, fontVariant: ['tabular-nums'] },
   metricRow: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
-  metricValue: { flexShrink: 1, textAlign: 'right' },
+  metricValue: { flexShrink: 1, fontFamily: fonts.mono.bold, textAlign: 'right' },
+  moneyText: { fontFamily: fonts.mono.bold },
   metric: { flex: 1, gap: spacing.xs },
   progressSection: { gap: spacing.sm },
   progressTrack: { borderRadius: borderRadii.full, height: 10, overflow: 'hidden' },
   progressFill: { borderRadius: borderRadii.full, height: '100%' },
   cycleRow: { gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  action: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flex: 1, justifyContent: 'center', minHeight: 52, minWidth: 145, paddingHorizontal: spacing.md },
-  notice: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.md },
+  action: { alignItems: 'center', borderRadius: borderRadii.full, flex: 1, justifyContent: 'center', minHeight: 52, minWidth: 145, paddingHorizontal: spacing.md },
+  notice: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.sectionTitle },
-  card: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.md },
-  compactCard: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.xs, padding: spacing.md },
-  empty: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
+  card: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
+  compactCard: { borderRadius: borderRadii.card, gap: spacing.xs, padding: spacing.md },
+  empty: { borderRadius: borderRadii.card, gap: spacing.md, padding: spacing.md },
   cardTitle: { ...typography.body, fontWeight: '700' },
   body: { ...typography.body },
   bodyStrong: { ...typography.body, fontWeight: '700' },

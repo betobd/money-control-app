@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { resolveTransactionDateRange } from '@/features/transactions/transaction-date';
 import type {
   TransactionFilterOptions,
@@ -82,7 +82,7 @@ export function TransactionFilterModal({
         <View
           accessibilityLabel="Transaction filters"
           accessibilityRole="header"
-          style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + spacing.sm }]}>
+          style={[styles.header, { borderBottomColor: theme.hairline, paddingTop: insets.top + spacing.sm }]}>
           <Pressable
             accessibilityLabel="Close transaction filters"
             accessibilityRole="button"
@@ -210,7 +210,7 @@ export function TransactionFilterModal({
           </FilterSection>
         </ScrollView>
 
-        <View style={[styles.footer, { borderTopColor: theme.border, paddingBottom: insets.bottom + spacing.md }]}>
+        <View style={[styles.footer, { borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
           <Pressable
             accessibilityLabel="Apply transaction filters"
             accessibilityRole="button"
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
     alignItems: 'center',
-    borderBottomWidth: borderWidths.thin,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     minHeight: 64,
     paddingHorizontal: spacing.sm,
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   clearLabel: { ...typography.caption, fontWeight: '700' },
   content: { gap: spacing.xl, padding: spacing.md, paddingBottom: spacing.xl },
   error: { ...typography.caption },
-  footer: { borderTopWidth: borderWidths.thin, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   applyButton: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
   applyLabel: { ...typography.body, fontWeight: '700' },
 });

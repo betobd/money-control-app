@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Card } from '@/components/card';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { ReportPeriodValidationError, resolveReportPeriod } from '../report-period';
@@ -72,14 +73,11 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
               }}
               style={[
                 styles.chip,
-                {
-                  backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-                  borderColor: selected ? theme.primaryAction : theme.border,
-                },
+                { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface },
               ]}>
               <Text style={[
                 styles.chipText,
-                { color: selected ? theme.selectedNavigationForeground : theme.secondaryText },
+                { color: selected ? theme.primaryText : theme.secondaryText },
               ]}>
                 {preset.label}
               </Text>
@@ -89,7 +87,7 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
       </ScrollView>
 
       {selection.preset === 'custom' ? (
-        <View style={[styles.customPanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Card style={styles.customPanel}>
           <View style={styles.dateFields}>
             <DateField label="Start date" value={dateFrom} onChangeText={setDateFrom} />
             <DateField label="End date" value={dateTo} onChangeText={setDateTo} />
@@ -106,7 +104,7 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
             style={[styles.apply, { backgroundColor: theme.primaryAction }]}>
             <Text style={[styles.applyText, { color: theme.onPrimaryAction }]}>Apply range</Text>
           </Pressable>
-        </View>
+        </Card>
       ) : null}
 
       {periodLabel ? (
@@ -142,7 +140,7 @@ function DateField({
         placeholderTextColor={theme.mutedText}
         style={[
           styles.input,
-          { backgroundColor: theme.appBackground, borderColor: theme.border, color: theme.primaryText },
+          { backgroundColor: theme.appBackground, borderColor: theme.hairline, color: theme.primaryText },
         ]}
         value={value}
       />
@@ -155,18 +153,14 @@ const styles = StyleSheet.create({
   presets: { gap: spacing.sm, paddingHorizontal: spacing.md },
   chip: {
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     justifyContent: 'center',
     minHeight: 48,
     paddingHorizontal: spacing.md,
   },
   chipText: { ...typography.caption, fontWeight: '700' },
   customPanel: {
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     gap: spacing.md,
     marginHorizontal: spacing.md,
-    padding: spacing.md,
   },
   dateFields: { flexDirection: 'row', gap: spacing.sm },
   field: { flex: 1, gap: spacing.xs },

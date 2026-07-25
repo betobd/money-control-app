@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Overline } from '@/components/overline';
+import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { CreditCardStatementValidationError } from '../credit-card-statement.service';
@@ -109,7 +110,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}
     >
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
         <Pressable accessibilityLabel="Close statement form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -150,21 +151,21 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
 }
 
 function MoneyField({ error, label, onChange, value }: { error?: string; label: string; onChange: (value: string) => void; value: string }) {
-  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in whole Colombian pesos`} keyboardType="number-pad" onChangeText={onChange} placeholder="Enter amount" value={value} /></Field>;
+  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in whole Colombian pesos`} invalid={Boolean(error)} keyboardType="number-pad" onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={value} /></Field>;
 }
 
 function DateField({ error, label, onChange, value }: { error?: string; label: string; onChange: (value: string) => void; value: string }) {
-  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in YYYY-MM-DD`} autoCapitalize="none" maxLength={10} onChangeText={onChange} value={value} /></Field>;
+  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in YYYY-MM-DD`} autoCapitalize="none" invalid={Boolean(error)} maxLength={10} onChangeText={onChange} value={value} /></Field>;
 }
 
 function Field({ children, error, label }: { children: React.ReactNode; error?: string; label: string }) {
   const theme = useAppTheme();
-  return <View style={styles.field}><Text style={[styles.strong, { color: theme.primaryText }]}>{label}</Text>{children}{error ? <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.destructive }]}>{error}</Text> : null}</View>;
+  return <View style={styles.field}><Overline color={theme.mutedText}>{label}</Overline>{children}{error ? <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.destructive }]}>{error}</Text> : null}</View>;
 }
 
-function Input(props: React.ComponentProps<typeof TextInput>) {
+function Input({ invalid, style, ...props }: React.ComponentProps<typeof TextInput> & { invalid?: boolean }) {
   const theme = useAppTheme();
-  return <TextInput {...props} placeholderTextColor={theme.mutedText} style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.primaryText }]} />;
+  return <TextInput {...props} placeholderTextColor={theme.mutedText} style={[styles.input, { backgroundColor: theme.surface, borderColor: invalid ? theme.destructive : theme.hairline, color: theme.primaryText }, style]} />;
 }
 
 const styles = StyleSheet.create({
@@ -175,8 +176,9 @@ const styles = StyleSheet.create({
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
   field: { gap: spacing.sm, marginTop: spacing.sm },
-  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 54, marginTop: spacing.md },
+  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
+  amountInput: { fontFamily: fonts.mono.medium },
+  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, marginTop: spacing.md },
   body: { ...typography.body },
   strong: { ...typography.body, fontWeight: '700' },
   help: { ...typography.caption },

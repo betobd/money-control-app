@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, View, type AlertButton } from 'reac
 
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { AccountActionError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
@@ -104,11 +104,7 @@ export default function AccountsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <PrimaryScreenHeader />
-      <View style={styles.heading}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Accounts</Text>
-        <Text style={[styles.description, { color: theme.secondaryText }]}>Manage your balances across all accounts.</Text>
-      </View>
+      <PrimaryScreenHeader title="Accounts" />
 
       {actionError ? (
         <Text accessibilityLiveRegion="assertive" style={[styles.actionError, { color: theme.destructive }]}>
@@ -125,8 +121,8 @@ export default function AccountsScreen() {
             accessibilityLabel={showArchived ? 'Hide archived accounts' : 'Show archived accounts'}
             accessibilityRole="button"
             onPress={() => setShowArchived((value) => !value)}
-            style={[styles.filter, { backgroundColor: showArchived ? theme.selectedNavigationBackground : theme.surface, borderColor: showArchived ? theme.primaryAction : theme.border }]}>
-            <Text style={[styles.filterText, { color: showArchived ? theme.selectedNavigationForeground : theme.secondaryText }]}>{showArchived ? 'Hide archived' : `Archived (${archivedAccounts.length})`}</Text>
+            style={[styles.filter, { backgroundColor: showArchived ? theme.tintPrimary : theme.elevatedSurface }]}>
+            <Text style={[styles.filterText, { color: showArchived ? theme.primaryAction : theme.secondaryText }]}>{showArchived ? 'Hide archived' : `Archived (${archivedAccounts.length})`}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -155,15 +151,12 @@ export default function AccountsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.lg },
-  heading: { gap: spacing.xs },
-  title: { ...typography.title },
-  description: { ...typography.body },
+  content: { gap: spacing.md },
   actionError: { ...typography.caption },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
-  sectionTitle: { ...typography.sectionTitle },
-  filter: { borderRadius: borderRadii.full, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  filterText: { ...typography.caption, fontWeight: '700' },
-  accounts: { gap: spacing.md },
-  archivedSection: { gap: spacing.md },
+  sectionTitle: { ...typography.sectionTitle, fontSize: 15, lineHeight: 20 },
+  filter: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 34, paddingHorizontal: spacing.sm + spacing.xs },
+  filterText: { ...typography.label },
+  accounts: { gap: spacing.sm + spacing.xs },
+  archivedSection: { gap: spacing.sm + spacing.xs },
 });

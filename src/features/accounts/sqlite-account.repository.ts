@@ -30,6 +30,7 @@ export class SQLiteAccountRepository implements AccountRepository {
           when ${transactions.status} <> 'posted' then 0
           when ${transactions.type} = 'income' and ${transactions.accountId} = ${accounts.id} then ${transactions.amount}
           when ${transactions.type} = 'expense' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
+          when ${transactions.type} = 'refund' and ${transactions.accountId} = ${accounts.id} then ${transactions.amount}
           when ${transactions.type} = 'transfer' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
           when ${transactions.type} = 'transfer' and ${transactions.destinationAccountId} = ${accounts.id} then ${transactions.amount}
           else 0

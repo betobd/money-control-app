@@ -34,6 +34,9 @@ export class CreditCardService {
     const recentPayments = history.items
       .filter((transaction) => transaction.type === 'transfer' && transaction.destinationAccountId === accountId)
       .slice(0, 5);
+    const recentRefunds = history.items
+      .filter((transaction) => transaction.type === 'refund' && transaction.accountId === accountId)
+      .slice(0, 5);
     return {
       account,
       setupComplete,
@@ -44,6 +47,7 @@ export class CreditCardService {
       statements,
       latestStatement: statements[0] ?? null,
       recentPurchases,
+      recentRefunds,
       recentPayments,
     };
   }

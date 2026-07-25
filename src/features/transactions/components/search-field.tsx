@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type SearchFieldProps = {
@@ -14,11 +14,7 @@ export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) 
   const theme = useAppTheme();
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: theme.surface, borderColor: theme.border },
-      ]}>
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <SymbolView
         name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
         size={22}
@@ -57,11 +53,10 @@ export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.card,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 52,
+    minHeight: 50,
     paddingHorizontal: spacing.md,
   },
   input: {

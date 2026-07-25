@@ -153,6 +153,7 @@ const baseRecord = {
 };
 
 for (const [spent, status, percentage, width, remaining] of [
+  [-200, 'on-track', -20, '0%', 1200],
   [799, 'on-track', 79.9, '79.9%', 201],
   [800, 'near-limit', 80, '80%', 200],
   [1000, 'fully-used', 100, '100%', 0],

@@ -107,31 +107,41 @@ test('normalizes summary calculations and handles an empty period', () => {
   };
   assert.deepEqual(normalizeSummary({
     income: 300_000,
-    expenses: 100_001,
+    grossExpenses: 120_001,
+    refunds: 20_000,
     incomeCount: 2,
     expenseCount: 2,
+    refundCount: 1,
     largestExpense,
   }), {
     income: 300_000,
+    grossExpenses: 120_001,
+    refunds: 20_000,
     expenses: 100_001,
     net: 199_999,
     incomeCount: 2,
     expenseCount: 2,
-    averageExpense: 50_001,
+    refundCount: 1,
+    averageExpense: 60_001,
     largestExpense,
   });
   assert.deepEqual(normalizeSummary({
     income: 0,
-    expenses: 0,
+    grossExpenses: 0,
+    refunds: 0,
     incomeCount: 0,
     expenseCount: 0,
+    refundCount: 0,
     largestExpense: null,
   }), {
     income: 0,
+    grossExpenses: 0,
+    refunds: 0,
     expenses: 0,
     net: 0,
     incomeCount: 0,
     expenseCount: 0,
+    refundCount: 0,
     averageExpense: 0,
     largestExpense: null,
   });
@@ -156,9 +166,11 @@ class FakeReportRepository {
   async summarize(period) {
     return this.summaries.get(period.dateFrom) ?? {
       income: 0,
-      expenses: 0,
+      grossExpenses: 0,
+      refunds: 0,
       incomeCount: 0,
       expenseCount: 0,
+      refundCount: 0,
       largestExpense: null,
     };
   }
@@ -170,8 +182,8 @@ class FakeReportRepository {
 test('fills missing cash-flow buckets chronologically and excludes absent data', async () => {
   const repository = new FakeReportRepository();
   repository.cashFlowRows = [
-    { key: '2026-07-03', income: 50_000, expenses: 0 },
-    { key: '2026-07-01', income: 0, expenses: 10_000 },
+    { key: '2026-07-03', income: 50_000, grossExpenses: 0, refunds: 0 },
+    { key: '2026-07-01', income: 0, grossExpenses: 15_000, refunds: 5_000 },
   ];
   const service = new ReportService(repository);
   const data = await service.load({
@@ -188,6 +200,8 @@ test('fills missing cash-flow buckets chronologically and excludes absent data',
     dateFrom: '2026-07-02',
     dateTo: '2026-07-02',
     income: 0,
+    grossExpenses: 0,
+    refunds: 0,
     expenses: 0,
     net: 0,
   });
@@ -245,16 +259,20 @@ test('compares income, expenses, net, average, and count with metric-aware seman
   const repository = new FakeReportRepository();
   repository.summaries.set('2026-07-01', {
     income: 300,
-    expenses: 240,
+    grossExpenses: 260,
+    refunds: 20,
     incomeCount: 1,
     expenseCount: 3,
+    refundCount: 1,
     largestExpense: null,
   });
   repository.summaries.set('2026-06-01', {
     income: 200,
-    expenses: 120,
+    grossExpenses: 120,
+    refunds: 0,
     incomeCount: 1,
     expenseCount: 2,
+    refundCount: 0,
     largestExpense: null,
   });
   const comparison = (await new ReportService(repository).load({ preset: 'current-month' }, TODAY)).comparison;
@@ -265,7 +283,7 @@ test('compares income, expenses, net, average, and count with metric-aware seman
   assert.equal(comparison.expenses.tone, 'negative');
   assert.equal(comparison.net.difference, -20);
   assert.equal(comparison.net.tone, 'negative');
-  assert.equal(comparison.averageExpense.current, 80);
+  assert.equal(comparison.averageExpense.current, 87);
   assert.equal(comparison.averageExpense.previous, 60);
   assert.equal(comparison.averageExpense.tone, 'negative');
   assert.equal(comparison.expenseCount.tone, 'negative');

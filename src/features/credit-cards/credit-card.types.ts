@@ -75,6 +75,7 @@ export type CreditCardDetails = {
   statements: CreditCardStatementView[];
   latestStatement: CreditCardStatementView | null;
   recentPurchases: TransactionListItem[];
+  recentRefunds: TransactionListItem[];
   recentPayments: TransactionListItem[];
 };
 

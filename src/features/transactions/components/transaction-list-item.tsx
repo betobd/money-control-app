@@ -1,8 +1,8 @@
-import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { IconChip } from '@/components/icon-chip';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import {
   signedTransactionAmount,
   transactionAccountLabel,
@@ -20,7 +20,15 @@ type TransactionListItemProps = {
 export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
   const tone = getTone(transaction.type, theme);
+  const tint = getTint(transaction.type, theme);
   const voided = transaction.status === 'voided';
+  const metaLabel = `${transactionAccountLabel(transaction)} · ${
+    transaction.type === 'transfer'
+      ? 'Transfer'
+      : transaction.type === 'refund'
+        ? `Refund · ${transaction.categoryName ?? 'Original expense'}`
+        : transaction.categoryName ?? 'Uncategorized'
+  }`;
 
   return (
     <Pressable
@@ -28,30 +36,25 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
       accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}, ${voided ? 'voided' : 'posted'}`}
       accessibilityRole="button"
       onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: transaction.id } })}
-      style={[styles.card, voided && styles.voidedCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView name={transactionIcon(transaction)} size={22} tintColor={tone} />
-      </View>
+      style={[styles.card, voided && styles.voided, { backgroundColor: theme.surface }]}>
+      <IconChip background={tint} color={tone} icon={transactionIcon(transaction)} iconSize={19} size={36} />
       <View style={styles.copy}>
-        <Text numberOfLines={1} style={[styles.title, { color: theme.primaryText }]}>
+        <Text numberOfLines={1} style={[styles.title, voided && styles.strike, { color: theme.primaryText }]}>
           {transactionTitle(transaction)}
         </Text>
-        <Text numberOfLines={1} style={[styles.metadata, { color: theme.secondaryText }]}>
-          {transactionAccountLabel(transaction)}
-        </Text>
         <Text numberOfLines={1} style={[styles.metadata, { color: theme.mutedText }]}>
-          {transaction.type === 'transfer' ? 'Transfer' : transaction.categoryName} · {voided ? 'Voided' : 'Posted'}
+          {metaLabel}
         </Text>
       </View>
       <View style={styles.amountColumn}>
         <Text
           adjustsFontSizeToFit
-          minimumFontScale={0.65}
+          minimumFontScale={0.7}
           numberOfLines={1}
-          style={[styles.amount, voided && styles.voidedAmount, { color: voided ? theme.mutedText : tone }]}>
+          style={[styles.amount, voided && styles.strike, { color: voided ? theme.mutedText : tone }]}>
           {signedTransactionAmount(transaction)}
         </Text>
-        <Text style={[styles.kind, { color: theme.secondaryText }]}>
+        <Text numberOfLines={1} style={[styles.kind, { color: theme.mutedText }]}>
           {voided ? 'Voided' : transactionTypeLabel(transaction)}
         </Text>
       </View>
@@ -62,53 +65,59 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
 function getTone(kind: SupportedTransactionType, theme: ReturnType<typeof useAppTheme>) {
   if (kind === 'income') return theme.income;
   if (kind === 'transfer') return theme.transfer;
+  if (kind === 'refund') return theme.primaryAction;
   return theme.expense;
+}
+
+function getTint(kind: SupportedTransactionType, theme: ReturnType<typeof useAppTheme>) {
+  if (kind === 'income') return theme.tintIncome;
+  if (kind === 'transfer') return theme.tintTransfer;
+  if (kind === 'refund') return theme.tintPrimary;
+  return theme.tintExpense;
 }
 
 const styles = StyleSheet.create({
   card: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 104,
-    padding: spacing.md,
-  },
-  icon: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
+    gap: spacing.sm + 2,
+    minHeight: 48,
+    paddingHorizontal: spacing.md - spacing.xs,
+    paddingVertical: spacing.sm + 3,
   },
   copy: {
     flex: 1,
     minWidth: 0,
   },
   title: {
-    ...typography.body,
-    fontWeight: '700',
+    fontFamily: fonts.sans.semibold,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 19,
   },
   metadata: {
-    ...typography.caption,
+    fontFamily: fonts.sans.medium,
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 15,
   },
   amountColumn: {
     alignItems: 'flex-end',
     flexShrink: 0,
-    width: 120,
+    maxWidth: 128,
   },
   amount: {
-    ...typography.money,
-    fontSize: 17,
-    fontVariant: ['tabular-nums'],
+    ...typography.moneyRow,
     textAlign: 'right',
-    width: '100%',
   },
   kind: {
-    ...typography.label,
-    marginTop: spacing.xs,
+    fontFamily: fonts.sans.medium,
+    fontSize: 10,
+    fontWeight: '500',
+    lineHeight: 14,
+    marginTop: 1,
   },
-  voidedCard: { opacity: 0.72 },
-  voidedAmount: { textDecorationLine: 'line-through' },
+  voided: { opacity: 0.72 },
+  strike: { textDecorationLine: 'line-through' },
 });

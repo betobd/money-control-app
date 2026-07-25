@@ -1,10 +1,11 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { currentBudgetMonth } from '@/features/budgets/budget-month';
 import type { ReportPeriodSelection } from '@/features/reports/report.types';
 import { createDefaultTransactionListFilters } from '@/features/transactions/transaction-list-filters';
 import type { TransactionListFilters } from '@/features/transactions/transaction.types';
+import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
 import { DataExportError } from './data-export.service';
 import { dataExportService } from './data-exports';
 import type {
@@ -68,6 +69,12 @@ export function useDataExport() {
     void dataExportService.cleanupStaleFiles();
     void loadOverview();
   }, [loadOverview]));
+  useEffect(
+    () => subscribeToFinancialDataChanges(() => {
+      void loadOverview();
+    }),
+    [loadOverview],
+  );
 
   const applyTransactionFilters = useCallback((filters: TransactionListFilters) => {
     const next = { ...transactionOptions, filters };

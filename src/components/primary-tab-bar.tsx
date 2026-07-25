@@ -49,29 +49,25 @@ export function PrimaryTabBar({ onHomePress }: { onHomePress: () => void }) {
       style={[
         styles.bar,
         {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          height: 72 + insets.bottom,
+          backgroundColor: theme.navigationSurface,
+          borderTopColor: theme.hairline,
+          height: 74 + insets.bottom,
           paddingBottom: insets.bottom,
         },
       ]}>
       <TabButton item={tabs[0]} onPress={onHomePress} selected={pathname === tabs[0].pathname} />
       <TabButton item={tabs[1]} selected={pathname === tabs[1].pathname} />
-      <Pressable
-        accessibilityHint="Opens the Add Transaction modal"
-        accessibilityLabel="Add transaction"
-        accessibilityRole="button"
-        onPress={() => router.push('/add-transaction')}
-        style={styles.addButton}>
-        <View style={[styles.addCircle, { backgroundColor: theme.primaryAction }]}>
-          <SymbolView
-            name={{ ios: 'plus', android: 'add', web: 'add' }}
-            size={28}
-            tintColor={theme.onPrimaryAction}
-          />
-        </View>
-        <Text style={[styles.addLabel, { color: theme.primaryText }]}>Add</Text>
-      </Pressable>
+      <View style={styles.addCell}>
+        <Pressable
+          accessibilityHint="Opens the Add Transaction modal"
+          accessibilityLabel="Add transaction"
+          accessibilityRole="button"
+          onPress={() => router.push('/add-transaction')}
+          style={[styles.addButton, { backgroundColor: theme.primaryAction }]}>
+          <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={24} tintColor={theme.onPrimaryAction} />
+          <Text style={[styles.addLabel, { color: theme.onPrimaryAction }]}>Add</Text>
+        </Pressable>
+      </View>
       <TabButton item={tabs[2]} selected={pathname === tabs[2].pathname} />
       <TabButton item={tabs[3]} selected={pathname === tabs[3].pathname} />
     </View>
@@ -88,9 +84,7 @@ function TabButton({
   selected: boolean;
 }) {
   const theme = useAppTheme();
-  const tintColor = selected
-    ? theme.selectedNavigationForeground
-    : theme.navigationInactive;
+  const tintColor = selected ? theme.primaryAction : theme.navigationInactive;
 
   return (
     <Pressable
@@ -105,64 +99,62 @@ function TabButton({
         }
       }}
       style={styles.tabButton}>
-      <View
-        style={[
-          styles.tabPill,
-          selected && { backgroundColor: theme.selectedNavigationBackground },
-        ]}>
-        <SymbolView name={item.icon} size={22} tintColor={tintColor} />
-        <Text numberOfLines={1} style={[styles.tabLabel, { color: tintColor }]}>
-          {item.label}
-        </Text>
-      </View>
+      {selected ? <View style={[styles.indicator, { backgroundColor: theme.primaryAction }]} /> : null}
+      <SymbolView name={item.icon} size={22} tintColor={tintColor} />
+      <Text numberOfLines={1} style={[styles.tabLabel, { color: tintColor }]}>
+        {item.label}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   bar: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    paddingHorizontal: spacing.xs,
   },
   tabButton: {
     alignItems: 'center',
     flex: 1,
-    height: 64,
+    gap: 3,
     justifyContent: 'center',
     minWidth: 48,
+    paddingTop: 6,
   },
-  tabPill: {
-    alignItems: 'center',
-    borderRadius: borderRadii.md,
-    gap: 2,
-    justifyContent: 'center',
-    minHeight: 52,
-    paddingHorizontal: spacing.xs,
-    width: '100%',
+  indicator: {
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    height: 2,
+    position: 'absolute',
+    top: 0,
+    width: 26,
   },
   tabLabel: {
     ...typography.label,
+    fontFamily: typography.label.fontFamily,
     fontSize: 10,
+    lineHeight: 13,
+  },
+  addCell: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 56,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
   },
   addButton: {
     alignItems: 'center',
+    borderRadius: borderRadii.card,
     flex: 1,
-    height: 78,
-    justifyContent: 'flex-start',
-    minWidth: 56,
-    transform: [{ translateY: -14 }],
-  },
-  addCircle: {
-    alignItems: 'center',
-    borderRadius: 30,
-    height: 60,
+    gap: 1,
     justifyContent: 'center',
-    width: 60,
+    width: '100%',
   },
   addLabel: {
     ...typography.label,
-    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 12,
   },
 });

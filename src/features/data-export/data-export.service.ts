@@ -117,9 +117,12 @@ function reportRows(data: ReportData): ReportCsvRow[] {
   const largest = data.summary.largestExpense;
   const values: [string, CsvScalar][] = [
     ['total_income_cop', data.summary.income],
-    ['total_expenses_cop', data.summary.expenses],
+    ['gross_expenses_cop', data.summary.grossExpenses],
+    ['refunds_cop', data.summary.refunds],
+    ['net_expenses_cop', data.summary.expenses],
     ['net_result_cop', data.summary.net],
     ['expense_count', data.summary.expenseCount],
+    ['refund_count', data.summary.refundCount],
     ['income_count', data.summary.incomeCount],
     ['average_expense_cop', data.summary.averageExpense],
     ['largest_expense_cop', largest?.amount ?? null],
@@ -182,7 +185,7 @@ export class DataExportService {
       budgets: budgetData.budgets.length,
       recurringRules: recurringRules.length,
       creditCardStatements,
-      reportMetrics: 12,
+      reportMetrics: 15,
       transactionFilters,
       transactions,
     };
@@ -223,6 +226,10 @@ export class DataExportService {
       { header: 'amount_cop', value: (row) => row.amountCop },
       { header: 'category_id', value: (row) => row.categoryId },
       { header: 'category_name', value: (row) => row.categoryName, protectFormula: true },
+      { header: 'original_transaction_id', value: (row) => row.originalTransactionId },
+      { header: 'original_transaction_date', value: (row) => row.originalTransactionDate },
+      { header: 'original_transaction_amount_cop', value: (row) => row.originalTransactionAmountCop },
+      { header: 'original_transaction_note', value: (row) => options.includeNotes ? row.originalTransactionNote : null, protectFormula: true },
       { header: 'source_account_id', value: (row) => row.sourceAccountId },
       { header: 'source_account_name', value: (row) => row.sourceAccountName, protectFormula: true },
       { header: 'destination_account_id', value: (row) => row.destinationAccountId },

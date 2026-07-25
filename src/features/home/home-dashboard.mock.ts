@@ -1,1 +1,1 @@
-export type FinancialTone = 'default' | 'income' | 'expense' | 'transfer';
+export type FinancialTone = 'default' | 'income' | 'expense' | 'transfer' | 'refund';

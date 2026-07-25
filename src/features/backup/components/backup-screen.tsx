@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { BackupSummary } from '../backup.types';
 import { useBackup } from '../use-backup';
@@ -110,17 +111,17 @@ export function BackupScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         showsVerticalScrollIndicator={false}>
         {error ? (
-          <Text accessibilityLiveRegion="assertive" style={[styles.feedback, { backgroundColor: theme.surface, color: theme.destructive, borderColor: theme.destructive }]}>
+          <Text accessibilityLiveRegion="assertive" style={[styles.feedback, { backgroundColor: theme.tintDestructive, color: theme.destructive }]}>
             {error}
           </Text>
         ) : null}
         {notice ? (
-          <Text accessibilityLiveRegion="polite" style={[styles.feedback, { backgroundColor: theme.surface, color: theme.income, borderColor: theme.income }]}>
+          <Text accessibilityLiveRegion="polite" style={[styles.feedback, { backgroundColor: theme.tintIncome, color: theme.income }]}>
             {notice}
           </Text>
         ) : null}
 
-        <View style={[styles.warningCard, { backgroundColor: theme.elevatedSurface, borderColor: theme.warning }]}>
+        <View style={[styles.warningCard, { backgroundColor: theme.tintWarning }]}>
           <SymbolView name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }} size={24} tintColor={theme.warning} />
           <View style={styles.flex}>
             <Text style={[styles.warningTitle, { color: theme.primaryText }]}>Plaintext financial data</Text>
@@ -144,7 +145,7 @@ export function BackupScreen() {
         </Section>
 
         <Section title="Restore backup" description="Select a Money Control JSON backup. It will be read and validated before any local data changes." theme={theme}>
-          <View style={[styles.destructiveNotice, { borderColor: theme.destructive }]}>
+          <View style={[styles.destructiveNotice, { backgroundColor: theme.tintDestructive }]}>
             <Text style={[styles.warningTitle, { color: theme.destructive }]}>Replace mode only</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>Restoring deletes and replaces all existing local financial data. Merge is not supported.</Text>
           </View>
@@ -216,17 +217,17 @@ function Section({
   title: string;
 }) {
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card style={styles.card}>
       <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{title}</Text>
       <Text style={[styles.body, { color: theme.secondaryText }]}>{description}</Text>
       {children}
-    </View>
+    </Card>
   );
 }
 
 function CountList({ summary, theme }: { summary: BackupSummary; theme: Theme }) {
   return (
-    <View style={[styles.countList, { borderColor: theme.border }]}>
+    <View style={[styles.countList, { borderTopColor: theme.hairline }]}>
       {countLabels.map(({ key, label }) => (
         <View key={key} style={styles.countRow}>
           <Text style={[styles.body, { color: theme.secondaryText }]}>{label}</Text>
@@ -293,7 +294,7 @@ function SecondaryButton({ busy, disabled, label, onPress, theme }: {
       accessibilityState={{ busy, disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.secondaryButton, { borderColor: disabled ? theme.disabledText : theme.primaryAction }]}>
+      style={[styles.secondaryButton, { backgroundColor: disabled ? theme.disabledSurface : theme.elevatedSurface }]}>
       {busy ? <ActivityIndicator color={theme.primaryAction} /> : (
         <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.primaryAction }]}>{label}</Text>
       )}
@@ -307,21 +308,21 @@ const styles = StyleSheet.create({
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
-  feedback: { ...typography.caption, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
-  warningCard: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
+  feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
+  warningCard: { borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
   warningTitle: { ...typography.body, fontWeight: '700' },
   flex: { flex: 1, gap: spacing.xs },
   body: { ...typography.body },
   caption: { ...typography.caption },
-  card: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
+  card: { gap: spacing.md },
   sectionTitle: { ...typography.sectionTitle },
   subheading: { ...typography.caption, fontWeight: '700' },
-  countList: { borderTopWidth: borderWidths.thin, paddingTop: spacing.sm },
+  countList: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.sm },
   countRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 32 },
   count: { ...typography.body, fontWeight: '700' },
-  destructiveNotice: { borderLeftWidth: 3, gap: spacing.xs, paddingLeft: spacing.md },
+  destructiveNotice: { borderRadius: borderRadii.md, gap: spacing.xs, padding: spacing.md },
   primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
+  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
   buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
   linkButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
   linkLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },

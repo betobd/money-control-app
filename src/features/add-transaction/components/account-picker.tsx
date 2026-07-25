@@ -1,9 +1,10 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop, accountTypeLabels } from '@/features/accounts/account-format';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
+import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AccountPickerProps = {
@@ -28,12 +29,13 @@ export function AccountPicker({
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
-      <Pressable accessibilityLabel="Close account picker" onPress={onClose} style={styles.backdrop} />
+      <Pressable accessibilityLabel="Close account picker" onPress={onClose} style={[styles.backdrop, { backgroundColor: theme.overlay }]} />
       <View
         style={[
           styles.sheet,
-          { backgroundColor: theme.appBackground, paddingBottom: insets.bottom + spacing.md },
+          { backgroundColor: theme.surface, paddingBottom: insets.bottom + spacing.md },
         ]}>
+        <View style={[styles.grabber, { backgroundColor: theme.border }]} />
         <View style={styles.heading}>
           <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
             {title}
@@ -57,18 +59,16 @@ export function AccountPicker({
                 }}
                 style={[
                   styles.row,
-                  {
-                    backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-                    borderColor: selected ? theme.primaryAction : theme.border,
-                  },
+                  { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface },
                 ]}>
+                <AccountTypeIcon kind={account.type} size={36} />
                 <View style={styles.accountCopy}>
-                  <Text style={[styles.name, { color: theme.primaryText }]}>{account.name}</Text>
-                  <Text style={[styles.type, { color: theme.secondaryText }]}>
+                  <Text numberOfLines={1} style={[styles.name, { color: theme.primaryText }]}>{account.name}</Text>
+                  <Text numberOfLines={1} style={[styles.type, { color: theme.mutedText }]}>
                     {accountTypeLabels[account.type]}
                   </Text>
                 </View>
-                <Text style={[styles.balance, { color: theme.primaryText }]}>{formatCop(account.balance)}</Text>
+                <Text style={[styles.balance, { color: theme.secondaryText }]}>{formatCop(account.balance)}</Text>
               </Pressable>
             );
           })}
@@ -79,7 +79,7 @@ export function AccountPicker({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.45)', flex: 1 },
+  backdrop: { flex: 1 },
   sheet: {
     borderTopLeftRadius: borderRadii.lg,
     borderTopRightRadius: borderRadii.lg,
@@ -87,6 +87,7 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
     padding: spacing.md,
   },
+  grabber: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: spacing.xs, width: 36 },
   heading: { alignItems: 'center', flexDirection: 'row' },
   title: { ...typography.sectionTitle, flex: 1 },
   close: {
@@ -98,15 +99,15 @@ const styles = StyleSheet.create({
   row: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.sm + 2,
     marginBottom: spacing.sm,
-    minHeight: 72,
-    padding: spacing.md,
+    minHeight: 60,
+    paddingHorizontal: spacing.sm + spacing.xs,
+    paddingVertical: spacing.sm,
   },
   accountCopy: { flex: 1, minWidth: 0 },
-  name: { ...typography.body, fontWeight: '700' },
-  type: { ...typography.caption },
-  balance: { ...typography.caption, fontWeight: '700', textAlign: 'right' },
+  name: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  type: { ...typography.caption, fontSize: 12, lineHeight: 16 },
+  balance: { ...typography.moneyRow, fontWeight: '500', textAlign: 'right' },
 });

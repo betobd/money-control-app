@@ -23,7 +23,7 @@ export function BudgetProgressBar({ percentage, progressWidth, status }: BudgetP
     <View
       accessibilityLabel={`${presentation.label}, ${percentage}% used`}
       accessibilityRole="progressbar"
-      accessibilityValue={{ max: 100, min: 0, now: Math.min(percentage, 100) }}
+      accessibilityValue={{ max: 100, min: 0, now: Math.max(0, Math.min(percentage, 100)) }}
       style={[styles.track, { backgroundColor: theme.progressTrack }]}>
       <View style={[styles.fill, { backgroundColor: fillColor, width: progressWidth }]} />
     </View>

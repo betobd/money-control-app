@@ -22,7 +22,7 @@ export function FormFieldButton({ icon, label, value, onPress, error }: FormFiel
         accessibilityLabel={`${label}, ${value}`}
         accessibilityRole="button"
         onPress={onPress}
-        style={[styles.field, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        style={[styles.field, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.hairline }]}>
         <SymbolView name={icon} size={22} tintColor={theme.secondaryText} />
         <Text numberOfLines={1} style={[styles.value, { color: theme.primaryText }]}> 
           {value}
@@ -43,8 +43,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    ...typography.label,
-    textTransform: 'uppercase',
+    ...typography.overline,
   },
   field: {
     alignItems: 'center',
@@ -58,6 +57,8 @@ const styles = StyleSheet.create({
   value: {
     ...typography.body,
     flex: 1,
+    fontFamily: typography.label.fontFamily,
+    fontSize: 14,
     fontWeight: '600',
   },
   error: { ...typography.caption },

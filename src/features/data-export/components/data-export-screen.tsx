@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import {
   budgetMonthLabel,
   shiftBudgetMonth,
@@ -127,19 +128,19 @@ export function DataExportScreen() {
         {error ? (
           <Text
             accessibilityLiveRegion="assertive"
-            style={[styles.feedback, { backgroundColor: theme.surface, borderColor: theme.destructive, color: theme.destructive }]}>
+            style={[styles.feedback, { backgroundColor: theme.tintDestructive, color: theme.destructive }]}>
             {error}
           </Text>
         ) : null}
         {notice ? (
           <Text
             accessibilityLiveRegion="polite"
-            style={[styles.feedback, { backgroundColor: theme.surface, borderColor: theme.income, color: theme.income }]}>
+            style={[styles.feedback, { backgroundColor: theme.tintIncome, color: theme.income }]}>
             {notice}
           </Text>
         ) : null}
 
-        <View style={[styles.warning, { backgroundColor: theme.elevatedSurface, borderColor: theme.warning }]}>
+        <View style={[styles.warning, { backgroundColor: theme.tintWarning }]}>
           <SymbolView
             name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }}
             size={24}
@@ -151,7 +152,7 @@ export function DataExportScreen() {
           </View>
         </View>
 
-        <View style={[styles.distinction, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Card style={styles.distinction}>
           <Text style={[styles.cardTitle, { color: theme.primaryText }]}>CSV is not a backup</Text>
           <Text style={[styles.body, { color: theme.secondaryText }]}>Need to restore Money Control later? Backup & Restore preserves IDs and relationships in versioned JSON. CSV cannot be restored.</Text>
           <Pressable
@@ -162,7 +163,7 @@ export function DataExportScreen() {
             style={styles.linkButton}>
             <Text style={[styles.linkText, { color: theme.primaryAction }]}>Open Backup & Restore</Text>
           </Pressable>
-        </View>
+        </Card>
 
         <ExportCard
           description="Readable transaction rows with source/destination accounts, category, status, dates, and optional notes."
@@ -187,7 +188,7 @@ export function DataExportScreen() {
               setFilterModalKey((value) => value + 1);
               setFilterModalVisible(true);
             }}
-            style={[styles.secondaryButton, { borderColor: theme.primaryAction }]}>
+            style={[styles.secondaryButton, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.buttonLabel, { color: theme.primaryAction }]}>Configure filters</Text>
           </Pressable>
           <NotesToggle
@@ -387,7 +388,7 @@ function ExportCard({
   title: string;
 }) {
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card style={styles.card}>
       <View style={styles.cardHeading}>
         <View style={styles.flex}>
           <Text accessibilityRole="header" style={[styles.cardTitle, { color: theme.primaryText }]}>{title}</Text>
@@ -399,7 +400,7 @@ function ExportCard({
       </View>
       {children}
       <Text style={[styles.notBackup, { color: theme.mutedText }]}>Human-readable CSV · Not a restorable backup</Text>
-    </View>
+    </Card>
   );
 }
 
@@ -458,12 +459,12 @@ const styles = StyleSheet.create({
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
-  feedback: { ...typography.caption, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
-  warning: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
-  distinction: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.md },
+  feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
+  warning: { borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
+  distinction: { gap: spacing.sm },
   linkButton: { alignItems: 'flex-start', justifyContent: 'center', minHeight: 48 },
   linkText: { ...typography.body, fontWeight: '700' },
-  card: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
+  card: { gap: spacing.md },
   cardHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm },
   cardTitle: { ...typography.sectionTitle },
   body: { ...typography.body },
@@ -471,7 +472,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: spacing.xs },
   count: { ...typography.caption, borderRadius: borderRadii.full, fontWeight: '700', minWidth: 40, overflow: 'hidden', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: 'center' },
   detailList: { gap: spacing.xs },
-  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
+  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
   primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
   buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
   toggleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 52 },

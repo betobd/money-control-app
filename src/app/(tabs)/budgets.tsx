@@ -26,16 +26,15 @@ export default function BudgetsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content}>
-      <PrimaryScreenHeader />
-      <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Budgets</Text>
+      <PrimaryScreenHeader title="Budgets" />
 
       <View accessibilityLabel={`Selected month, ${label}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
         <Pressable accessibilityLabel="Previous month" accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, -1))} style={styles.monthButton}>
-          <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={20} tintColor={theme.secondaryText} />
+          <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={18} tintColor={theme.secondaryText} />
         </Pressable>
         <Text style={[styles.month, { color: theme.primaryText }]}>{label}</Text>
         <Pressable accessibilityLabel="Next month" accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, 1))} style={styles.monthButton}>
-          <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.secondaryText} />
+          <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.secondaryText} />
         </Pressable>
       </View>
 
@@ -61,13 +60,12 @@ export default function BudgetsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.lg, paddingBottom: spacing.xxl * 2 },
-  title: { ...typography.title },
-  monthSelector: { alignItems: 'center', alignSelf: 'center', borderRadius: borderRadii.full, flexDirection: 'row', minHeight: 48 },
-  monthButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  month: { ...typography.sectionTitle, minWidth: 132, textAlign: 'center' },
+  content: { gap: spacing.md, paddingBottom: spacing.xxl * 2 },
+  monthSelector: { alignItems: 'center', alignSelf: 'center', borderRadius: borderRadii.full, flexDirection: 'row', minHeight: 40 },
+  monthButton: { alignItems: 'center', height: 40, justifyContent: 'center', width: 40 },
+  month: { ...typography.sectionTitle, fontSize: 14, lineHeight: 19, minWidth: 128, textAlign: 'center' },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  sectionTitle: { ...typography.sectionTitle },
+  sectionTitle: { ...typography.sectionTitle, fontSize: 15, lineHeight: 20 },
   sectionMonth: { ...typography.caption },
-  budgets: { gap: spacing.md },
+  budgets: { gap: spacing.sm + spacing.xs },
 });

@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { Overline } from '@/components/overline';
+import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type NetWorthSummaryProps = {
@@ -12,10 +14,11 @@ export function NetWorthSummary({ amount, currency }: NetWorthSummaryProps) {
   const theme = useAppTheme();
 
   return (
-    <View
+    <Card
       accessibilityLabel={`Total net worth, ${amount} ${currency}. Includes assets minus debt.`}
-      style={[styles.card, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
-      <Text style={[styles.label, { color: theme.secondaryText }]}>Total net worth</Text>
+      style={styles.card}
+      variant="raised">
+      <Overline>Total net worth</Overline>
       <View style={styles.amountRow}>
         <Text
           adjustsFontSizeToFit
@@ -24,23 +27,16 @@ export function NetWorthSummary({ amount, currency }: NetWorthSummaryProps) {
           style={[styles.amount, { color: theme.primaryAction }]}>
           {amount}
         </Text>
-        <Text style={[styles.currency, { color: theme.secondaryText }]}>{currency}</Text>
+        <Text style={[styles.currency, { color: theme.mutedText }]}>{currency}</Text>
       </View>
       <Text style={[styles.note, { color: theme.mutedText }]}>Assets minus amounts owed</Text>
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     gap: spacing.xs,
-    padding: spacing.md,
-  },
-  label: {
-    ...typography.label,
-    textTransform: 'uppercase',
   },
   amountRow: {
     alignItems: 'baseline',
@@ -48,14 +44,11 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   amount: {
-    ...typography.display,
+    ...typography.moneyHero,
     flexShrink: 1,
-    fontSize: 29,
-    fontVariant: ['tabular-nums'],
-    lineHeight: 36,
   },
   currency: {
-    ...typography.body,
+    ...typography.caption,
     marginLeft: spacing.xs,
   },
   note: {

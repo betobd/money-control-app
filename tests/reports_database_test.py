@@ -99,7 +99,7 @@ transactions = [
     ('archived-expense', 'expense', 'posted', 200_000, 'COP', 'archived', None, 'old-utilities', None, '2026-07-05', utc, utc),
     ('recurring-income', 'income', 'posted', 50_000, 'COP', 'checking', None, 'salary', None, '2026-07-06', utc, utc),
 ]
-connection.executemany('INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', transactions)
+connection.executemany('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', transactions)
 
 # Pending/skipped occurrences contain money snapshots but have no financial effect.
 rule = (

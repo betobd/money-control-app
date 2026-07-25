@@ -26,7 +26,13 @@ const emptyBudget: BudgetSummary = {
 export function useHomeDashboard() {
   const [data, setData] = useState<State>({
     totalBalance: 0,
-    summary: { income: 0, expenses: 0, net: 0 },
+    summary: {
+      income: 0,
+      grossExpenses: 0,
+      refunds: 0,
+      netExpenses: 0,
+      net: 0,
+    },
     recent: [],
     budget: emptyBudget,
   });

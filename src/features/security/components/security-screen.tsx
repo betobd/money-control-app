@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { Overline } from '@/components/overline';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { AppLockActionError } from '../app-lock.service';
 import { useAppLock } from '../app-lock-provider';
@@ -226,8 +228,8 @@ function SecurityScreenContent() {
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        {error ? <Text accessibilityLiveRegion="assertive" selectable style={[styles.feedback, { borderColor: theme.destructive, color: theme.destructive }]}>{error}</Text> : null}
-        {notice ? <Text accessibilityLiveRegion="polite" selectable style={[styles.feedback, { borderColor: theme.income, color: theme.income }]}>{notice}</Text> : null}
+        {error ? <Text accessibilityLiveRegion="assertive" selectable style={[styles.feedback, { backgroundColor: theme.tintDestructive, color: theme.destructive }]}>{error}</Text> : null}
+        {notice ? <Text accessibilityLiveRegion="polite" selectable style={[styles.feedback, { backgroundColor: theme.tintIncome, color: theme.income }]}>{notice}</Text> : null}
 
         <Section title="App Lock" theme={theme}>
           <StatusRow label="Status" value={enabled ? 'Enabled' : 'Disabled'} theme={theme} />
@@ -300,7 +302,7 @@ function SecurityScreenContent() {
                     accessibilityState={{ checked: selected, disabled: busy }}
                     disabled={busy}
                     onPress={() => void updateDelay(delay)}
-                    style={[styles.delayRow, { borderColor: selected ? theme.primaryAction : theme.border, backgroundColor: selected ? theme.elevatedSurface : theme.surface }]}>
+                    style={[styles.delayRow, { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface }]}>
                     <Text style={[styles.body, { color: theme.primaryText, fontWeight: selected ? '700' : '400' }]}>{delayLabels[delay]}</Text>
                     {selected ? <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={22} tintColor={theme.primaryAction} /> : null}
                   </Pressable>
@@ -340,10 +342,10 @@ function flowSubmitLabel(flow: Exclude<Flow, null>, biometricEnabled: boolean): 
 
 function Section({ children, theme, title }: { children: React.ReactNode; theme: Theme; title: string }) {
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card style={styles.card}>
       <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{title}</Text>
       {children}
-    </View>
+    </Card>
   );
 }
 
@@ -360,7 +362,7 @@ function LabeledPin({ label, onChange, onInvalid, value }: { label: string; onCh
   const theme = useAppTheme();
   return (
     <View style={styles.pinField}>
-      <Text style={[styles.label, { color: theme.primaryText }]}>{label}</Text>
+      <Overline color={theme.mutedText}>{label}</Overline>
       <PinInput accessibilityLabel={label} onChange={onChange} onInvalidInput={onInvalid} value={value} />
     </View>
   );
@@ -368,7 +370,7 @@ function LabeledPin({ label, onChange, onInvalid, value }: { label: string; onCh
 
 function Limit({ text, theme, title }: { text: string; theme: Theme; title: string }) {
   return (
-    <View style={[styles.limit, { borderColor: theme.border }]}>
+    <View style={[styles.limit, { borderTopColor: theme.hairline }]}>
       <Text style={[styles.label, { color: theme.primaryText }]}>{title}</Text>
       <Text style={[styles.body, { color: theme.secondaryText }]}>{text}</Text>
     </View>
@@ -385,7 +387,7 @@ function PrimaryButton({ busy = false, disabled, label, onPress, theme }: { busy
 
 function SecondaryButton({ disabled, label, onPress, theme }: { disabled: boolean; label: string; onPress: () => void; theme: Theme }) {
   return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { borderColor: disabled ? theme.disabledText : theme.primaryAction, borderWidth: borderWidths.thin }]}>
+    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { backgroundColor: disabled ? theme.disabledSurface : theme.elevatedSurface }]}>
       <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.primaryAction }]}>{label}</Text>
     </Pressable>
   );
@@ -393,7 +395,7 @@ function SecondaryButton({ disabled, label, onPress, theme }: { disabled: boolea
 
 function DestructiveButton({ disabled, label, onPress, theme }: { disabled: boolean; label: string; onPress: () => void; theme: Theme }) {
   return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { borderColor: disabled ? theme.disabledText : theme.destructive, borderWidth: borderWidths.thin }]}>
+    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { backgroundColor: disabled ? theme.disabledSurface : theme.tintDestructive }]}>
       <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.destructive }]}>{label}</Text>
     </Pressable>
   );
@@ -405,8 +407,8 @@ const styles = StyleSheet.create({
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
-  feedback: { ...typography.caption, backgroundColor: 'transparent', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
-  card: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
+  feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
+  card: { gap: spacing.md },
   sectionTitle: { ...typography.sectionTitle },
   body: { ...typography.body },
   caption: { ...typography.caption },
@@ -418,6 +420,6 @@ const styles = StyleSheet.create({
   pinField: { gap: spacing.sm },
   inlineActions: { gap: spacing.sm },
   delayList: { gap: spacing.sm },
-  delayRow: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: spacing.md },
-  limit: { borderTopWidth: borderWidths.thin, gap: spacing.xs, paddingTop: spacing.md },
+  delayRow: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: spacing.md },
+  limit: { borderTopWidth: StyleSheet.hairlineWidth, gap: spacing.xs, paddingTop: spacing.md },
 });

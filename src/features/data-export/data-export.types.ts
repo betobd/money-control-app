@@ -58,11 +58,15 @@ export type DataExportOverview = {
 export type TransactionExportRow = {
   transactionId: string;
   transactionDate: string;
-  type: 'expense' | 'income' | 'transfer';
+  type: 'expense' | 'income' | 'transfer' | 'refund';
   status: 'posted' | 'voided';
   amountCop: number;
   categoryId: string | null;
   categoryName: string | null;
+  originalTransactionId: string | null;
+  originalTransactionDate: string | null;
+  originalTransactionAmountCop: number | null;
+  originalTransactionNote: string | null;
   sourceAccountId: string;
   sourceAccountName: string;
   destinationAccountId: string | null;
@@ -96,4 +100,3 @@ export type ExportResult = {
 };
 
 export type ExportOperation = DataExportKind | 'loading' | null;
-

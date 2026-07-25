@@ -1,7 +1,7 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type FilterIcon = 'category' | 'account' | 'date' | 'type' | 'status';
@@ -26,21 +26,15 @@ export function AppliedFilterBadge({
   label,
 }: AppliedFilterBadgeProps) {
   const theme = useAppTheme();
-  const foreground = theme.selectedNavigationForeground;
+  const foreground = theme.primaryAction;
 
   return (
     <View
       accessible
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="text"
-      style={[
-        styles.chip,
-        {
-          backgroundColor: theme.selectedNavigationBackground,
-          borderColor: theme.primaryAction,
-        },
-      ]}>
-      <SymbolView name={filterIcons[icon]} size={16} tintColor={foreground} />
+      style={[styles.chip, { backgroundColor: theme.tintPrimary }]}>
+      <SymbolView name={filterIcons[icon]} size={15} tintColor={foreground} />
       <Text numberOfLines={1} style={[styles.label, { color: foreground }]}>{label}</Text>
     </View>
   );
@@ -50,16 +44,14 @@ const styles = StyleSheet.create({
   chip: {
     alignItems: 'center',
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
     gap: spacing.xs,
     maxWidth: '100%',
-    minHeight: 36,
+    minHeight: 34,
     paddingHorizontal: spacing.sm + spacing.xs,
   },
   label: {
-    ...typography.caption,
+    ...typography.label,
     flexShrink: 1,
-    fontWeight: '600',
   },
 });

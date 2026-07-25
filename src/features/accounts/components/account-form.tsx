@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Overline } from '@/components/overline';
+import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { accountTypeLabels } from '@/features/accounts/account-format';
 import { AccountValidationError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
+import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { accountTypes, type AccountField, type AccountType, type AccountValidationErrors } from '@/features/accounts/account.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -92,11 +94,20 @@ export function AccountForm({ accountId }: { accountId?: string }) {
     return <View style={[styles.loading, { backgroundColor: theme.appBackground }]}><ActivityIndicator color={theme.primaryAction} /></View>;
   }
 
+  const inputStyle = (invalid: boolean, editable = true) => [
+    styles.input,
+    {
+      backgroundColor: editable ? theme.surface : theme.disabledSurface,
+      borderColor: invalid ? theme.destructive : theme.hairline,
+      color: editable ? theme.primaryText : theme.disabledText,
+    },
+  ];
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.flex, { backgroundColor: theme.appBackground }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + spacing.sm }]}>
+      style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
+      <View style={styles.header}>
         <Pressable accessibilityLabel="Close account form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -105,7 +116,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
         {generalError ? (
           <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>
@@ -120,7 +131,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
             onChangeText={(value) => { setName(value); clearError('name'); }}
             placeholder="e.g. Main Checking"
             placeholderTextColor={theme.mutedText}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.name ? theme.destructive : theme.border, color: theme.primaryText }]}
+            style={inputStyle(Boolean(errors.name))}
             value={name}
           />
         </FormField>
@@ -136,8 +147,19 @@ export function AccountForm({ accountId }: { accountId?: string }) {
                   accessibilityState={{ selected }}
                   key={option}
                   onPress={() => { setType(option); clearError('type'); clearError('creditLimit'); }}
-                  style={[styles.typeButton, { backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface, borderColor: selected ? theme.primaryAction : theme.border }]}>
-                  <Text style={[styles.typeText, { color: selected ? theme.selectedNavigationForeground : theme.secondaryText }]}>{accountTypeLabels[option]}</Text>
+                  style={[
+                    styles.typeCard,
+                    {
+                      backgroundColor: selected ? theme.tintPrimary : theme.surface,
+                      borderColor: selected ? theme.primaryAction : 'transparent',
+                    },
+                  ]}>
+                  <AccountTypeIcon kind={option} size={40} />
+                  <Text
+                    numberOfLines={2}
+                    style={[styles.typeText, { color: selected ? theme.primaryText : theme.secondaryText }]}>
+                    {accountTypeLabels[option]}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -145,7 +167,9 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         </FormField>
 
         <FormField label="Currency" theme={theme}>
-          <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface, borderColor: theme.border }]}><Text style={[styles.inputText, { color: theme.secondaryText }]}>COP · Colombian peso</Text></View>
+          <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface }]}>
+            <Text style={[styles.inputText, { color: theme.secondaryText }]}>COP · Colombian peso</Text>
+          </View>
         </FormField>
 
         <FormField label="Opening balance" error={errors.openingBalance} theme={theme}>
@@ -156,7 +180,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
             onChangeText={(value) => { setOpeningBalance(value.replace(/[^\d-]/g, '')); clearError('openingBalance'); }}
             placeholder="0"
             placeholderTextColor={theme.mutedText}
-            style={[styles.input, { backgroundColor: openingBalanceEditable ? theme.surface : theme.disabledSurface, borderColor: errors.openingBalance ? theme.destructive : theme.border, color: openingBalanceEditable ? theme.primaryText : theme.disabledText }]}
+            style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance), openingBalanceEditable)]}
             value={openingBalance}
           />
           {!openingBalanceEditable ? <Text style={[styles.help, { color: theme.secondaryText }]}>Locked because this account has posted activity. Use an adjustment transaction for corrections.</Text> : null}
@@ -170,7 +194,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               onChangeText={(value) => { setCreditLimit(value.replace(/\D/g, '')); clearError('creditLimit'); }}
               placeholder="0"
               placeholderTextColor={theme.mutedText}
-              style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.creditLimit ? theme.destructive : theme.border, color: theme.primaryText }]}
+              style={[styles.moneyInput, inputStyle(Boolean(errors.creditLimit))]}
               value={creditLimit}
             />
             <Text style={[styles.help, { color: theme.secondaryText }]}>Whole Colombian pesos. Must cover the card’s current debt.</Text>
@@ -186,7 +210,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               onChangeText={(value) => { setStatementClosingDay(value.replace(/\D/g, '')); clearError('statementClosingDay'); }}
               placeholder="1–31"
               placeholderTextColor={theme.mutedText}
-              style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.statementClosingDay ? theme.destructive : theme.border, color: theme.primaryText }]}
+              style={inputStyle(Boolean(errors.statementClosingDay))}
               value={statementClosingDay}
             />
             <Text style={[styles.help, { color: theme.secondaryText }]}>For shorter months, Money Control uses the last calendar day and keeps this intended day for later months.</Text>
@@ -202,13 +226,15 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               onChangeText={(value) => { setPaymentDueDay(value.replace(/\D/g, '')); clearError('paymentDueDay'); }}
               placeholder="1–31"
               placeholderTextColor={theme.mutedText}
-              style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.paymentDueDay ? theme.destructive : theme.border, color: theme.primaryText }]}
+              style={inputStyle(Boolean(errors.paymentDueDay))}
               value={paymentDueDay}
             />
             <Text style={[styles.help, { color: theme.secondaryText }]}>The due date is the first configured day after each statement closes.</Text>
           </FormField>
         ) : null}
+      </ScrollView>
 
+      <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
         <Pressable
           accessibilityLabel={isEditing ? 'Save account changes' : 'Create account'}
           accessibilityRole="button"
@@ -218,33 +244,51 @@ export function AccountForm({ accountId }: { accountId?: string }) {
           style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
           {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>{isEditing ? 'Save Changes' : 'Create Account'}</Text>}
         </Pressable>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 type Theme = ReturnType<typeof useAppTheme>;
 function FormField({ children, error, label, theme }: { children: React.ReactNode; error?: string; label: string; theme: Theme }) {
-  return <View style={styles.field}><Text style={[styles.label, { color: theme.primaryText }]}>{label}</Text>{children}{error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}</View>;
+  return (
+    <View style={styles.field}>
+      <Overline color={theme.mutedText}>{label}</Overline>
+      {children}
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
-  content: { gap: spacing.lg, padding: spacing.md },
+  content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xl },
   field: { gap: spacing.sm },
-  label: { ...typography.body, fontWeight: '700' },
-  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
+  moneyInput: { fontFamily: fonts.mono.medium },
   inputText: { ...typography.body },
-  readOnly: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
+  readOnly: { borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.md },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  typeButton: { alignItems: 'center', borderRadius: borderRadii.full, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  typeText: { ...typography.caption, fontWeight: '700' },
+  typeCard: {
+    alignItems: 'center',
+    borderRadius: borderRadii.card,
+    borderWidth: borderWidths.thin,
+    flexBasis: '47%',
+    flexDirection: 'row',
+    flexGrow: 1,
+    gap: spacing.sm,
+    minHeight: 68,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  typeText: { ...typography.caption, flexShrink: 1, fontFamily: fonts.sans.bold, fontWeight: '700' },
   error: { ...typography.caption },
   help: { ...typography.caption },
-  save: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  saveText: { ...typography.body, fontWeight: '700' },
+  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
+  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

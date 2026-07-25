@@ -33,9 +33,12 @@ export type LargestExpense = {
 
 export type PeriodSummary = {
   income: number;
+  grossExpenses: number;
+  refunds: number;
   expenses: number;
   net: number;
   expenseCount: number;
+  refundCount: number;
   incomeCount: number;
   averageExpense: number;
   largestExpense: LargestExpense | null;
@@ -47,6 +50,8 @@ export type CashFlowBucket = {
   dateFrom: string;
   dateTo: string;
   income: number;
+  grossExpenses: number;
+  refunds: number;
   expenses: number;
   net: number;
 };
@@ -100,12 +105,16 @@ export type ReportData = {
   comparison: PreviousPeriodComparison;
 };
 
-export type ReportSummaryAggregate = Omit<PeriodSummary, 'net' | 'averageExpense'>;
+export type ReportSummaryAggregate = Omit<
+  PeriodSummary,
+  'expenses' | 'net' | 'averageExpense'
+>;
 
 export type ReportBucketAggregate = {
   key: string;
   income: number;
-  expenses: number;
+  grossExpenses: number;
+  refunds: number;
 };
 
 export type CategoryExpenseAggregate = Omit<CategoryExpenseSummary, 'percentageBasisPoints'>;

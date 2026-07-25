@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function CreateBudgetButton({ onPress }: { onPress: () => void }) {
@@ -13,15 +13,9 @@ export function CreateBudgetButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel="Create budget"
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.button, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={[styles.icon, { backgroundColor: theme.primaryAction }]}>
-        <SymbolView
-          name={{ ios: 'plus', android: 'add', web: 'add' }}
-          size={26}
-          tintColor={theme.onPrimaryAction}
-        />
-      </View>
-      <Text style={[styles.label, { color: theme.primaryAction }]}>Create Budget</Text>
+      style={[styles.button, { backgroundColor: theme.tintPrimary }]}>
+      <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={20} tintColor={theme.primaryAction} />
+      <Text style={[styles.label, { color: theme.primaryAction }]}>Create budget</Text>
     </Pressable>
   );
 }
@@ -30,21 +24,16 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
+    flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 112,
-    padding: spacing.md,
-  },
-  icon: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
   },
   label: {
     ...typography.body,
+    fontFamily: typography.sectionTitle.fontFamily,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

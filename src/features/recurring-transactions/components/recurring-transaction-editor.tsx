@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
@@ -161,7 +162,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.appBackground }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable accessibilityLabel={`Close ${props.title}`} accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -213,7 +214,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
         {props.mode === 'rule' ? (
           <View style={styles.field}>
-            <Text style={[styles.label, { color: theme.primaryText }]}>Frequency</Text>
+            <Overline color={theme.mutedText}>Frequency</Overline>
             <View accessibilityRole="radiogroup" style={styles.optionGrid}>
               {frequencyOptions.map((option) => {
                 const selected = option.frequency === frequency && option.interval === interval;
@@ -229,11 +230,11 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
                     style={[
                       styles.option,
                       {
-                        backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-                        borderColor: selected ? theme.primaryAction : theme.border,
+                        backgroundColor: selected ? theme.tintPrimary : theme.surface,
+                        borderColor: selected ? theme.primaryAction : 'transparent',
                       },
                     ]}>
-                    <Text style={[styles.optionLabel, { color: selected ? theme.selectedNavigationForeground : theme.primaryText }]}>{option.label}</Text>
+                    <Text style={[styles.optionLabel, { color: selected ? theme.primaryText : theme.secondaryText }]}>{option.label}</Text>
                   </Pressable>
                 );
               })}
@@ -253,7 +254,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         ) : null}
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.primaryText }]}>Note (optional)</Text>
+          <Overline color={theme.mutedText}>Note (optional)</Overline>
           <TextInput
             accessibilityLabel="Recurring transaction note"
             maxLength={200}
@@ -261,7 +262,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
             onChangeText={setNote}
             placeholder="Add a description…"
             placeholderTextColor={theme.mutedText}
-            style={[styles.note, { backgroundColor: theme.surface, borderColor: errors.note ? theme.destructive : theme.border, color: theme.primaryText }]}
+            style={[styles.note, { backgroundColor: theme.surface, borderColor: errors.note ? theme.destructive : theme.hairline, color: theme.primaryText }]}
             textAlignVertical="top"
             value={note}
           />
@@ -269,7 +270,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: theme.border, paddingBottom: insets.bottom + spacing.sm }]}>
+      <View style={[styles.footer, { borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
         <Pressable
           accessibilityLabel="Save recurring transaction"
           accessibilityRole="button"
@@ -307,7 +308,7 @@ function DateField({
   const theme = useAppTheme();
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: theme.primaryText }]}>{label}</Text>
+      <Overline color={theme.mutedText}>{label}</Overline>
       <TextInput
         accessibilityLabel={`${label}, YYYY-MM-DD`}
         autoCapitalize="none"
@@ -316,7 +317,7 @@ function DateField({
         onChangeText={onChange}
         placeholder="YYYY-MM-DD"
         placeholderTextColor={theme.mutedText}
-        style={[styles.input, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.border, color: theme.primaryText }]}
+        style={[styles.input, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.hairline, color: theme.primaryText }]}
         value={value}
       />
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
@@ -326,19 +327,18 @@ function DateField({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xxl },
   field: { gap: spacing.sm },
-  label: { ...typography.body, fontWeight: '700' },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
   optionLabel: { ...typography.caption, fontWeight: '700' },
-  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   note: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 96, padding: spacing.md },
   error: { ...typography.caption },
-  footer: { borderTopWidth: borderWidths.thin, padding: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52 },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
+  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
   saveLabel: { ...typography.body, fontWeight: '700' },
 });

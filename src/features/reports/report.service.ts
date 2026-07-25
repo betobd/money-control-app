@@ -44,11 +44,16 @@ export function calculateBasisPoints(numerator: number, denominator: number): nu
 }
 
 export function normalizeSummary(aggregate: ReportSummaryAggregate): PeriodSummary {
-  const net = safeInteger(aggregate.income - aggregate.expenses, 'Report net result');
+  const expenses = safeInteger(
+    aggregate.grossExpenses - aggregate.refunds,
+    'Report net expenses',
+  );
+  const net = safeInteger(aggregate.income - expenses, 'Report net result');
   return {
     ...aggregate,
+    expenses,
     net,
-    averageExpense: roundedIntegerDivision(aggregate.expenses, aggregate.expenseCount),
+    averageExpense: roundedIntegerDivision(aggregate.grossExpenses, aggregate.expenseCount),
   };
 }
 
@@ -112,10 +117,14 @@ export class ReportService {
     const cashFlow: CashFlowBucket[] = buckets.map((bucket) => {
       const aggregate = cashFlowByKey.get(bucket.key);
       const income = aggregate?.income ?? 0;
-      const expenses = aggregate?.expenses ?? 0;
+      const grossExpenses = aggregate?.grossExpenses ?? 0;
+      const refunds = aggregate?.refunds ?? 0;
+      const expenses = safeInteger(grossExpenses - refunds, 'Cash-flow net expenses');
       return {
         ...bucket,
         income,
+        grossExpenses,
+        refunds,
         expenses,
         net: safeInteger(income - expenses, 'Cash-flow net result'),
       };

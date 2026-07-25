@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { canRenderProtectedContent } from '../app-lock-gate-policy';
 import { useAppLock } from '../app-lock-provider';
@@ -133,15 +134,15 @@ function AppLockGate() {
           <Text style={[styles.description, { color: theme.secondaryText }]}>Checking App Lock…</Text>
         </View>
       ) : state.status === 'configurationError' ? (
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.destructive }]}>
+        <Card padding={spacing.lg} style={styles.card}>
           <Text accessibilityLiveRegion="assertive" selectable style={[styles.error, { color: theme.destructive }]}>{state.message}</Text>
           <PrimaryButton label="Retry secure storage" onPress={() => void retryConfiguration()} theme={theme} />
           <Pressable accessibilityRole="button" onPress={forgotPin} style={styles.textButton}>
             <Text style={[styles.link, { color: theme.primaryAction }]}>Help / Forgot PIN</Text>
           </Pressable>
-        </View>
+        </Card>
       ) : (
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Card padding={spacing.lg} style={styles.card}>
           {temporarilyLocked ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>Too many incorrect attempts. Try again in {remainingSeconds} seconds.</Text>
           ) : null}
@@ -178,7 +179,7 @@ function AppLockGate() {
                 setPin('');
                 void unlockWithBiometrics();
               }}
-              style={[styles.biometricButton, { borderColor: theme.primaryAction }]}>
+              style={[styles.biometricButton, { backgroundColor: theme.elevatedSurface }]}>
               <SymbolView
                 name={{ ios: 'touchid', android: 'fingerprint', web: 'fingerprint' }}
                 size={24}
@@ -190,7 +191,7 @@ function AppLockGate() {
           <Pressable accessibilityRole="button" onPress={forgotPin} style={styles.textButton}>
             <Text style={[styles.link, { color: theme.primaryAction }]}>Help / Forgot PIN</Text>
           </Pressable>
-        </View>
+        </Card>
       )}
 
       <Text style={[styles.limit, { color: theme.mutedText }]}>App Lock protects access to this app’s interface. It does not encrypt the SQLite database or exported plaintext backup files.</Text>
@@ -230,11 +231,11 @@ const styles = StyleSheet.create({
   title: { ...typography.title, fontSize: 28, textAlign: 'center' },
   description: { ...typography.body, textAlign: 'center' },
   centeredState: { alignItems: 'center', gap: spacing.md, minHeight: 180, justifyContent: 'center' },
-  card: { borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.lg },
+  card: { gap: spacing.md },
   label: { ...typography.caption, fontWeight: '700' },
   error: { ...typography.body, fontWeight: '600', textAlign: 'center' },
   primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  biometricButton: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
+  biometricButton: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
   buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
   textButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
   link: { ...typography.body, fontWeight: '700' },

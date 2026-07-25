@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Overline } from '@/components/overline';
+import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { bogotaToday } from '@/features/transactions/transaction-date';
@@ -154,7 +155,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     return (
       <View style={[styles.center, { backgroundColor: theme.appBackground }]}>
         <Text style={[styles.body, { color: theme.destructive }]}>{loadError ?? 'Credit card not found.'}</Text>
-        <Pressable accessibilityRole="button" onPress={() => void reload()} style={[styles.retry, { borderColor: theme.border }]}>
+        <Pressable accessibilityRole="button" onPress={() => void reload()} style={[styles.retry, { backgroundColor: theme.elevatedSurface }]}>
           <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Retry</Text>
         </Pressable>
       </View>
@@ -166,7 +167,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}
     >
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
         <Pressable accessibilityLabel="Close card payment" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -177,7 +178,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[styles.summary, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
+        <View style={[styles.summary, { backgroundColor: theme.elevatedSurface }]}>
           <Value label="Current debt" value={formatCop(details.utilization.currentDebt)} />
           <Text style={[styles.help, { color: theme.mutedText }]}>The total amount currently owed based on transactions recorded in Money Control.</Text>
           <Value label="Remaining statement" value={details.latestStatement ? formatCop(details.latestStatement.remainingStatement) : 'No statement recorded'} />
@@ -225,7 +226,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               }}
               placeholder="Enter amount"
               placeholderTextColor={theme.mutedText}
-              style={[styles.input, { backgroundColor: theme.surface, borderColor: customAmountError ? theme.destructive : theme.border, color: theme.primaryText }]}
+              style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: customAmountError ? theme.destructive : theme.hairline, color: theme.primaryText }]}
               value={amountDigits}
             />
             {customAmountError ? <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.destructive }]}>{customAmountError}</Text> : null}
@@ -238,7 +239,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
             autoCapitalize="none"
             maxLength={10}
             onChangeText={setDate}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.primaryText }]}
+            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
             value={date}
           />
         </Field>
@@ -250,14 +251,14 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
             onChangeText={setNote}
             placeholder="e.g. July statement"
             placeholderTextColor={theme.mutedText}
-            style={[styles.input, styles.note, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.primaryText }]}
+            style={[styles.input, styles.note, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
             value={note}
           />
         </Field>
 
         <Field label="4. Review">
           {preview ? (
-            <View style={[styles.review, { backgroundColor: theme.surface, borderColor: preview.overpaymentAmount > 0 ? theme.warning : theme.border }]}>
+            <View style={[styles.review, { backgroundColor: preview.overpaymentAmount > 0 ? theme.tintWarning : theme.surface }]}>
               <Value label="Source account" value={preview.sourceAccountName} />
               <Value label="Source available balance" value={formatCop(preview.sourceBalance)} />
               <Value label="Selected payment option" value={preview.optionLabel} />
@@ -299,13 +300,12 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
-  const theme = useAppTheme();
-  return <View style={styles.field}><Text style={[styles.fieldLabel, { color: theme.primaryText }]}>{label}</Text>{children}</View>;
+  return <View style={styles.field}><Overline>{label}</Overline>{children}</View>;
 }
 
 function SourceChoice({ label, onPress, selected }: { label: string; onPress: () => void; selected: boolean }) {
   const theme = useAppTheme();
-  return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={[styles.choice, { backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface, borderColor: selected ? theme.primaryAction : theme.border }]}><Text style={[styles.help, { color: selected ? theme.selectedNavigationForeground : theme.secondaryText }]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={[styles.choice, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent' }]}><Text style={[styles.help, { color: selected ? theme.primaryText : theme.secondaryText }]}>{label}</Text></Pressable>;
 }
 
 function PaymentOptionChoice({ onPress, selected, value }: { onPress: () => void; selected: boolean; value: CreditCardPaymentOptionView }) {
@@ -320,13 +320,13 @@ function PaymentOptionChoice({ onPress, selected, value }: { onPress: () => void
       disabled={!value.isAvailable}
       onPress={onPress}
       style={[styles.option, {
-        backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-        borderColor: selected ? theme.primaryAction : theme.border,
+        backgroundColor: selected ? theme.tintPrimary : theme.surface,
+        borderColor: selected ? theme.primaryAction : 'transparent',
         opacity: value.isAvailable ? 1 : 0.65,
       }]}
     >
       <Text style={[styles.bodyStrong, { color: value.isAvailable ? theme.primaryText : theme.disabledText }]}>{value.label}</Text>
-      <Text style={[styles.help, { color: value.isAvailable ? theme.secondaryText : theme.disabledText }]}>{detail}</Text>
+      <Text style={[styles.help, styles.optionDetail, { color: value.isAvailable ? theme.secondaryText : theme.disabledText }]}>{detail}</Text>
     </Pressable>
   );
 }
@@ -339,24 +339,25 @@ function Value({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md },
-  summary: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.md },
+  summary: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   field: { gap: spacing.sm },
-  fieldLabel: { ...typography.body, fontWeight: '700' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { borderRadius: borderRadii.full, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
   optionList: { gap: spacing.sm },
   option: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.xs, minHeight: 64, padding: spacing.md },
-  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  optionDetail: { fontFamily: fonts.mono.medium },
+  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
+  amountInput: { fontFamily: fonts.mono.medium },
   note: { minHeight: 88, paddingTop: spacing.md, textAlignVertical: 'top' },
-  review: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.md },
+  review: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   valueRow: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
-  value: { flexShrink: 1, textAlign: 'right' },
-  save: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 54, paddingHorizontal: spacing.md },
-  retry: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 48, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  value: { flexShrink: 1, fontFamily: fonts.mono.bold, textAlign: 'right' },
+  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.md },
+  retry: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   body: { ...typography.body },
   bodyStrong: { ...typography.body, fontWeight: '700' },
   help: { ...typography.caption },

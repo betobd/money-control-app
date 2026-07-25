@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import {
   buildTransactionListQuery,
   countActiveTransactionFilters,
@@ -116,7 +116,7 @@ export function TransactionsScreen() {
 
   const listHeader = (
     <View style={styles.headerContent}>
-      <PrimaryScreenHeader />
+      <PrimaryScreenHeader title="Transactions" />
       <View style={styles.controls}>
         <SearchField onChangeText={changeSearch} onClear={clearSearch} value={search} />
         <View style={styles.filterSummary}>
@@ -141,10 +141,7 @@ export function TransactionsScreen() {
             accessibilityRole="button"
             hitSlop={spacing.xs}
             onPress={openFullFilters}
-            style={[
-              styles.fullFiltersButton,
-              { backgroundColor: theme.surface, borderColor: theme.border },
-            ]}>
+            style={[styles.fullFiltersButton, { backgroundColor: theme.elevatedSurface }]}>
             <SymbolView
               name={{ ios: 'slider.horizontal.3', android: 'tune', web: 'tune' }}
               size={16}
@@ -326,10 +323,9 @@ const styles = StyleSheet.create({
   fullFiltersButton: {
     alignItems: 'center',
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
     gap: spacing.xs,
-    minHeight: 40,
+    minHeight: 34,
     paddingHorizontal: spacing.sm + spacing.xs,
   },
   fullFiltersLabel: { ...typography.caption, fontWeight: '700' },
@@ -343,7 +339,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     textTransform: 'uppercase',
   },
-  transactionItem: { paddingBottom: spacing.md },
+  transactionItem: { paddingBottom: spacing.sm - 2 },
   emptyArea: { gap: spacing.sm },
   footer: { alignItems: 'center', paddingVertical: spacing.xl },
   loadMoreButton: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.lg },

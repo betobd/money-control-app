@@ -66,12 +66,12 @@ Filenames use the Bogotá-local date or selected financial period and contain lo
 The default is Current month. Data Export reuses the existing independent transaction-filter model and UI:
 
 - Current month, Previous month, Last 30 days, inclusive custom range, or All time
-- Expense, Income, Transfer, or All
+- Expense, Income, Transfer, Refund, or All
 - Posted, Voided, or All
 - one historically referenced source/destination account or All
 - one historically referenced category or All
 
-Predicates combine with `AND`; account matching uses source **or** destination. Transfers never match a category filter. Export filter state is local to Data Export and never changes the Transactions screen. Rows are chronological ascending by `transaction_date`, then `created_at`, then `transaction_id`. Archived account/category names remain readable. Notes are off by default and may be explicitly enabled.
+Predicates combine with `AND`; account matching uses source **or** destination. Transfers never match a category filter. Refunds match their original expense category. Export filter state is local to Data Export and never changes the Transactions screen. Rows are chronological ascending by `transaction_date`, then `created_at`, then `transaction_id`. Archived account/category names remain readable. Notes are off by default and may be explicitly enabled.
 
 Columns:
 
@@ -82,14 +82,18 @@ Columns:
 5. `amount_cop`
 6. `category_id`
 7. `category_name`
-8. `source_account_id`
-9. `source_account_name`
-10. `destination_account_id`
-11. `destination_account_name`
-12. `note`
-13. `recurring_occurrence_id`
-14. `created_at`
-15. `updated_at`
+8. `original_transaction_id`
+9. `original_transaction_date`
+10. `original_transaction_amount_cop`
+11. `original_transaction_note`
+12. `source_account_id`
+13. `source_account_name`
+14. `destination_account_id`
+15. `destination_account_name`
+16. `note`
+17. `recurring_occurrence_id`
+18. `created_at`
+19. `updated_at`
 
 Transfer category fields are blank and both accounts are populated. Expense/income destination fields are blank. Posted and voided history are both included unless status is filtered. When no rows match, no headers-only file is created.
 
@@ -194,12 +198,15 @@ The current schema requires recorded statement amounts; an intentional zero rema
 
 Period choices match Reports: Current month, Previous month, Last 3 months, Last 6 months, Current year, and inclusive custom range. `ReportService` remains authoritative, so transfers/voided rows are excluded and empty periods produce valid zero summary metrics.
 
-Columns are `metric`, `value`, `period_start`, and `period_end`. The 12 metric rows are:
+Columns are `metric`, `value`, `period_start`, and `period_end`. The 15 metric rows are:
 
 - `total_income_cop`
-- `total_expenses_cop`
+- `gross_expenses_cop`
+- `refunds_cop`
+- `net_expenses_cop`
 - `net_result_cop`
 - `expense_count`
+- `refund_count`
 - `income_count`
 - `average_expense_cop`
 - `largest_expense_cop`
@@ -229,4 +236,3 @@ No database migration, export-history table, generated-file record, dependency a
 - Recurring occurrences, report timelines/category detail, transaction splits, and CSV headers-only files are not separate exports.
 - Files are generated one at a time; there is no ZIP bundle.
 - Physical Android verification remains necessary for provider-specific filename collisions, spreadsheet behavior, large-file latency, and App Lock timing on return.
-

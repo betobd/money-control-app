@@ -10,12 +10,12 @@ Creating a backup reads one consistent SQLite snapshot, builds and self-validate
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.
 
-## Version 2 file contract
+## Version 3 file contract
 
 Top-level fields are:
 
 - `format`: literal `money-control-backup`.
-- `formatVersion`: integer `2`, independent from the database schema version.
+- `formatVersion`: integer `3`, independent from the database schema version.
 - `appVersion`, `schemaVersion`, and UTC `createdAt` provenance.
 - `timezone`: literal `America/Bogota`; `currency`: literal `COP`.
 - `summary`: counts for every collection.
@@ -32,7 +32,7 @@ All monetary values remain safe integers in the same whole-COP representation us
 | `accounts` | prior account fields plus `statementClosingDay` and `paymentDueDay` |
 | `creditCardStatements` | ID, card relationship, period/closing/due dates, statement balance, minimum payment, audit timestamps |
 | `categories` | `id`, `name`, `type`, `icon`, `isArchived`, `archivedAt`, `createdAt`, `updatedAt` |
-| `transactions` | `id`, `type`, `status`, `amount`, `currency`, `accountId`, `destinationAccountId`, `categoryId`, `note`, `transactionDate`, `createdAt`, `updatedAt` |
+| `transactions` | prior transaction fields plus refund type and nullable `originalTransactionId` |
 | `transactionSplits` | `id`, `transactionId`, `accountId`, `amount`, `position` |
 | `budgets` | `id`, `categoryId`, `month`, `limitAmount`, `createdAt`, `updatedAt` |
 | `recurringTransactions` | `id`, `type`, `amount`, `currency`, `accountId`, `destinationAccountId`, `categoryId`, `note`, `frequency`, `interval`, `startDate`, `nextOccurrenceDate`, `endDate`, `isActive`, `endedAt`, `createdAt`, `updatedAt` |
@@ -55,13 +55,13 @@ Migration history remains owned by the installed app. Restore writes logical row
 
 Every exported collection is sorted by stable record ID. The SHA-256 input is canonical JSON with object keys sorted recursively and array order preserved. The sole excluded value is `integrity.checksum` itself; `integrity.algorithm` remains covered. The readable file is pretty-printed JSON and ends with a newline, but whitespace is not part of checksum verification because verification canonicalizes the parsed document again.
 
-SHA-256 detects accidental damage and casual modification. It is not authentication: because the backup has no secret signature key, an attacker who can alter the file can also recompute the checksum. Version 2 remains intentionally unencrypted plaintext.
+SHA-256 detects accidental damage and casual modification. It is not authentication: because the backup has no secret signature key, an attacker who can alter the file can also recompute the checksum. Version 3 remains intentionally unencrypted plaintext.
 
 ## Compatibility and migration policy
 
-The portable format version is independent of migration `0007`. The importer accepts v1 and v2 and rejects unsupported or future versions before touching SQLite. The in-memory v1→v2 migration adds null cycle fields and an empty statement collection; it never invents statements or zero-value placeholders. An empty statement collection means no statement has been recorded. A differing source `schemaVersion` is shown as a warning when the portable format remains supported.
+The portable format version is independent of migration `0008`. The importer accepts v1, v2, and v3 and rejects unsupported or future versions before touching SQLite. The in-memory v1→v2 migration adds null cycle fields and an empty statement collection. The v1/v2→v3 migration adds `originalTransactionId: null` to historical transactions and never interprets income as a refund. A differing source `schemaVersion` is shown as a warning when the portable format remains supported.
 
-Version 2 restores IDs exactly. It does not merge, remap, or partially import records.
+Version 3 restores IDs and refund links exactly. It does not merge, remap, or partially import records.
 
 ## Validation and defensive limits
 
@@ -113,7 +113,7 @@ Only after commit does the service publish one global financial-data invalidatio
 - Temporary export and picker copies live only in the app cache and are deleted on the best-effort cleanup path after use.
 - The feature requests no broad storage permission and has no cloud/network component. The user chooses the destination/provider through Android system UI.
 - There is no password protection, encryption, signature/authenticity, cloud sync, scheduled backup, merge import, partial restore, or cross-currency conversion.
-- Version 2 supports only COP and the current Money Control logical model.
+- Version 3 supports only COP and the current Money Control logical model.
 - Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret existing plaintext files.
 - Restoring a financial backup never reads or writes SecureStore. It therefore cannot enable, disable, or alter the current device's App Lock, biometric preference, PIN verifier, or failed-attempt state. Restored financial data remains behind the current device lock when that lock is enabled.
 - Restore preserves the current device's notification preferences. After the financial replacement commits, it cancels known local schedules, clears device-specific schedule/threshold metadata, rebuilds allowed recurring and daily work, and baselines restored budgets without historical alerts. It never requests notification permission or enables a reminder category. Notification cleanup failure cannot roll back the already committed financial restore.

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnySQLiteColumn,
   check,
   index,
   integer,
@@ -122,7 +123,7 @@ export const transactions = sqliteTable(
   'transactions',
   {
     id: text('id').primaryKey(),
-    type: text('type', { enum: ['income', 'expense', 'transfer'] }).notNull(),
+    type: text('type', { enum: ['income', 'expense', 'transfer', 'refund'] }).notNull(),
     status: text('status', { enum: ['posted', 'voided'] }).notNull().default('posted'),
     amount: integer('amount').notNull(),
     currency: text('currency').notNull().default('COP'),
@@ -135,12 +136,16 @@ export const transactions = sqliteTable(
       onDelete: 'restrict',
       onUpdate: 'restrict',
     }),
+    originalTransactionId: text('original_transaction_id').references(
+      (): AnySQLiteColumn => transactions.id,
+      { onDelete: 'restrict', onUpdate: 'restrict' },
+    ),
     note: text('note'),
     transactionDate: text('transaction_date').notNull(),
     ...auditColumns,
   },
   (table) => [
-    check('transactions_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
+    check('transactions_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer', 'refund')`),
     check('transactions_status_valid', sql`${table.status} IN ('posted', 'voided')`),
     check('transactions_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
     check('transactions_currency_cop', sql`${table.currency} = 'COP'`),
@@ -153,9 +158,11 @@ export const transactions = sqliteTable(
     check(
       'transactions_shape_valid',
       sql`(
-        (${table.type} IN ('income', 'expense') AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NULL AND ${table.categoryId} IS NOT NULL)
+        (${table.type} IN ('income', 'expense') AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NULL AND ${table.categoryId} IS NOT NULL AND ${table.originalTransactionId} IS NULL)
         OR
-        (${table.type} = 'transfer' AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NOT NULL AND ${table.accountId} <> ${table.destinationAccountId} AND ${table.categoryId} IS NULL)
+        (${table.type} = 'transfer' AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NOT NULL AND ${table.accountId} <> ${table.destinationAccountId} AND ${table.categoryId} IS NULL AND ${table.originalTransactionId} IS NULL)
+        OR
+        (${table.type} = 'refund' AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NULL AND ${table.categoryId} IS NULL AND ${table.originalTransactionId} IS NOT NULL AND ${table.originalTransactionId} <> ${table.id})
       )`,
     ),
     index('transactions_date_idx').on(table.transactionDate),
@@ -163,6 +170,7 @@ export const transactions = sqliteTable(
     index('transactions_account_idx').on(table.accountId),
     index('transactions_destination_account_idx').on(table.destinationAccountId),
     index('transactions_category_idx').on(table.categoryId),
+    index('transactions_original_status_idx').on(table.originalTransactionId, table.status),
   ],
 );
 

@@ -63,6 +63,7 @@ export function normalizeTransactionListQuery(
     statuses: statuses?.length ? statuses : undefined,
     accountId: query.accountId?.trim() || undefined,
     categoryId: query.categoryId?.trim() || undefined,
+    originalTransactionId: query.originalTransactionId?.trim() || undefined,
     dateFrom: query.dateFrom,
     dateTo: query.dateTo,
     limit,
@@ -81,7 +82,9 @@ export type TransactionPersistence = (transaction: TransactionRecord) => Promise
 export type TransactionActionErrorCode =
   | 'transaction_not_found'
   | 'transaction_already_voided'
-  | 'editing_voided_transaction';
+  | 'editing_voided_transaction'
+  | 'linked_refunds_exist'
+  | 'refund_action_not_supported';
 
 export class TransactionActionError extends Error {
   constructor(
@@ -140,8 +143,8 @@ export class TransactionService {
       updatedAt: timestamp,
     };
     const transaction: TransactionRecord = normalized.type === 'transfer'
-      ? { ...normalized, ...metadata, categoryId: null }
-      : { ...normalized, ...metadata, destinationAccountId: null };
+      ? { ...normalized, ...metadata, categoryId: null, originalTransactionId: null }
+      : { ...normalized, ...metadata, destinationAccountId: null, originalTransactionId: null };
 
     await persist(transaction);
     notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
@@ -156,10 +159,22 @@ export class TransactionService {
 
   async update(id: string, input: TransactionInput): Promise<TransactionListItem> {
     const current = await this.requireTransaction(id);
+    if (current.type === 'refund') {
+      throw new TransactionActionError(
+        'refund_action_not_supported',
+        'Posted refunds cannot be edited. Void the refund and create a new one.',
+      );
+    }
     if (current.status === 'voided') {
       throw new TransactionActionError(
         'editing_voided_transaction',
         'Voided transactions cannot be edited.',
+      );
+    }
+    if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
+      throw new TransactionActionError(
+        'linked_refunds_exist',
+        'Void the linked refunds before editing this expense.',
       );
     }
 
@@ -190,10 +205,22 @@ export class TransactionService {
 
   async void(id: string): Promise<TransactionListItem> {
     const current = await this.requireTransaction(id);
+    if (current.type === 'refund') {
+      throw new TransactionActionError(
+        'refund_action_not_supported',
+        'Use refund details to void this refund.',
+      );
+    }
     if (current.status === 'voided') {
       throw new TransactionActionError(
         'transaction_already_voided',
         'Transaction is already voided.',
+      );
+    }
+    if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
+      throw new TransactionActionError(
+        'linked_refunds_exist',
+        'Void or remove the linked refunds before voiding this expense.',
       );
     }
     if (!(await this.repository.voidPosted(id, this.now()))) {
@@ -361,6 +388,14 @@ export class TransactionService {
       throw new TransactionActionError(
         action === 'edit' ? 'editing_voided_transaction' : 'transaction_already_voided',
         action === 'edit' ? 'Voided transactions cannot be edited.' : 'Transaction is already voided.',
+      );
+    }
+    if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
+      throw new TransactionActionError(
+        'linked_refunds_exist',
+        action === 'edit'
+          ? 'Void the linked refunds before editing this expense.'
+          : 'Void the linked refunds before voiding this expense.',
       );
     }
     throw new Error(`Unable to ${action} transaction.`);

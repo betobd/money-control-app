@@ -13,7 +13,16 @@ type MoneyTextProps = {
 
 export function MoneyText({ children, tone = 'default', style }: MoneyTextProps) {
   const theme = useAppTheme();
-  const color = tone === 'income' ? theme.income : tone === 'expense' ? theme.expense : theme.primaryText;
+  const color =
+    tone === 'income'
+      ? theme.income
+      : tone === 'expense'
+        ? theme.expense
+        : tone === 'transfer'
+          ? theme.transfer
+          : tone === 'refund'
+            ? theme.primaryAction
+          : theme.primaryText;
 
   return (
     <Text

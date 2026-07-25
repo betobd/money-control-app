@@ -1,12 +1,18 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import type { Category } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+
+function getTypeTint(type: TransactionFormType, theme: ReturnType<typeof useAppTheme>) {
+  if (type === 'income') return theme.tintIncome;
+  if (type === 'transfer') return theme.tintTransfer;
+  return theme.tintExpense;
+}
 
 type CategoryGridProps = {
   categories: readonly Category[];
@@ -20,6 +26,7 @@ type CategoryGridProps = {
 export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll, error }: CategoryGridProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
+  const tint = getTypeTint(type, theme);
 
   return (
     <View style={styles.group}>
@@ -47,10 +54,7 @@ export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll
               onPress={() => onSelect(category.id)}
               style={[
                 styles.category,
-                {
-                  backgroundColor: selected ? theme.elevatedSurface : theme.surface,
-                  borderColor: selected ? tone : theme.border,
-                },
+                { backgroundColor: selected ? tint : theme.surface },
               ]}>
               <SymbolView
                 name={icon}
@@ -102,10 +106,9 @@ const styles = StyleSheet.create({
   category: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
-    gap: spacing.sm,
+    gap: spacing.sm - 2,
     justifyContent: 'center',
-    minHeight: 88,
+    minHeight: 76,
     padding: spacing.sm,
     width: '48.5%',
   },

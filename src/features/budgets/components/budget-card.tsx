@@ -1,7 +1,7 @@
-import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { IconChip } from '@/components/icon-chip';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { budgetMonthLabel } from '@/features/budgets/budget-month';
@@ -23,11 +23,9 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: (
       accessibilityLabel={`${budget.categoryName}${budget.categoryIsArchived ? ', archived category' : ''}, ${presentation.label}, spent ${formatCop(budget.spent)} of ${formatCop(budget.limitAmount)}, ${remainingLabel.toLowerCase()} ${remainingValue}, ${budget.percentageUsed}% used`}
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.card, { backgroundColor: theme.surface, borderColor: overBudget ? theme.destructive : theme.border }]}>
+      style={[styles.card, { backgroundColor: theme.surface }]}>
       <View style={styles.header}>
-        <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
-          <SymbolView name={getCategoryIcon(budget.categoryIcon)} size={22} tintColor={presentation.accent} />
-        </View>
+        <IconChip background={theme.elevatedSurface} color={presentation.accent} icon={getCategoryIcon(budget.categoryIcon)} iconSize={19} size={36} />
         <View style={styles.heading}>
           <Text numberOfLines={1} style={[styles.category, { color: theme.primaryText }]}>{budget.categoryName}</Text>
           <Text style={[styles.month, { color: theme.mutedText }]}>
@@ -59,17 +57,16 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: (
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
-  header: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
-  icon: { alignItems: 'center', borderRadius: borderRadii.full, flexShrink: 0, height: 40, justifyContent: 'center', width: 40 },
+  card: { borderRadius: borderRadii.card, gap: spacing.sm + spacing.xs, padding: spacing.md },
+  header: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm + 2 },
   heading: { flex: 1, minWidth: 0 },
-  category: { ...typography.body, fontWeight: '700' },
-  month: { ...typography.label },
+  category: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  month: { ...typography.label, fontSize: 11, lineHeight: 15 },
   amounts: { alignItems: 'flex-end', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
   spentColumn: { flex: 1, minWidth: 0 },
   remainingColumn: { alignItems: 'flex-end', flexShrink: 0, width: 112 },
-  metaLabel: { ...typography.label },
-  spent: { ...typography.caption, fontWeight: '700' },
-  remaining: { ...typography.caption, fontWeight: '700', textAlign: 'right', width: '100%' },
+  metaLabel: { ...typography.overline },
+  spent: { ...typography.moneyRow, fontSize: 13, lineHeight: 18 },
+  remaining: { ...typography.moneyRow, fontSize: 13, lineHeight: 18, textAlign: 'right', width: '100%' },
   percentage: { ...typography.label },
 });

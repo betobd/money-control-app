@@ -31,7 +31,7 @@ export function ScreenShell({ title, description, children }: ScreenShellProps) 
         </Text>
         <Text style={[styles.description, { color: theme.secondaryText }]}>{description}</Text>
       </View>
-      <View style={[styles.placeholder, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.placeholder, { backgroundColor: theme.surface }]}>
         <Text style={[styles.placeholderText, { color: theme.mutedText }]}>Coming soon</Text>
       </View>
       {children}
@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
   placeholder: {
     alignItems: 'center',
     borderRadius: borderRadii.lg,
-    borderWidth: 1,
     justifyContent: 'center',
     marginTop: spacing.lg,
     minHeight: 152,

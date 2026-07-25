@@ -225,7 +225,7 @@ export default function AddTransactionModal() {
                 styles.textInput,
                 {
                   backgroundColor: theme.surface,
-                  borderColor: errors.transactionDate ? theme.destructive : theme.border,
+                  borderColor: errors.transactionDate ? theme.destructive : theme.hairline,
                   color: theme.primaryText,
                 },
               ]}
@@ -248,7 +248,7 @@ export default function AddTransactionModal() {
                 styles.noteInput,
                 {
                   backgroundColor: theme.surface,
-                  borderColor: errors.note ? theme.destructive : theme.border,
+                  borderColor: errors.note ? theme.destructive : theme.hairline,
                   color: theme.primaryText,
                 },
               ]}
@@ -288,11 +288,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   closeButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' },
+  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   keyboardArea: { flex: 1 },
-  content: { gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
+  content: { gap: spacing.md, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
   field: { gap: spacing.sm },
-  fieldLabel: { ...typography.label, textTransform: 'uppercase' },
+  fieldLabel: { ...typography.overline },
   textInput: {
     ...typography.body,
     borderRadius: borderRadii.md,

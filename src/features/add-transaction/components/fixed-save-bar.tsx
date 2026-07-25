@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -25,7 +25,7 @@ export function FixedSaveBar({ bottomInset, onPress, type, disabled = false, sav
         styles.bar,
         {
           backgroundColor: theme.appBackground,
-          borderTopColor: theme.border,
+          borderTopColor: theme.hairline,
           paddingBottom: Math.max(bottomInset, spacing.md),
         },
       ]}>
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   },
   button: {
     alignItems: 'center',
-    borderRadius: 28,
+    borderRadius: borderRadii.full,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
@@ -64,6 +64,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.body,
+    fontFamily: fonts.sans.bold,
+    fontSize: 15,
     fontWeight: '700',
   },
 });

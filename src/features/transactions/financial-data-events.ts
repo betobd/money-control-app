@@ -17,7 +17,13 @@ type Listener = (change: FinancialDataChange) => void;
 const listeners = new Set<Listener>();
 
 export function notifyFinancialDataChanged(change: FinancialDataChange = { kind: 'unspecified' }): void {
-  for (const listener of listeners) listener(change);
+  for (const listener of listeners) {
+    try {
+      listener(change);
+    } catch {
+      // A refresh or notification listener must never make a persisted write appear to fail.
+    }
+  }
 }
 
 export function subscribeToFinancialDataChanges(listener: Listener): () => void {

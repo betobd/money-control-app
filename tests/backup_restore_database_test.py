@@ -151,7 +151,7 @@ connection.executemany(
     ],
 )
 connection.executemany(
-    'INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     [
         ('income', 'income', 'posted', 500_000, 'COP', 'checking', None, 'salary', 'Salary note', '2026-07-01', utc, utc),
         ('expense', 'expense', 'posted', 120_000, 'COP', 'checking', None, 'food', 'Groceries', '2026-07-02', utc, utc),
@@ -205,7 +205,7 @@ assert baseline_derived == {
 connection.execute("UPDATE accounts SET name = 'Renamed checking' WHERE id = 'checking'")
 connection.execute("UPDATE transactions SET status = 'voided' WHERE id = 'expense'")
 connection.execute(
-    'INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     ('later-income', 'income', 'posted', 1, 'COP', 'savings', None, 'salary', None, '2026-07-20', utc, utc),
 )
 connection.commit()

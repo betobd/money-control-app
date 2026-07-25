@@ -10,6 +10,11 @@ const transferIcon: SymbolViewProps['name'] = {
   android: 'swap_horiz',
   web: 'swap_horiz',
 };
+const refundIcon: SymbolViewProps['name'] = {
+  ios: 'arrow.uturn.backward.circle.fill',
+  android: 'assignment_return',
+  web: 'assignment_return',
+};
 
 export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount' | 'type'>) {
   if (item.type === 'transfer') return formatCop(item.amount);
@@ -18,7 +23,9 @@ export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount'
 
 export function transactionTitle(item: Pick<TransactionListItem, 'note' | 'categoryName' | 'type'>) {
   if (item.note) return item.note;
-  return item.type === 'transfer' ? 'Transfer' : (item.categoryName ?? 'Transaction');
+  if (item.type === 'transfer') return 'Transfer';
+  if (item.type === 'refund') return 'Refund';
+  return item.categoryName ?? 'Transaction';
 }
 
 export function transactionAccountLabel(
@@ -32,6 +39,7 @@ export function transactionAccountLabel(
 export function transactionTypeLabel(item: Pick<TransactionListItem, 'type'>) {
   if (item.type === 'income') return 'Income';
   if (item.type === 'transfer') return 'Transfer';
+  if (item.type === 'refund') return 'Refund';
   return 'Expense';
 }
 
@@ -50,7 +58,7 @@ export function groupTransactions(items: TransactionListItem[]): TransactionSect
 export function transactionIcon(
   item: Pick<TransactionListItem, 'categoryIcon' | 'type'>,
 ): SymbolViewProps['name'] {
-  return item.type === 'transfer'
-    ? transferIcon
-    : getCategoryIcon(item.categoryIcon ?? fallbackCategoryIcon);
+  if (item.type === 'transfer') return transferIcon;
+  if (item.type === 'refund') return refundIcon;
+  return getCategoryIcon(item.categoryIcon ?? fallbackCategoryIcon);
 }

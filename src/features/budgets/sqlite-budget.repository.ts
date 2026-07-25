@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
-import { budgets, categories, transactions } from '@/database/schema';
+import { budgets, categories } from '@/database/schema';
 import { nextBudgetMonth } from './budget-month';
 import type { BudgetRepository, BudgetUpdateRecord } from './budget.repository';
 import type { Budget, BudgetRecord, BudgetSpendingRecord } from './budget.types';
@@ -62,22 +62,26 @@ export class SQLiteBudgetRepository implements BudgetRepository {
     const rows = await database
       .select({
         ...recordSelection,
-        spent: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+        spent: sql<number>`(
+          select coalesce(sum(
+            case
+              when refund_rows.type = 'expense' then refund_rows.amount
+              when refund_rows.type = 'refund' then -refund_rows.amount
+              else 0
+            end
+          ), 0)
+          from transactions refund_rows
+          left join transactions original_rows
+            on refund_rows.original_transaction_id = original_rows.id
+          where refund_rows.status = 'posted'
+            and refund_rows.transaction_date >= ${start}
+            and refund_rows.transaction_date < ${next}
+            and coalesce(refund_rows.category_id, original_rows.category_id) = ${budgets.categoryId}
+        )`,
       })
       .from(budgets)
       .innerJoin(categories, eq(budgets.categoryId, categories.id))
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.categoryId, budgets.categoryId),
-          eq(transactions.type, 'expense'),
-          eq(transactions.status, 'posted'),
-          gte(transactions.transactionDate, start),
-          lt(transactions.transactionDate, next),
-        ),
-      )
       .where(eq(budgets.month, month))
-      .groupBy(budgets.id, categories.id)
       .orderBy(asc(categories.name), asc(budgets.createdAt));
 
     return rows.map((row) => ({ ...mapRecord(row), spent: Number(row.spent) }));
@@ -87,21 +91,25 @@ export class SQLiteBudgetRepository implements BudgetRepository {
     const rows = await database
       .select({
         ...recordSelection,
-        spent: sql<number>`coalesce(sum(${transactions.amount}), 0)`,
+        spent: sql<number>`(
+          select coalesce(sum(
+            case
+              when refund_rows.type = 'expense' then refund_rows.amount
+              when refund_rows.type = 'refund' then -refund_rows.amount
+              else 0
+            end
+          ), 0)
+          from transactions refund_rows
+          left join transactions original_rows
+            on refund_rows.original_transaction_id = original_rows.id
+          where refund_rows.status = 'posted'
+            and refund_rows.transaction_date >= ${budgets.month} || '-01'
+            and refund_rows.transaction_date < date(${budgets.month} || '-01', '+1 month')
+            and coalesce(refund_rows.category_id, original_rows.category_id) = ${budgets.categoryId}
+        )`,
       })
       .from(budgets)
       .innerJoin(categories, eq(budgets.categoryId, categories.id))
-      .leftJoin(
-        transactions,
-        and(
-          eq(transactions.categoryId, budgets.categoryId),
-          eq(transactions.type, 'expense'),
-          eq(transactions.status, 'posted'),
-          gte(transactions.transactionDate, sql<string>`${budgets.month} || '-01'`),
-          lt(transactions.transactionDate, sql<string>`date(${budgets.month} || '-01', '+1 month')`),
-        ),
-      )
-      .groupBy(budgets.id, categories.id)
       .orderBy(asc(budgets.month), asc(categories.name), asc(budgets.createdAt));
     return rows.map((row) => ({ ...mapRecord(row), spent: Number(row.spent) }));
   }

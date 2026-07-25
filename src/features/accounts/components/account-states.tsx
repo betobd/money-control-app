@@ -1,19 +1,19 @@
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function EmptyAccountsState() {
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.elevatedSurface }]}>
+    <View style={[styles.empty, { backgroundColor: theme.surface }]}>
+      <View style={[styles.emptyIcon, { backgroundColor: theme.tintPrimary }]}>
         <SymbolView
           name={{ ios: 'wallet.bifold', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
           size={28}
-          tintColor={theme.secondaryText}
+          tintColor={theme.primaryAction}
         />
       </View>
       <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>No accounts yet</Text>
@@ -29,7 +29,7 @@ export function LoadingAccountCard() {
     <View
       accessibilityLabel="Loading account"
       accessibilityRole="progressbar"
-      style={[styles.loading, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      style={[styles.loading, { backgroundColor: theme.surface }]}>
       <View style={[styles.loadingIcon, { backgroundColor: theme.disabledSurface }]} />
       <View style={styles.loadingCopy}>
         <View style={[styles.loadingName, { backgroundColor: theme.disabledSurface }]} />
@@ -43,7 +43,7 @@ export function LoadingAccountCard() {
 export function AccountsErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.destructive }]}>
+    <View style={[styles.empty, { backgroundColor: theme.surface }]}>
       <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>Unable to load accounts</Text>
       <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>{message}</Text>
       <Text accessibilityRole="button" onPress={onRetry} style={[styles.retry, { color: theme.primaryAction }]}>Retry</Text>
@@ -54,14 +54,13 @@ export function AccountsErrorState({ message, onRetry }: { message: string; onRe
 const styles = StyleSheet.create({
   empty: {
     alignItems: 'center',
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.card,
     gap: spacing.sm,
     padding: spacing.xl,
   },
   emptyIcon: {
     alignItems: 'center',
-    borderRadius: borderRadii.full,
+    borderRadius: borderRadii.card,
     height: 56,
     justifyContent: 'center',
     width: 56,
@@ -76,17 +75,16 @@ const styles = StyleSheet.create({
   retry: { ...typography.body, fontWeight: '700', minHeight: 48, paddingVertical: spacing.sm },
   loading: {
     alignItems: 'flex-start',
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.card,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 164,
+    gap: spacing.sm + 2,
+    minHeight: 150,
     padding: spacing.md,
   },
   loadingIcon: {
-    borderRadius: borderRadii.full,
-    height: 44,
-    width: 44,
+    borderRadius: borderRadii.md,
+    height: 40,
+    width: 40,
   },
   loadingCopy: {
     flex: 1,

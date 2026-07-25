@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function EmptyTransactionsState() {
@@ -56,7 +56,7 @@ export function LoadingTransactionRow() {
     <View
       accessibilityLabel="Loading transaction"
       accessibilityRole="progressbar"
-      style={[styles.loadingRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      style={[styles.loadingRow, { backgroundColor: theme.surface }]}>
       <View style={[styles.loadingIcon, { backgroundColor: theme.disabledSurface }]} />
       <View style={styles.loadingCopy}>
         <View style={[styles.loadingLineWide, { backgroundColor: theme.disabledSurface }]} />
@@ -78,9 +78,9 @@ function TransactionState({ title, body, icon, actions }: TransactionStateProps)
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.state, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <View style={[styles.stateIcon, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView name={icon} size={28} tintColor={theme.secondaryText} />
+    <View style={[styles.state, { backgroundColor: theme.surface }]}>
+      <View style={[styles.stateIcon, { backgroundColor: theme.tintPrimary }]}>
+        <SymbolView name={icon} size={28} tintColor={theme.primaryAction} />
       </View>
       <Text style={[styles.stateTitle, { color: theme.primaryText }]}>{title}</Text>
       <Text style={[styles.stateBody, { color: theme.secondaryText }]}>{body}</Text>
@@ -95,7 +95,7 @@ function StateButton({ label, onPress }: { label: string; onPress: () => void })
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.stateButton, { borderColor: theme.primaryAction }]}>
+      style={[styles.stateButton, { backgroundColor: theme.tintPrimary }]}>
       <Text style={[styles.stateButtonLabel, { color: theme.primaryAction }]}>{label}</Text>
     </Pressable>
   );
@@ -104,14 +104,13 @@ function StateButton({ label, onPress }: { label: string; onPress: () => void })
 const styles = StyleSheet.create({
   state: {
     alignItems: 'center',
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.card,
     gap: spacing.sm,
     padding: spacing.xl,
   },
   stateIcon: {
     alignItems: 'center',
-    borderRadius: borderRadii.full,
+    borderRadius: borderRadii.card,
     height: 56,
     justifyContent: 'center',
     width: 56,
@@ -128,7 +127,6 @@ const styles = StyleSheet.create({
   stateButton: {
     alignItems: 'center',
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     justifyContent: 'center',
     minHeight: 48,
     paddingHorizontal: spacing.md,
@@ -137,16 +135,16 @@ const styles = StyleSheet.create({
   loadingRow: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 104,
-    padding: spacing.md,
+    gap: spacing.sm + 2,
+    minHeight: 68,
+    paddingHorizontal: spacing.md - spacing.xs,
+    paddingVertical: spacing.sm + 3,
   },
   loadingIcon: {
-    borderRadius: borderRadii.full,
-    height: 44,
-    width: 44,
+    borderRadius: borderRadii.md,
+    height: 36,
+    width: 36,
   },
   loadingCopy: {
     flex: 1,

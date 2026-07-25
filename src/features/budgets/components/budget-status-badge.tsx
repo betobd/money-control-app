@@ -23,18 +23,18 @@ export function BudgetStatusBadge({ status }: { status: BudgetStatus }) {
 
 export function getStatusPresentation(status: BudgetStatus, theme: ReturnType<typeof useAppTheme>) {
   if (status === 'near-limit') {
-    return { label: 'Near limit', foreground: theme.warning, background: theme.elevatedSurface, accent: theme.warning };
+    return { label: 'Near limit', foreground: theme.warning, background: theme.tintWarning, accent: theme.warning };
   }
   if (status === 'over-budget') {
-    return { label: 'Over budget', foreground: theme.destructive, background: theme.elevatedSurface, accent: theme.destructive };
+    return { label: 'Over budget', foreground: theme.destructive, background: theme.tintDestructive, accent: theme.destructive };
   }
   if (status === 'fully-used') {
     return { label: 'Fully used', foreground: theme.secondaryText, background: theme.elevatedSurface, accent: theme.secondaryText };
   }
   return {
     label: 'On track',
-    foreground: theme.selectedNavigationForeground,
-    background: theme.selectedNavigationBackground,
+    foreground: theme.primaryAction,
+    background: theme.tintPrimary,
     accent: theme.primaryAction,
   };
 }

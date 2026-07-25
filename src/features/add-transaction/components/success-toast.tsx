@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -17,13 +17,13 @@ export function SuccessToast({ visible, type }: { visible: boolean; type: Transa
     <View
       accessibilityLiveRegion="polite"
       accessibilityRole="alert"
-      style={[styles.toast, { backgroundColor: theme.surface, borderColor: tone }]}> 
+      style={[styles.toast, { backgroundColor: tone }]}>
       <SymbolView
         name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }}
-        size={22}
-        tintColor={tone}
+        size={20}
+        tintColor={theme.onPrimaryAction}
       />
-      <Text style={[styles.text, { color: theme.primaryText }]}>{typeLabel} saved</Text>
+      <Text style={[styles.text, { color: theme.onPrimaryAction }]}>{typeLabel} saved</Text>
     </View>
   );
 }
@@ -32,11 +32,10 @@ const styles = StyleSheet.create({
   toast: {
     alignItems: 'center',
     alignSelf: 'center',
-    borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.md,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 48,
+    minHeight: 46,
     paddingHorizontal: spacing.md,
     position: 'absolute',
     top: 68,
@@ -44,6 +43,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...typography.caption,
+    fontFamily: fonts.sans.bold,
     fontWeight: '700',
   },
 });

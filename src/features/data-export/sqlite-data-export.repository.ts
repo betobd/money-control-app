@@ -31,6 +31,8 @@ import type {
 } from './data-export.types';
 
 const destinationAccounts = alias(accounts, 'export_destination_accounts');
+const originalTransactions = alias(transactions, 'export_original_transactions');
+const originalCategories = alias(categories, 'export_original_categories');
 
 type TransactionCursor = {
   transactionDate: string;
@@ -51,7 +53,16 @@ function transactionConditions(
       eq(transactions.destinationAccountId, query.accountId),
     )!);
   }
-  if (query.categoryId) conditions.push(eq(transactions.categoryId, query.categoryId));
+  if (query.categoryId) {
+    conditions.push(or(
+      eq(transactions.categoryId, query.categoryId),
+      sql<boolean>`exists (
+        select 1 from transactions export_original_filter
+        where export_original_filter.id = ${transactions.originalTransactionId}
+          and export_original_filter.category_id = ${query.categoryId}
+      )`,
+    )!);
+  }
   if (query.dateFrom) conditions.push(gte(transactions.transactionDate, query.dateFrom));
   if (query.dateTo) conditions.push(lte(transactions.transactionDate, query.dateTo));
   if (cursor) {
@@ -104,13 +115,19 @@ export class SQLiteDataExportRepository implements DataExportRepository {
           transaction: transactions,
           sourceAccountName: accounts.name,
           destinationAccountName: destinationAccounts.name,
-          categoryName: categories.name,
+          categoryId: sql<string | null>`coalesce(${transactions.categoryId}, ${originalTransactions.categoryId})`,
+          categoryName: sql<string | null>`coalesce(${categories.name}, ${originalCategories.name})`,
+          originalTransactionDate: originalTransactions.transactionDate,
+          originalTransactionAmount: originalTransactions.amount,
+          originalTransactionNote: originalTransactions.note,
           recurringOccurrenceId: recurringOccurrences.id,
         })
         .from(transactions)
         .innerJoin(accounts, eq(transactions.accountId, accounts.id))
         .leftJoin(destinationAccounts, eq(transactions.destinationAccountId, destinationAccounts.id))
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        .leftJoin(originalTransactions, eq(transactions.originalTransactionId, originalTransactions.id))
+        .leftJoin(originalCategories, eq(originalTransactions.categoryId, originalCategories.id))
         .leftJoin(recurringOccurrences, eq(recurringOccurrences.transactionId, transactions.id))
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(
@@ -135,8 +152,12 @@ export class SQLiteDataExportRepository implements DataExportRepository {
           type: transaction.type as TransactionExportRow['type'],
           status: transaction.status as TransactionExportRow['status'],
           amountCop: transaction.amount,
-          categoryId: transaction.type === 'transfer' ? null : transaction.categoryId,
+          categoryId: transaction.type === 'transfer' ? null : row.categoryId,
           categoryName: transaction.type === 'transfer' ? null : row.categoryName,
+          originalTransactionId: transaction.originalTransactionId,
+          originalTransactionDate: row.originalTransactionDate,
+          originalTransactionAmountCop: row.originalTransactionAmount,
+          originalTransactionNote: row.originalTransactionNote,
           sourceAccountId: transaction.accountId!,
           sourceAccountName: row.sourceAccountName,
           destinationAccountId: transaction.destinationAccountId,

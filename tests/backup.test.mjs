@@ -52,6 +52,7 @@ const transaction = (id, overrides = {}) => ({
   accountId: 'checking',
   destinationAccountId: null,
   categoryId: 'food',
+  originalTransactionId: null,
   note: 'Preserved note',
   transactionDate: '2026-07-16',
   createdAt: NOW,
@@ -129,7 +130,11 @@ async function validate(file, declaredSize = 0) {
   const text = serializer.stringify(file);
   const envelope = validator.parseEnvelope(text, declaredSize);
   migrator.assertSupported(envelope.formatVersion);
-  const typed = envelope.formatVersion === 1 ? validator.validateV1(envelope.raw) : validator.validateV2(envelope.raw);
+  const typed = envelope.formatVersion === 1
+    ? validator.validateV1(envelope.raw)
+    : envelope.formatVersion === 2
+      ? validator.validateV2(envelope.raw)
+      : validator.validateV3(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -149,7 +154,7 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 2);
+  assert.equal(file.formatVersion, 3);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
@@ -226,7 +231,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 3;
+  future.formatVersion = 4;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');
@@ -329,6 +334,7 @@ test('migrates format v1 in memory with setup-incomplete cards and no invented s
   delete legacy.summary.creditCardStatements;
   delete legacy.data.creditCardStatements;
   legacy.data.accounts = legacy.data.accounts.map(({ statementClosingDay: _closing, paymentDueDay: _due, ...account }) => account);
+  legacy.data.transactions = legacy.data.transactions.map(({ originalTransactionId: _original, ...transaction }) => transaction);
   legacy.integrity.checksum = await checksum.calculate(legacy);
   const envelope = validator.parseEnvelope(JSON.stringify(legacy), 0);
   migrator.assertSupported(envelope.formatVersion);
@@ -339,4 +345,44 @@ test('migrates format v1 in memory with setup-incomplete cards and no invented s
   assert.deepEqual(migrated.creditCardStatements, []);
   assert.equal(migrated.accounts.find((account) => account.id === 'card').statementClosingDay, null);
   assert.equal(migrated.accounts.find((account) => account.id === 'card').paymentDueDay, null);
+  assert.equal(migrated.transactions.every((row) => row.originalTransactionId === null), true);
+});
+
+test('migrates format v2 transactions in memory without inventing refund links', async () => {
+  const current = await createFile();
+  const legacy = structuredClone(current);
+  legacy.formatVersion = 2;
+  legacy.data.transactions = legacy.data.transactions.map(({ originalTransactionId: _original, ...transaction }) => transaction);
+  legacy.integrity.checksum = await checksum.calculate(legacy);
+  const envelope = validator.parseEnvelope(JSON.stringify(legacy), 0);
+  const validated = validator.validateV2(envelope.raw);
+  validator.validateRelationships(validated);
+  const migrated = migrator.migrate(validated);
+  assert.equal(migrated.transactions.every((row) => row.originalTransactionId === null), true);
+  assert.equal(migrated.creditCardStatements.length, current.data.creditCardStatements.length);
+});
+
+test('backup v3 preserves and validates linked refund relationships', async () => {
+  const data = representativeData();
+  data.transactions.push(transaction('refund', {
+    type: 'refund',
+    amount: 10_000,
+    categoryId: null,
+    originalTransactionId: 'expense',
+    transactionDate: '2026-07-17',
+  }));
+  const file = await createFile(data);
+  const migrated = await validate(file);
+  const restored = migrated.transactions.find((row) => row.id === 'refund');
+  assert.equal(restored.originalTransactionId, 'expense');
+  assert.equal(restored.categoryId, null);
+
+  const invalidFile = structuredClone(file);
+  invalidFile.data.transactions.find((row) => row.id === 'refund').originalTransactionId = 'transfer';
+  await resign(invalidFile);
+  await assert.rejects(
+    () => validate(invalidFile),
+    (error) => error instanceof BackupValidationError
+      && error.issues.some((item) => item.code === 'domain_mismatch'),
+  );
 });

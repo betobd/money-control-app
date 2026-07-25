@@ -112,7 +112,9 @@ export class BackupService {
     this.migrator.assertSupported(envelope.formatVersion);
     const file = envelope.formatVersion === 1
       ? this.validator.validateV1(envelope.raw)
-      : this.validator.validateV2(envelope.raw);
+      : envelope.formatVersion === 2
+        ? this.validator.validateV2(envelope.raw)
+        : this.validator.validateV3(envelope.raw);
     return this.validateFile(file);
   }
 

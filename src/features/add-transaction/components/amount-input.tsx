@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -20,7 +20,7 @@ export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigi
   const formattedAmount = formatCopDigits(digits);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+    <View style={[styles.container, { backgroundColor: theme.surface }]}>
       <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
       <View style={styles.inputRow}>
         <Text style={[styles.symbol, { color: tone }]}>$</Text>
@@ -51,12 +51,14 @@ function formatCopDigits(digits: string) {
 const styles = StyleSheet.create({
   container: {
     borderRadius: borderRadii.lg,
-    borderWidth: borderWidths.thin,
     gap: spacing.sm,
     padding: spacing.lg,
   },
   label: {
     ...typography.body,
+    fontFamily: fonts.sans.semibold,
+    fontSize: 13,
+    lineHeight: 17,
     textAlign: 'center',
   },
   inputRow: {
@@ -72,7 +74,8 @@ const styles = StyleSheet.create({
   input: {
     ...typography.display,
     flex: 1,
-    fontSize: 38,
+    fontFamily: fonts.mono.bold,
+    fontSize: 34,
     fontVariant: ['tabular-nums'],
     maxWidth: '78%',
     minWidth: 0,

@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function AddAccountButton({ onPress }: { onPress: () => void }) {
@@ -13,15 +13,9 @@ export function AddAccountButton({ onPress }: { onPress: () => void }) {
       accessibilityLabel="Add account"
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.button, { borderColor: theme.border }]}>
-      <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView
-          name={{ ios: 'plus', android: 'add', web: 'add' }}
-          size={26}
-          tintColor={theme.primaryAction}
-        />
-      </View>
-      <Text style={[styles.label, { color: theme.primaryAction }]}>Add Account</Text>
+      style={[styles.button, { backgroundColor: theme.elevatedSurface }]}>
+      <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={20} tintColor={theme.primaryAction} />
+      <Text style={[styles.label, { color: theme.primaryAction }]}>Add account</Text>
     </Pressable>
   );
 }
@@ -29,23 +23,17 @@ export function AddAccountButton({ onPress }: { onPress: () => void }) {
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
-    borderRadius: borderRadii.md,
-    borderStyle: 'dashed',
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.full,
+    flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 144,
-    padding: spacing.lg,
-  },
-  icon: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
   },
   label: {
     ...typography.body,
+    fontFamily: typography.sectionTitle.fontFamily,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

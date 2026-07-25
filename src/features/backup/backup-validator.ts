@@ -7,6 +7,7 @@ import {
   type BackupFile,
   type BackupFileV1,
   type BackupFileV2,
+  type BackupFileV3,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -240,7 +241,12 @@ function validateArchiveFields(row: Record<string, unknown>, path: string, issue
   validateNullableUtcTimestamp(row.archivedAt, `${path}.archivedAt`, issues);
 }
 
-function validateTransactionShape(row: Record<string, unknown>, path: string, issues: ValidationIssues): void {
+function validateTransactionShape(
+  row: Record<string, unknown>,
+  path: string,
+  issues: ValidationIssues,
+  supportsRefunds = false,
+): void {
   const type = row.type;
   if (type === 'transfer') {
     if (!validateId(row.destinationAccountId, `${path}.destinationAccountId`, issues)) return;
@@ -255,10 +261,21 @@ function validateTransactionShape(row: Record<string, unknown>, path: string, is
       issue(issues, 'domain_mismatch', `${path}.destinationAccountId`, 'Income and expense rows cannot have a destination account.');
     }
     validateId(row.categoryId, `${path}.categoryId`, issues);
+  } else if (type === 'refund' && supportsRefunds) {
+    if (row.destinationAccountId !== null || row.categoryId !== null) {
+      issue(issues, 'domain_mismatch', path, 'Refunds cannot have a destination account or direct category.');
+    }
+    validateId(row.originalTransactionId, `${path}.originalTransactionId`, issues);
+    if (row.id === row.originalTransactionId) {
+      issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, 'A refund cannot reference itself.');
+    }
+  }
+  if (supportsRefunds && type !== 'refund' && row.originalTransactionId !== null) {
+    issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, 'Only refunds may reference an original transaction.');
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3): void {
   rows.forEach((value, index) => {
     const path = `data.accounts[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -274,7 +291,7 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues, version:
         issue(issues, 'domain_mismatch', `${path}.creditLimit`, 'Only credit cards may have a credit limit.');
       }
     }
-    if (version === 2) {
+    if (version >= 2) {
       for (const field of ['statementClosingDay', 'paymentDueDay'] as const) {
         const fieldValue = row[field];
         if (fieldValue !== null) {
@@ -339,23 +356,40 @@ function validateCategoryRows(rows: unknown[], issues: ValidationIssues): void {
   });
 }
 
-function validateTransactionRows(rows: unknown[], issues: ValidationIssues): void {
+function validateTransactionRows(
+  rows: unknown[],
+  issues: ValidationIssues,
+  version: 1 | 2 | 3,
+): void {
   rows.forEach((value, index) => {
     const path = `data.transactions[${index}]`;
     const row = requireRecord(value, path, issues);
     if (!row) return;
     validateId(row.id, `${path}.id`, issues);
-    validateEnum(row.type, ['income', 'expense', 'transfer'], `${path}.type`, issues);
+    validateEnum(
+      row.type,
+      version === 3 ? ['income', 'expense', 'transfer', 'refund'] : ['income', 'expense', 'transfer'],
+      `${path}.type`,
+      issues,
+    );
     validateEnum(row.status, ['posted', 'voided'], `${path}.status`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
     validateCurrency(row.currency, `${path}.currency`, issues);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
+    if (version === 3) {
+      validateNullableString(
+        row.originalTransactionId,
+        `${path}.originalTransactionId`,
+        issues,
+        backupLimits.maxIdLength,
+      );
+    }
     validateNullableString(row.note, `${path}.note`, issues, backupLimits.maxNoteLength);
     validateCalendarDate(row.transactionDate, `${path}.transactionDate`, issues);
     validateAuditFields(row, path, issues);
-    validateTransactionShape(row, path, issues);
+    validateTransactionShape(row, path, issues, version === 3);
   });
 }
 
@@ -495,7 +529,7 @@ function validateSummaryAndRange(file: BackupFile, issues: ValidationIssues): vo
     recurringRules: file.data.recurringTransactions.length,
     recurringOccurrences: file.data.recurringOccurrences.length,
   };
-  const expectedWithCards = file.formatVersion === 2
+  const expectedWithCards = 'creditCardStatements' in file.data
     ? { ...expected, creditCardStatements: file.data.creditCardStatements.length }
     : expected;
   for (const [key, count] of Object.entries(expectedWithCards)) {
@@ -556,7 +590,11 @@ export class BackupValidator {
     return this.validateVersion(raw, 2) as BackupFileV2;
   }
 
-  private validateVersion(raw: Record<string, unknown>, version: 1 | 2): BackupFile {
+  validateV3(raw: Record<string, unknown>): BackupFileV3 {
+    return this.validateVersion(raw, 3) as BackupFileV3;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
       issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
@@ -572,7 +610,7 @@ export class BackupValidator {
     const summary = requireRecord(raw.summary, 'summary', issues);
     if (summary) {
       const keys = ['accounts', 'categories', 'transactions', 'transactionSplits', 'budgets', 'recurringRules', 'recurringOccurrences'];
-      if (version === 2) keys.push('creditCardStatements');
+      if (version >= 2) keys.push('creditCardStatements');
       for (const key of keys) {
         validateSafeInteger(summary[key], `summary.${key}`, issues, { nonNegative: true });
       }
@@ -604,17 +642,17 @@ export class BackupValidator {
       const budgets = requireArray(data, 'budgets', 'data.budgets', backupLimits.collections.budgets, issues);
       const recurring = requireArray(data, 'recurringTransactions', 'data.recurringTransactions', backupLimits.collections.recurringTransactions, issues);
       const occurrences = requireArray(data, 'recurringOccurrences', 'data.recurringOccurrences', backupLimits.collections.recurringOccurrences, issues);
-      const cardStatements = version === 2
+      const cardStatements = version >= 2
         ? requireArray(data, 'creditCardStatements', 'data.creditCardStatements', backupLimits.collections.creditCardStatements, issues)
         : [];
       validateAccountRows(accounts, issues, version);
       validateCategoryRows(categories, issues);
-      validateTransactionRows(transactions, issues);
+      validateTransactionRows(transactions, issues, version);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
       validateRecurringRows(recurring, issues);
       validateOccurrenceRows(occurrences, issues);
-      if (version === 2) validateCreditCardStatementRows(cardStatements, issues);
+      if (version >= 2) validateCreditCardStatementRows(cardStatements, issues);
     }
     if (issues.length) throw new BackupValidationError(issues);
     return raw as unknown as BackupFile;
@@ -630,14 +668,16 @@ export class BackupValidator {
     validateUniqueIds(data.budgets, 'budgets', issues);
     validateUniqueIds(data.recurringTransactions, 'recurringTransactions', issues);
     validateUniqueIds(data.recurringOccurrences, 'recurringOccurrences', issues);
-    if (file.formatVersion === 2) validateUniqueIds(file.data.creditCardStatements, 'creditCardStatements', issues);
+    if ('creditCardStatements' in file.data) {
+      validateUniqueIds(file.data.creditCardStatements, 'creditCardStatements', issues);
+    }
 
     const accountIds = new Set(data.accounts.map((row) => row.id));
     const categories = new Map(data.categories.map((row) => [row.id, row]));
     const transactionIds = new Set(data.transactions.map((row) => row.id));
     const recurringIds = new Set(data.recurringTransactions.map((row) => row.id));
 
-    if (file.formatVersion === 2) {
+    if ('creditCardStatements' in file.data) {
       const statementKeys = new Set<string>();
       for (const statement of file.data.creditCardStatements) {
         const account = file.data.accounts.find((candidate) => candidate.id === statement.accountId);
@@ -680,6 +720,42 @@ export class BackupValidator {
       }
       if (transaction.categoryId) {
         this.validateCategoryReference(categories, transaction.categoryId, transaction.type, 'transaction', transaction.id, issues);
+      }
+    }
+
+    if (file.formatVersion === 3) {
+      const transactionsById = new Map(file.data.transactions.map((row) => [row.id, row]));
+      const postedRefundTotals = new Map<string, number>();
+      for (const transaction of file.data.transactions) {
+        if (transaction.type !== 'refund') continue;
+        const originalId = transaction.originalTransactionId;
+        const original = originalId ? transactionsById.get(originalId) : undefined;
+        if (!original) {
+          issue(issues, 'missing_reference', 'data.transactions', `Refund ${transaction.id} references a missing original transaction.`);
+          continue;
+        }
+        if (original.type !== 'expense') {
+          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} must reference an expense.`);
+        }
+        if (transaction.status === 'posted' && original.status !== 'posted') {
+          issue(issues, 'domain_mismatch', 'data.transactions', `Posted refund ${transaction.id} must reference a posted expense.`);
+        }
+        if (original.accountId !== transaction.accountId) {
+          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} must use the original expense account.`);
+        }
+        if (transaction.transactionDate < original.transactionDate) {
+          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} is dated before its original expense.`);
+        }
+        if (transaction.amount > original.amount) {
+          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} exceeds its original expense.`);
+        }
+        if (transaction.status === 'posted') {
+          const next = (postedRefundTotals.get(original.id) ?? 0) + transaction.amount;
+          if (!Number.isSafeInteger(next) || next > original.amount) {
+            issue(issues, 'domain_mismatch', 'data.transactions', `Posted refunds exceed expense ${original.id}.`);
+          }
+          postedRefundTotals.set(original.id, next);
+        }
       }
     }
 
@@ -780,7 +856,7 @@ export class BackupValidator {
   private validateCategoryReference(
     categories: Map<string, { type: 'expense' | 'income' }>,
     categoryId: string,
-    expectedType: 'income' | 'expense' | 'transfer',
+    expectedType: 'income' | 'expense' | 'transfer' | 'refund',
     source: string,
     sourceId: string,
     issues: ValidationIssues,
@@ -788,7 +864,11 @@ export class BackupValidator {
     const category = categories.get(categoryId);
     if (!category) {
       issue(issues, 'missing_reference', 'data', `${source} ${sourceId} references a missing category.`);
-    } else if (expectedType === 'transfer' || category.type !== expectedType) {
+    } else if (
+      expectedType === 'transfer'
+      || expectedType === 'refund'
+      || category.type !== expectedType
+    ) {
       issue(issues, 'domain_mismatch', 'data', `${source} ${sourceId} has an incompatible category type.`);
     }
   }

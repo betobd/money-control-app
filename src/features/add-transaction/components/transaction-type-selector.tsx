@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -30,11 +30,7 @@ export function TransactionTypeSelector({ value, onChange }: TransactionTypeSele
             accessibilityState={{ checked: selected }}
             key={option.value}
             onPress={() => onChange(option.value)}
-            style={[
-              styles.option,
-              selected && { backgroundColor: tone, borderColor: tone },
-              !selected && { borderColor: 'transparent' },
-            ]}>
+            style={[styles.option, selected && { backgroundColor: tone }]}>
             <Text style={[styles.label, { color: selected ? theme.onPrimaryAction : theme.secondaryText }]}>
               {option.label}
             </Text>
@@ -60,15 +56,16 @@ const styles = StyleSheet.create({
   },
   option: {
     alignItems: 'center',
-    borderRadius: borderRadii.sm,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.md - 1,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 52,
+    minHeight: 48,
     paddingHorizontal: spacing.xs,
   },
   label: {
     ...typography.body,
+    fontFamily: fonts.sans.bold,
+    fontSize: 14,
     fontWeight: '700',
   },
 });

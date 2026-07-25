@@ -1,7 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { ProgressBar } from '@/components/progress-bar';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { accountTypeLabels, formatCop } from '@/features/accounts/account-format';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
@@ -39,10 +40,7 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
       accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, ${balanceLabel}, ${formattedBalance} COP${account.isArchived ? ', archived' : ''}`}
       style={[
         styles.card,
-        {
-          backgroundColor: account.isArchived ? theme.disabledSurface : theme.surface,
-          borderColor: theme.border,
-        },
+        { backgroundColor: account.isArchived ? theme.disabledSurface : theme.surface },
       ]}>
       <View style={styles.header}>
         <AccountTypeIcon kind={account.type} />
@@ -95,6 +93,12 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
         ) : null}
         {utilization ? (
           <View style={styles.cardDetails}>
+            {utilization.utilizationBasisPoints !== null ? (
+              <ProgressBar
+                color={utilization.utilizationBasisPoints > 10000 ? theme.destructive : theme.warning}
+                value={utilization.utilizationBasisPoints / 10000}
+              />
+            ) : null}
             <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available {utilization.availableCredit === null ? 'unavailable' : formatCop(utilization.availableCredit)} · Utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
             {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
           </View>
@@ -105,19 +109,19 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.lg, padding: spacing.md },
-  header: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  card: { borderRadius: borderRadii.card, gap: spacing.md, padding: spacing.md },
+  header: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm + 2 },
   identity: { flex: 1, minWidth: 0 },
-  name: { ...typography.body, fontWeight: '700' },
-  type: { ...typography.caption },
-  menuButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
+  name: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  type: { ...typography.caption, fontSize: 12, lineHeight: 16 },
+  menuButton: { alignItems: 'center', height: 44, justifyContent: 'center', width: 32 },
   archivedBadge: { borderRadius: borderRadii.full, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   archivedText: { ...typography.label },
   balance: { gap: spacing.xs },
-  balanceLabel: { ...typography.label, textTransform: 'uppercase' },
+  balanceLabel: { ...typography.overline },
   amountRow: { alignItems: 'baseline', flexDirection: 'row', maxWidth: '100%' },
-  amount: { ...typography.display, flexShrink: 1, fontSize: 28, fontVariant: ['tabular-nums'], lineHeight: 34 },
+  amount: { ...typography.moneyHero, flexShrink: 1, fontSize: 24, lineHeight: 30 },
   currency: { ...typography.caption, marginLeft: spacing.xs },
   debtNote: { ...typography.caption, fontWeight: '600' },
-  cardDetails: { gap: spacing.xs, paddingTop: spacing.xs },
+  cardDetails: { gap: spacing.sm, paddingTop: spacing.xs },
 });

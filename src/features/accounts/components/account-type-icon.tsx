@@ -1,7 +1,6 @@
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { StyleSheet, View } from 'react-native';
+import { type SymbolViewProps } from 'expo-symbols';
 
-import { borderRadii } from '@/constants/theme';
+import { IconChip } from '@/components/icon-chip';
 import type { AccountType } from '@/features/accounts/account.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -12,30 +11,16 @@ const accountIcons: Record<AccountType, SymbolViewProps['name']> = {
   cash: { ios: 'wallet.bifold.fill', android: 'payments', web: 'payments' },
 };
 
-export function AccountTypeIcon({ kind }: { kind: AccountType }) {
+export function AccountTypeIcon({ kind, size = 40 }: { kind: AccountType; size?: number }) {
   const theme = useAppTheme();
-  const color =
-    kind === 'savings'
-      ? theme.income
-      : kind === 'credit_card'
-        ? theme.expense
-        : kind === 'checking'
-          ? theme.primaryAction
-          : theme.secondaryText;
+  const { color, background } = tintFor(kind, theme);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.elevatedSurface }]}>
-      <SymbolView name={accountIcons[kind]} size={22} tintColor={color} />
-    </View>
-  );
+  return <IconChip background={background} color={color} icon={accountIcons[kind]} iconSize={20} size={size} />;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-});
+function tintFor(kind: AccountType, theme: ReturnType<typeof useAppTheme>) {
+  if (kind === 'savings') return { color: theme.income, background: theme.tintIncome };
+  if (kind === 'credit_card') return { color: theme.expense, background: theme.tintExpense };
+  if (kind === 'checking') return { color: theme.primaryAction, background: theme.tintPrimary };
+  return { color: theme.transfer, background: theme.tintTransfer };
+}

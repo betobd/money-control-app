@@ -42,6 +42,8 @@ class Repo {
       destinationAccountName: value.destinationAccountId,
       categoryName: value.categoryId,
       categoryIcon: value.categoryId ? 'other' : null,
+      originalTransactionDate: null,
+      originalTransactionNote: null,
     };
   }
   async findById(id) { return this.decorate(this.records.find((record) => record.id === id)); }
@@ -52,6 +54,10 @@ class Repo {
   }
   async listFilterOptions() { return { accounts: [], categories: [] }; }
   async recent(limit) { return this.records.slice(0, limit).map((record) => this.decorate(record)); }
+  async hasPostedRefunds(id) {
+    return this.records.some((record) =>
+      record.type === 'refund' && record.status === 'posted' && record.originalTransactionId === id);
+  }
   async updatePosted(id, update) {
     const record = this.records.find((candidate) => candidate.id === id && candidate.status === 'posted');
     if (!record) return false;
@@ -67,8 +73,10 @@ class Repo {
   async summarizeMonth() {
     const posted = this.records.filter((record) => record.status === 'posted');
     const income = posted.filter((record) => record.type === 'income').reduce((sum, record) => sum + record.amount, 0);
-    const expenses = posted.filter((record) => record.type === 'expense').reduce((sum, record) => sum + record.amount, 0);
-    return { income, expenses, net: income - expenses };
+    const grossExpenses = posted.filter((record) => record.type === 'expense').reduce((sum, record) => sum + record.amount, 0);
+    const refunds = posted.filter((record) => record.type === 'refund').reduce((sum, record) => sum + record.amount, 0);
+    const netExpenses = grossExpenses - refunds;
+    return { income, grossExpenses, refunds, netExpenses, net: income - netExpenses };
   }
 }
 
@@ -180,7 +188,13 @@ test('permits checking-to-card payments and credit-card-to-checking transfers', 
 test('transfers do not change monthly income, expenses, or net cash flow', async () => {
   const { service } = setup();
   await service.create(validTransfer);
-  assert.deepEqual(await service.summarizeMonth('2026-07'), { income: 0, expenses: 0, net: 0 });
+  assert.deepEqual(await service.summarizeMonth('2026-07'), {
+    income: 0,
+    grossExpenses: 0,
+    refunds: 0,
+    netExpenses: 0,
+    net: 0,
+  });
 });
 
 test('rejects unsupported transaction types', async () => {
@@ -442,6 +456,7 @@ test('normalizes combined list filters before forwarding them to the repository'
     statuses: ['voided'],
     accountId: 'active',
     categoryId: 'expense',
+    originalTransactionId: undefined,
     dateFrom: '2026-07-01',
     dateTo: '2026-07-31',
     limit: 30,

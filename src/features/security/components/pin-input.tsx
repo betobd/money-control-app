@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { PIN_LENGTH } from '../app-lock.types';
 
@@ -52,7 +52,6 @@ export const PinInput = forwardRef<PinInputHandle, PinInputProps>(function PinIn
         styles.input,
         {
           backgroundColor: theme.elevatedSurface,
-          borderColor: theme.border,
           color: theme.primaryText,
         },
       ]}
@@ -66,7 +65,6 @@ const styles = StyleSheet.create({
   input: {
     ...typography.title,
     borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
     fontVariant: ['tabular-nums'],
     letterSpacing: spacing.md,
     minHeight: 58,

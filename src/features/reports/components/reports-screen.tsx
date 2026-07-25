@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { formatReportDate } from '../report-period';
 import type { ComparisonMetric, ReportPeriodSelection } from '../report.types';
@@ -62,7 +63,7 @@ export function ReportsScreen() {
         </Text>
       ) : null}
       {reports.error ? (
-        <View style={[styles.inlineError, { backgroundColor: theme.surface, borderColor: theme.destructive }]}>
+        <View style={[styles.inlineError, { backgroundColor: theme.tintDestructive }]}>
           <Text accessibilityLiveRegion="assertive" style={[styles.errorText, { color: theme.destructive }]}>
             {reports.error}
           </Text>
@@ -95,13 +96,15 @@ export function ReportsScreen() {
             title="Period summary">
             <View style={styles.summaryGrid}>
               <SummaryMetric label="Income" tone="income" value={formatCop(data.summary.income)} />
-              <SummaryMetric label="Expenses" tone="expense" value={formatCop(data.summary.expenses)} />
+              <SummaryMetric label="Gross expenses" tone="expense" value={formatCop(data.summary.grossExpenses)} />
+              <SummaryMetric label="Refunds" tone="refund" value={formatCop(data.summary.refunds)} />
+              <SummaryMetric label="Net expenses" tone="expense" value={formatCop(data.summary.expenses)} />
               <SummaryMetric label="Net result" tone={data.summary.net >= 0 ? 'income' : 'expense'} value={formatCop(data.summary.net)} />
               <SummaryMetric label="Average expense" value={formatCop(data.summary.averageExpense)} />
               <SummaryMetric label="Expense transactions" value={String(data.summary.expenseCount)} />
               <SummaryMetric label="Income transactions" value={String(data.summary.incomeCount)} />
             </View>
-            <View style={[styles.largest, { borderTopColor: theme.border }]}>
+            <View style={[styles.largest, { borderTopColor: theme.hairline }]}>
               <Text style={[styles.largestLabel, { color: theme.secondaryText }]}>Largest expense</Text>
               {data.summary.largestExpense ? (
                 <>
@@ -198,9 +201,7 @@ function ReportSection({
         <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{title}</Text>
         <Text style={[styles.sectionDescription, { color: theme.secondaryText }]}>{description}</Text>
       </View>
-      <View style={[styles.sectionBody, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {children}
-      </View>
+      <Card>{children}</Card>
     </View>
   );
 }
@@ -212,10 +213,16 @@ function SummaryMetric({
 }: {
   label: string;
   value: string;
-  tone?: 'income' | 'expense';
+  tone?: 'income' | 'expense' | 'refund';
 }) {
   const theme = useAppTheme();
-  const valueColor = tone === 'income' ? theme.income : tone === 'expense' ? theme.expense : theme.primaryText;
+  const valueColor = tone === 'income'
+    ? theme.income
+    : tone === 'expense'
+      ? theme.expense
+      : tone === 'refund'
+        ? theme.primaryAction
+        : theme.primaryText;
   return (
     <View style={styles.metric}>
       <Text style={[styles.metricLabel, { color: theme.secondaryText }]}>{label}</Text>
@@ -251,7 +258,7 @@ function ComparisonRow({
     change = `${metric.direction === 'increased' ? 'Increased' : 'Decreased'} by ${differenceValue} (${percentage})`;
   }
   return (
-    <View accessibilityLabel={`${label}. Current ${currentValue}. ${change}.`} style={[styles.comparisonRow, { borderBottomColor: theme.border }]}>
+    <View accessibilityLabel={`${label}. Current ${currentValue}. ${change}.`} style={[styles.comparisonRow, { borderBottomColor: theme.hairline }]}>
       <View style={styles.comparisonValues}>
         <Text style={[styles.comparisonLabel, { color: theme.primaryText }]}>{label}</Text>
         <Text style={[styles.comparisonCurrent, { color: theme.primaryText }]}>{currentValue}</Text>
@@ -320,8 +327,7 @@ const styles = StyleSheet.create({
   updating: { ...typography.caption, paddingHorizontal: spacing.md, paddingTop: spacing.sm, textAlign: 'center' },
   inlineError: {
     alignItems: 'center',
-    borderRadius: borderRadii.md,
-    borderWidth: borderWidths.thin,
+    borderRadius: borderRadii.card,
     flexDirection: 'row',
     gap: spacing.sm,
     marginHorizontal: spacing.md,
@@ -339,18 +345,17 @@ const styles = StyleSheet.create({
   sectionHeading: { gap: spacing.xs },
   sectionTitle: { ...typography.sectionTitle },
   sectionDescription: { ...typography.caption },
-  sectionBody: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.lg },
   metric: { gap: spacing.xs, minWidth: '50%', paddingRight: spacing.sm, width: '50%' },
   metricLabel: { ...typography.label },
   metricValue: { ...typography.money },
-  largest: { borderTopWidth: borderWidths.thin, gap: spacing.xs, marginTop: spacing.lg, paddingTop: spacing.md },
+  largest: { borderTopWidth: StyleSheet.hairlineWidth, gap: spacing.xs, marginTop: spacing.lg, paddingTop: spacing.md },
   largestLabel: { ...typography.label },
   largestAmount: { ...typography.money },
   largestMeta: { ...typography.caption },
   sectionEmpty: { ...typography.caption, paddingVertical: spacing.lg, textAlign: 'center' },
   comparisons: {},
-  comparisonRow: { borderBottomWidth: borderWidths.thin, gap: spacing.xs, minHeight: 72, paddingVertical: spacing.sm },
+  comparisonRow: { borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.xs, minHeight: 72, paddingVertical: spacing.sm },
   comparisonValues: { alignItems: 'baseline', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
   comparisonLabel: { ...typography.caption, fontWeight: '700' },
   comparisonCurrent: { ...typography.caption, fontWeight: '700' },

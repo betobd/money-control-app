@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Overline } from '@/components/overline';
+import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { AmountInput } from '@/features/add-transaction/components/amount-input';
 import { BudgetValidationError } from '@/features/budgets/budget.service';
 import type { BudgetValidationErrors } from '@/features/budgets/budget.types';
@@ -118,7 +119,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border, paddingTop: insets.top + spacing.sm }]}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable accessibilityLabel="Close budget form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
           <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
         </Pressable>
@@ -138,7 +139,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         />
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.primaryText }]}>Budget month</Text>
+          <Overline color={theme.mutedText}>Budget month</Overline>
           <TextInput
             accessibilityLabel="Budget month in YYYY-MM format"
             autoCapitalize="none"
@@ -147,7 +148,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
             onChangeText={(value) => { setMonth(value.replace(/[^\d-]/g, '').slice(0, 7)); clear('month'); }}
             placeholder="YYYY-MM"
             placeholderTextColor={theme.mutedText}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.month ? theme.destructive : theme.border, color: theme.primaryText }]}
+            style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.month ? theme.destructive : theme.hairline, color: theme.primaryText }]}
             value={month}
           />
           {errors.month ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{errors.month}</Text> : null}
@@ -163,13 +164,13 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         />
 
         {editing ? (
-          <Pressable accessibilityLabel="Remove budget" accessibilityRole="button" onPress={confirmRemove} style={[styles.remove, { borderColor: theme.destructive }]}>
+          <Pressable accessibilityLabel="Remove budget" accessibilityRole="button" onPress={confirmRemove} style={[styles.remove, { backgroundColor: theme.tintDestructive }]}>
             <Text style={[styles.removeText, { color: theme.destructive }]}>Remove Budget</Text>
           </Pressable>
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.border, paddingBottom: insets.bottom + spacing.sm }]}>
+      <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
         <Pressable
           accessibilityLabel={editing ? 'Save budget changes' : 'Create budget'}
           accessibilityRole="button"
@@ -187,17 +188,16 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xxl },
   field: { gap: spacing.sm },
-  label: { ...typography.body, fontWeight: '700' },
-  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   error: { ...typography.caption },
-  remove: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 52 },
-  removeText: { ...typography.body, fontWeight: '700' },
-  footer: { borderTopWidth: borderWidths.thin, padding: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52 },
-  saveText: { ...typography.body, fontWeight: '700' },
+  remove: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
+  removeText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
+  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
+  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
@@ -98,7 +99,7 @@ export function RecurringTransactionsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+      <View style={styles.header}>
         <Pressable
           accessibilityLabel="Close recurring transactions"
           accessibilityRole="button"
@@ -148,11 +149,11 @@ export function RecurringTransactionsScreen() {
           {activeRules.length === 0 ? (
             <EmptyCard text="No active recurring schedules." />
           ) : activeRules.slice(0, 5).map((rule) => (
-            <View
+            <Card
               accessible
               accessibilityLabel={`Upcoming ${rule.type}, ${formatCop(rule.amount)}, ${formatTransactionDate(rule.nextOccurrenceDate)}, ${ruleDetail(rule)}`}
               key={`upcoming-${rule.id}`}
-              style={[styles.historyRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              style={styles.historyRow}>
               <View style={styles.flex}>
                 <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>{occurrenceLabel(rule)}</Text>
                 <Text numberOfLines={1} style={[styles.meta, { color: theme.secondaryText }]}>{ruleDetail(rule)}</Text>
@@ -161,7 +162,7 @@ export function RecurringTransactionsScreen() {
                 <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatCop(rule.amount)}</Text>
                 <Text style={[styles.meta, { color: theme.secondaryText }]}>{formatTransactionDate(rule.nextOccurrenceDate)}</Text>
               </View>
-            </View>
+            </Card>
           ))}
 
           <View style={styles.sectionTop}>
@@ -216,11 +217,11 @@ export function RecurringTransactionsScreen() {
           {history.length === 0 ? (
             <EmptyCard text="Confirmed and skipped occurrences will appear here." />
           ) : history.map((occurrence) => (
-            <View
+            <Card
               accessible
               accessibilityLabel={`${occurrence.status}, ${occurrenceLabel(occurrence)}, ${formatCop(occurrence.amount)}, ${formatTransactionDate(occurrence.scheduledDate)}`}
               key={occurrence.id}
-              style={[styles.historyRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              style={styles.historyRow}>
               <View style={styles.flex}>
                 <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>
                   {occurrenceLabel(occurrence)}
@@ -235,7 +236,7 @@ export function RecurringTransactionsScreen() {
                   {occurrence.status === 'posted' ? 'Posted' : 'Skipped'}
                 </Text>
               </View>
-            </View>
+            </Card>
           ))}
         </ScrollView>
       )}
@@ -251,9 +252,9 @@ function SectionHeading({ count, title }: { count: number; title: string }) {
 function EmptyCard({ text }: { text: string }) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.empty, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card>
       <Text style={[styles.meta, { color: theme.secondaryText }]}>{text}</Text>
-    </View>
+    </Card>
   );
 }
 
@@ -270,7 +271,7 @@ function OccurrenceCard({
 }) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card style={styles.card}>
       <View style={styles.cardHeading}>
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>{occurrenceLabel(occurrence)}</Text>
@@ -284,17 +285,17 @@ function OccurrenceCard({
         <Text style={[styles.amount, { color: typeColor(occurrence.type, theme) }]}>{formatCop(occurrence.amount)}</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" onPress={onConfirm} style={[styles.primaryAction, { backgroundColor: theme.primaryAction }]}>
+        <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" onPress={onConfirm} style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
           <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Confirm</Text>
         </Pressable>
-        <Pressable accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onEdit} style={[styles.secondaryAction, { borderColor: theme.border }]}>
+        <Pressable accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
           <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit</Text>
         </Pressable>
-        <Pressable accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onSkip} style={[styles.secondaryAction, { borderColor: theme.border }]}>
+        <Pressable accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" onPress={onSkip} style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
           <Text style={[styles.actionLabel, { color: theme.destructive }]}>Skip</Text>
         </Pressable>
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -313,7 +314,7 @@ function RuleCard({
   const ended = Boolean(rule.endedAt);
   const status = ended ? 'Ended' : rule.isActive ? 'Active' : 'Paused';
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <Card style={styles.card}>
       <View style={styles.cardHeading}>
         <View style={styles.flex}>
           <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>{occurrenceLabel(rule)}</Text>
@@ -331,18 +332,18 @@ function RuleCard({
       </View>
       {!ended ? (
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" onPress={onEdit} style={[styles.secondaryAction, { borderColor: theme.border }]}>
+          <Pressable accessibilityRole="button" onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit future</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onToggle} style={[styles.secondaryAction, { borderColor: theme.border }]}>
+          <Pressable accessibilityRole="button" onPress={onToggle} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.actionLabel, { color: theme.primaryText }]}>{rule.isActive ? 'Pause' : 'Resume'}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onEnd} style={[styles.secondaryAction, { borderColor: theme.border }]}>
+          <Pressable accessibilityRole="button" onPress={onEnd} style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
             <Text style={[styles.actionLabel, { color: theme.destructive }]}>End</Text>
           </Pressable>
         </View>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
@@ -372,7 +373,7 @@ function typeColor(type: RecurringRuleListItem['type'], theme: ReturnType<typeof
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, fontSize: 22, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
@@ -380,19 +381,17 @@ const styles = StyleSheet.create({
   sectionTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   textButton: { alignItems: 'center', minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.sm },
   textButtonLabel: { ...typography.caption, fontWeight: '700' },
-  card: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, gap: spacing.md, padding: spacing.md },
+  card: { gap: spacing.md },
   cardHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md },
   cardTitle: { ...typography.body, fontWeight: '700' },
   meta: { ...typography.caption },
-  amount: { ...typography.caption, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  amount: { ...typography.moneyRow },
   status: { ...typography.label, fontWeight: '700', textTransform: 'uppercase' },
   right: { alignItems: 'flex-end', gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  primaryAction: { alignItems: 'center', borderRadius: borderRadii.sm, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  secondaryAction: { alignItems: 'center', borderRadius: borderRadii.sm, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
+  actionButton: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
   actionLabel: { ...typography.caption, fontWeight: '700' },
-  historyRow: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 68, padding: spacing.md },
-  empty: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
+  historyRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 68 },
   error: { ...typography.caption },
   notice: { ...typography.caption },
   flex: { flex: 1, minWidth: 0 },

@@ -1,7 +1,7 @@
-export const supportedTransactionTypes = ['expense', 'income', 'transfer'] as const;
+export const supportedTransactionTypes = ['expense', 'income', 'transfer', 'refund'] as const;
 
 export type SupportedTransactionType = (typeof supportedTransactionTypes)[number];
-export type CategorizedTransactionType = Exclude<SupportedTransactionType, 'transfer'>;
+export type CategorizedTransactionType = 'expense' | 'income';
 export type TransactionStatus = 'posted' | 'voided';
 export type TransactionDateRangePreset =
   | 'current-month'
@@ -42,11 +42,19 @@ export type TransactionRecord =
       type: CategorizedTransactionType;
       categoryId: string;
       destinationAccountId: null;
+      originalTransactionId: null;
     })
   | (TransactionInputBase & TransactionMetadata & {
       type: 'transfer';
       categoryId: null;
       destinationAccountId: string;
+      originalTransactionId: null;
+    })
+  | (TransactionInputBase & TransactionMetadata & {
+      type: 'refund';
+      categoryId: null;
+      destinationAccountId: null;
+      originalTransactionId: string;
     });
 
 export type TransactionUpdateRecord = {
@@ -75,6 +83,8 @@ export type TransactionListItem = TransactionRecord & {
   destinationAccountName: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
+  originalTransactionDate: string | null;
+  originalTransactionNote: string | null;
 };
 
 export type TransactionListCursor = Pick<
@@ -88,6 +98,7 @@ export type TransactionListQuery = {
   statuses?: TransactionStatus[];
   accountId?: string;
   categoryId?: string;
+  originalTransactionId?: string;
   dateFrom?: string;
   dateTo?: string;
   limit?: number;
@@ -136,6 +147,8 @@ export type TransactionSection = {
 
 export type MonthlyTransactionSummary = {
   income: number;
-  expenses: number;
+  grossExpenses: number;
+  refunds: number;
+  netExpenses: number;
   net: number;
 };

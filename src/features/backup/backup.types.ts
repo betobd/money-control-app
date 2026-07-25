@@ -1,6 +1,6 @@
 export const BACKUP_FORMAT = 'money-control-backup' as const;
-export const CURRENT_BACKUP_FORMAT_VERSION = 2 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0007' as const;
+export const CURRENT_BACKUP_FORMAT_VERSION = 3 as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0008' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 export const BACKUP_CURRENCY = 'COP' as const;
 export const BACKUP_CHECKSUM_ALGORITHM = 'SHA-256' as const;
@@ -46,7 +46,7 @@ export type BackupCategory = {
   updatedAt: string;
 };
 
-export type BackupTransaction = {
+export type BackupTransactionV2 = {
   id: string;
   type: 'income' | 'expense' | 'transfer';
   status: 'posted' | 'voided';
@@ -59,6 +59,11 @@ export type BackupTransaction = {
   transactionDate: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type BackupTransaction = Omit<BackupTransactionV2, 'type'> & {
+  type: 'income' | 'expense' | 'transfer' | 'refund';
+  originalTransactionId: string | null;
 };
 
 export type BackupTransactionSplit = {
@@ -118,7 +123,7 @@ export type BackupRecurringOccurrence = {
 export type BackupDataV1 = {
   accounts: BackupAccountV1[];
   categories: BackupCategory[];
-  transactions: BackupTransaction[];
+  transactions: BackupTransactionV2[];
   transactionSplits: BackupTransactionSplit[];
   budgets: BackupBudget[];
   recurringTransactions: BackupRecurringTransaction[];
@@ -128,12 +133,16 @@ export type BackupDataV1 = {
 export type BackupDataV2 = {
   accounts: BackupAccount[];
   categories: BackupCategory[];
-  transactions: BackupTransaction[];
+  transactions: BackupTransactionV2[];
   transactionSplits: BackupTransactionSplit[];
   budgets: BackupBudget[];
   recurringTransactions: BackupRecurringTransaction[];
   recurringOccurrences: BackupRecurringOccurrence[];
   creditCardStatements: BackupCreditCardStatement[];
+};
+
+export type BackupDataV3 = Omit<BackupDataV2, 'transactions'> & {
+  transactions: BackupTransaction[];
 };
 
 export type BackupSummary = {
@@ -177,12 +186,17 @@ export type BackupFileV1 = {
 };
 
 export type BackupFileV2 = Omit<BackupFileV1, 'formatVersion' | 'summary' | 'data'> & {
-  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  formatVersion: 2;
   summary: BackupSummary;
   data: BackupDataV2;
 };
 
-export type BackupFile = BackupFileV1 | BackupFileV2;
+export type BackupFileV3 = Omit<BackupFileV2, 'formatVersion' | 'data'> & {
+  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  data: BackupDataV3;
+};
+
+export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3;
 
 export type BackupPreview = {
   fileName: string;
@@ -200,7 +214,7 @@ export type BackupPreview = {
 
 export type RestoreCandidate = {
   file: BackupFile;
-  data: BackupDataV2;
+  data: BackupDataV3;
   preview: BackupPreview;
 };
 

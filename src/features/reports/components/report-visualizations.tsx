@@ -40,7 +40,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
   return (
     <View accessibilityLabel="Expenses ranked by category" style={styles.categoryList}>
       {categories.map((category) => (
-        <View key={category.categoryId} style={[styles.categoryRow, { borderBottomColor: theme.border }]}>
+        <View key={category.categoryId} style={[styles.categoryRow, { borderBottomColor: theme.hairline }]}>
           <View style={[styles.categoryIcon, { backgroundColor: theme.elevatedSurface }]}>
             <SymbolView name={getCategoryIcon(category.icon)} size={20} tintColor={theme.expense} />
           </View>
@@ -131,7 +131,7 @@ export function NetWorthLineChart({ points }: { points: NetWorthPoint[] }) {
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pointSummary}>
         {points.map((point) => (
-          <View key={point.key} style={[styles.pointCard, { borderColor: theme.border }]}>
+          <View key={point.key} style={[styles.pointCard, { borderColor: theme.hairline }]}>
             <Text style={[styles.pointLabel, { color: theme.secondaryText }]}>{point.label}</Text>
             <Text style={[styles.pointValue, { color: theme.primaryText }]}>{formatCop(point.netWorth)}</Text>
           </View>
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   categoryList: {},
   categoryRow: {
     alignItems: 'center',
-    borderBottomWidth: borderWidths.thin,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: spacing.sm,
     minHeight: 80,
@@ -228,12 +228,12 @@ const styles = StyleSheet.create({
   categoryMeta: { ...typography.label },
   lineChart: { borderRadius: borderRadii.md, height: 152, overflow: 'hidden', position: 'relative' },
   lineSegment: { height: 2, position: 'absolute' },
-  dot: { borderRadius: 4, borderWidth: 2, height: 8, position: 'absolute', width: 8 },
+  dot: { borderRadius: borderRadii.xs, borderWidth: borderWidths.thin, height: 8, position: 'absolute', width: 8 },
   axisLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
   axisLabel: { ...typography.label },
   pointSummary: { marginTop: spacing.md },
   pointCard: {
-    borderLeftWidth: borderWidths.thin,
+    borderLeftWidth: StyleSheet.hairlineWidth,
     gap: 2,
     minWidth: 108,
     paddingHorizontal: spacing.sm,

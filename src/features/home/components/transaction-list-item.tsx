@@ -1,41 +1,49 @@
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { type SymbolViewProps } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { IconChip } from '@/components/icon-chip';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { MoneyText } from '@/features/home/components/money-text';
 import type { FinancialTone } from '@/features/home/home-dashboard.mock';
 import { useAppTheme } from '@/hooks/use-app-theme';
+
+type Tone = Exclude<FinancialTone, 'default'>;
 
 type TransactionListItemProps = {
   title: string;
   subtitle: string;
   amount: string;
-  tone: Exclude<FinancialTone, 'default'>;
+  tone: Tone;
   icon: SymbolViewProps['name'];
   showDivider?: boolean;
 };
 
-export function TransactionListItem({
-  title,
-  subtitle,
-  amount,
-  tone,
-  icon,
-  showDivider = false,
-}: TransactionListItemProps) {
+export function TransactionListItem({ title, subtitle, amount, tone, icon }: TransactionListItemProps) {
   const theme = useAppTheme();
-  const iconColor = tone === 'income' ? theme.income : tone === 'transfer' ? theme.transfer : theme.expense;
+  const color = tone === 'income'
+    ? theme.income
+    : tone === 'transfer'
+      ? theme.transfer
+      : tone === 'refund'
+        ? theme.primaryAction
+        : theme.expense;
+  const tint = tone === 'income'
+    ? theme.tintIncome
+    : tone === 'transfer'
+      ? theme.tintTransfer
+      : tone === 'refund'
+        ? theme.tintPrimary
+        : theme.tintExpense;
 
   return (
-    <View style={[styles.row, showDivider && { borderBottomColor: theme.border, borderBottomWidth: borderWidths.thin }]}>
-      <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
-        <SymbolView name={icon} size={22} tintColor={iconColor} />
-      </View>
+    <View style={[styles.row, { backgroundColor: theme.surface }]}>
+      <View style={[styles.accent, { backgroundColor: color }]} />
+      <IconChip background={tint} color={color} icon={icon} iconSize={19} size={36} />
       <View style={styles.copy}>
         <Text numberOfLines={1} style={[styles.title, { color: theme.primaryText }]}>
           {title}
         </Text>
-        <Text numberOfLines={1} style={[styles.subtitle, { color: theme.secondaryText }]}>
+        <Text numberOfLines={1} style={[styles.subtitle, { color: theme.mutedText }]}>
           {subtitle}
         </Text>
       </View>
@@ -49,32 +57,37 @@ export function TransactionListItem({
 const styles = StyleSheet.create({
   row: {
     alignItems: 'center',
+    borderRadius: borderRadii.md,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 84,
-    paddingVertical: spacing.md,
+    gap: spacing.sm + 2,
+    minHeight: 48,
+    paddingHorizontal: spacing.md - spacing.xs,
+    paddingVertical: spacing.sm + 1,
   },
-  icon: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
+  accent: {
+    borderRadius: 2,
+    height: 30,
+    width: 3,
   },
   copy: {
     flex: 1,
     minWidth: 0,
   },
   title: {
-    ...typography.body,
-    fontWeight: '700',
+    fontFamily: fonts.sans.semibold,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 19,
   },
   subtitle: {
-    ...typography.caption,
+    fontFamily: fonts.sans.medium,
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 15,
   },
   amount: {
+    ...typography.moneyRow,
     flexShrink: 1,
-    fontSize: 17,
     textAlign: 'right',
   },
 });

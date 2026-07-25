@@ -26,6 +26,8 @@ import { FormFieldButton } from '@/features/add-transaction/components/form-fiel
 import { TransferAccountFields } from '@/features/add-transaction/components/transfer-account-fields';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useCategories } from '@/features/categories/use-categories';
+import { refundService } from '@/features/refunds/refunds';
+import { useRefundSummary } from '@/features/refunds/use-refund-summary';
 import { transactionTypeLabel } from '@/features/transactions/transaction-presentation';
 import {
   TransactionActionError,
@@ -45,25 +47,40 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { transaction, loading, error, reload } = useTransactionDetails(transactionId);
+  const originalExpenseId = transaction?.type === 'refund'
+    ? transaction.originalTransactionId
+    : transaction?.type === 'expense'
+      ? transaction.id
+      : null;
+  const { summary: refundSummary, error: refundError, reload: reloadRefunds } =
+    useRefundSummary(originalExpenseId);
   const [editing, setEditing] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const [actionError, setActionError] = useState<string>();
 
   function confirmVoid() {
     if (!transaction || transaction.status === 'voided' || voiding) return;
+    const isRefund = transaction.type === 'refund';
     Alert.alert(
-      'Void transaction?',
-      'This removes the transaction from balances and reports while preserving it in history.',
+      isRefund ? 'Void refund?' : 'Void transaction?',
+      isRefund
+        ? 'This restores the refundable amount and removes the refund from balances, budgets, and reports.'
+        : 'This removes the transaction from balances and reports while preserving it in history.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Void transaction',
+          text: isRefund ? 'Void refund' : 'Void transaction',
           style: 'destructive',
           onPress: () => {
             setVoiding(true);
             setActionError(undefined);
-            void transactionService.void(transaction.id)
-              .then(reload)
+            const action = isRefund
+              ? refundService.void(transaction.id)
+              : transactionService.void(transaction.id);
+            void action
+              .then(async () => {
+                await Promise.all([reload(), reloadRefunds()]);
+              })
               .catch((cause: unknown) => {
                 setActionError(actionErrorMessage(cause, 'Unable to void transaction.'));
               })
@@ -100,7 +117,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
         <View style={styles.headerButton} />
       </View>
 
-      {editing ? (
+      {editing && transaction.type !== 'refund' ? (
         <TransactionEditForm
           onCancel={() => setEditing(false)}
           onSaved={async () => {
@@ -115,10 +132,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             accessibilityLabel={`Status, ${transaction.status === 'voided' ? 'Voided' : 'Posted'}`}
             style={[
               styles.statusBadge,
-              {
-                backgroundColor: transaction.status === 'voided' ? theme.disabledSurface : theme.elevatedSurface,
-                borderColor: transaction.status === 'voided' ? theme.mutedText : theme.primaryAction,
-              },
+              { backgroundColor: transaction.status === 'voided' ? theme.disabledSurface : theme.tintPrimary },
             ]}>
             <SymbolView
               name={transaction.status === 'voided'
@@ -132,8 +146,8 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             </Text>
           </View>
 
-          <View style={[styles.amountCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>Amount</Text>
+          <View style={[styles.amountCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.detailLabel, { color: theme.mutedText }]}>Amount</Text>
             <Text
               style={[
                 styles.detailAmount,
@@ -149,12 +163,48 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             ) : null}
           </View>
 
-          <View style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {transaction.type === 'expense' && refundSummary ? (
+            <View style={[styles.detailCard, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.refundHeading, { color: theme.primaryText }]}>
+                {refundSummary.refundStatus === 'full'
+                  ? 'Fully refunded'
+                  : refundSummary.refundStatus === 'partial'
+                    ? 'Partially refunded'
+                    : 'Refund status'}
+              </Text>
+              <DetailRow label="Gross amount" value={formatCop(refundSummary.grossAmount)} />
+              <DetailRow label="Refunded" value={formatCop(refundSummary.refundedAmount)} />
+              <DetailRow label="Net expense" value={formatCop(refundSummary.netExpense)} />
+              <DetailRow label="Refundable remaining" value={formatCop(refundSummary.refundableRemaining)} />
+              {refundSummary.refunds.map((refund) => (
+                <Pressable
+                  accessibilityHint="Opens refund details"
+                  accessibilityRole="button"
+                  key={refund.id}
+                  onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: refund.id } })}
+                  style={[styles.refundLink, { borderTopColor: theme.hairline }]}>
+                  <Text style={[styles.refundLinkText, { color: theme.primaryAction }]}>
+                    {refund.status === 'voided' ? 'Voided refund' : 'Refund'} · {refund.transactionDate}
+                  </Text>
+                  <Text style={[styles.refundLinkAmount, { color: refund.status === 'voided' ? theme.mutedText : theme.primaryAction }]}>
+                    +{formatCop(refund.amount)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={[styles.detailCard, { backgroundColor: theme.surface }]}>
             <DetailRow label="Type" value={transactionTypeLabel(transaction)} />
             {transaction.type === 'transfer' ? (
               <>
                 <DetailRow label="From account" value={transaction.accountName} />
                 <DetailRow label="To account" value={transaction.destinationAccountName ?? 'Unknown account'} />
+              </>
+            ) : transaction.type === 'refund' ? (
+              <>
+                <DetailRow label="Returned to account" value={transaction.accountName} />
+                <DetailRow label="Inherited category" value={transaction.categoryName ?? 'Unknown category'} />
               </>
             ) : (
               <>
@@ -168,15 +218,48 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             <DetailRow label="Updated" value={formatAuditTimestamp(transaction.updatedAt)} />
           </View>
 
-          {actionError ? (
+          {transaction.type === 'refund' ? (
+            <View style={[styles.refundExplanation, { backgroundColor: theme.tintPrimary }]}>
+              <Text style={[styles.refundExplanationText, { color: theme.primaryText }]}>
+                This refund reduces expenses and returns money to the original account. It is not income.
+              </Text>
+              <Pressable
+                accessibilityLabel="View original expense"
+                accessibilityRole="button"
+                onPress={() => router.replace({
+                  pathname: '/transactions/[id]',
+                  params: { id: transaction.originalTransactionId },
+                })}>
+                <Text style={[styles.originalLink, { color: theme.primaryAction }]}>View original expense</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {actionError || refundError ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>
-              {actionError}
+              {actionError ?? refundError}
             </Text>
           ) : null}
 
           {transaction.status === 'posted' ? (
             <View style={styles.actions}>
-              <Pressable
+              {transaction.type === 'expense'
+                && refundSummary
+                && refundSummary.refundableRemaining > 0 ? (
+                <Pressable
+                  accessibilityLabel="Add refund"
+                  accessibilityRole="button"
+                  onPress={() => router.push({
+                    pathname: '/refund-form',
+                    params: { originalTransactionId: transaction.id },
+                  })}
+                  style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
+                  <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Add refund</Text>
+                </Pressable>
+              ) : null}
+              {transaction.type !== 'refund'
+                && (transaction.type !== 'expense' || refundSummary?.refundedAmount === 0) ? (
+                <Pressable
                 accessibilityLabel="Edit transaction"
                 accessibilityRole="button"
                 onPress={() => {
@@ -186,18 +269,25 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                 style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
                 <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Edit transaction</Text>
               </Pressable>
+              ) : null}
+              {transaction.type !== 'expense' || refundSummary?.refundedAmount === 0 ? (
               <Pressable
-                accessibilityLabel="Void transaction"
+                accessibilityLabel={transaction.type === 'refund' ? 'Void refund' : 'Void transaction'}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: voiding }}
                 disabled={voiding}
                 onPress={confirmVoid}
-                style={[styles.actionButton, { backgroundColor: theme.surface, borderColor: theme.destructive, borderWidth: borderWidths.thin }]}>
+                style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
                 {voiding ? <ActivityIndicator color={theme.destructive} /> : null}
                 <Text style={[styles.actionLabel, { color: theme.destructive }]}>
-                  {voiding ? 'Voiding…' : 'Void transaction'}
+                  {voiding ? 'Voiding…' : transaction.type === 'refund' ? 'Void refund' : 'Void transaction'}
                 </Text>
               </Pressable>
+              ) : (
+                <Text style={[styles.lockedExplanation, { color: theme.secondaryText }]}>
+                  Void all posted refunds before editing or voiding this expense.
+                </Text>
+              )}
             </View>
           ) : null}
         </ScrollView>
@@ -210,7 +300,7 @@ function TransactionEditForm({
   transaction,
   onSaved,
 }: {
-  transaction: TransactionListItem;
+  transaction: Exclude<TransactionListItem, { type: 'refund' }>;
   onSaved: () => Promise<void>;
   onCancel: () => void;
 }) {
@@ -357,7 +447,7 @@ function TransactionEditForm({
               styles.textInput,
               {
                 backgroundColor: theme.surface,
-                borderColor: errors.transactionDate ? theme.destructive : theme.border,
+                borderColor: errors.transactionDate ? theme.destructive : theme.hairline,
                 color: theme.primaryText,
               },
             ]}
@@ -379,7 +469,7 @@ function TransactionEditForm({
               styles.noteInput,
               {
                 backgroundColor: theme.surface,
-                borderColor: errors.note ? theme.destructive : theme.border,
+                borderColor: errors.note ? theme.destructive : theme.hairline,
                 color: theme.primaryText,
               },
             ]}
@@ -415,8 +505,8 @@ function TransactionEditForm({
 function DetailRow({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
   return (
-    <View style={styles.detailRow}>
-      <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>{label}</Text>
+    <View style={[styles.detailRow, { borderBottomColor: theme.hairline }]}>
+      <Text style={[styles.detailLabel, { color: theme.mutedText }]}>{label}</Text>
       <Text selectable style={[styles.detailValue, { color: theme.primaryText }]}>{value}</Text>
     </View>
   );
@@ -452,26 +542,41 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.md },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
-  detailsContent: { gap: spacing.lg, paddingHorizontal: spacing.md },
+  detailsContent: { gap: spacing.md, paddingHorizontal: spacing.md },
   statusBadge: {
     alignItems: 'center',
     alignSelf: 'flex-start',
     borderRadius: borderRadii.full,
-    borderWidth: borderWidths.thin,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 40,
+    minHeight: 36,
     paddingHorizontal: spacing.md,
   },
   statusText: { ...typography.caption, fontWeight: '700' },
-  amountCard: { alignItems: 'center', borderRadius: borderRadii.lg, borderWidth: borderWidths.thin, gap: spacing.sm, padding: spacing.lg },
-  detailAmount: { ...typography.display, fontVariant: ['tabular-nums'] },
+  amountCard: { alignItems: 'center', borderRadius: borderRadii.lg, gap: spacing.sm, padding: spacing.lg },
+  detailAmount: { ...typography.moneyHero },
   voidedAmount: { textDecorationLine: 'line-through' },
   voidedExplanation: { ...typography.caption, textAlign: 'center' },
-  detailCard: { borderRadius: borderRadii.md, borderWidth: borderWidths.thin, padding: spacing.md },
-  detailRow: { gap: spacing.xs, paddingVertical: spacing.sm },
-  detailLabel: { ...typography.label, textTransform: 'uppercase' },
-  detailValue: { ...typography.body },
+  detailCard: { borderRadius: borderRadii.card, paddingHorizontal: spacing.md },
+  refundHeading: { ...typography.sectionTitle, paddingTop: spacing.md },
+  refundLink: {
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    minHeight: 48,
+    paddingVertical: spacing.sm,
+  },
+  refundLinkText: { ...typography.caption, flex: 1 },
+  refundLinkAmount: { ...typography.moneyRow },
+  refundExplanation: { borderRadius: borderRadii.md, gap: spacing.sm, padding: spacing.md },
+  refundExplanationText: { ...typography.caption },
+  originalLink: { ...typography.caption, fontWeight: '700' },
+  lockedExplanation: { ...typography.caption, textAlign: 'center' },
+  detailRow: { borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.xs, paddingVertical: spacing.sm + spacing.xs },
+  detailLabel: { ...typography.overline },
+  detailValue: { ...typography.body, fontFamily: typography.caption.fontFamily, fontSize: 14, lineHeight: 20 },
   actions: { gap: spacing.md },
   actionButton: { alignItems: 'center', borderRadius: borderRadii.full, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
   actionLabel: { ...typography.body, fontWeight: '700' },
@@ -479,7 +584,7 @@ const styles = StyleSheet.create({
   editArea: { flex: 1 },
   editContent: { gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
   lockedType: { borderRadius: borderRadii.md, gap: spacing.xs, padding: spacing.md },
-  lockedTypeValue: { ...typography.body, fontWeight: '700' },
+  lockedTypeValue: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700' },
   historicalValue: { ...typography.caption },
   field: { gap: spacing.sm },
   textInput: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },

@@ -1,6 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -27,13 +28,13 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
   const visible = categories.filter((category) => !normalized || category.name.toLocaleLowerCase('es-CO').includes(normalized));
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: theme.primaryText }]}>Expense category</Text>
+      <Overline color={theme.mutedText}>Expense category</Overline>
       <TextInput
         accessibilityLabel="Search expense categories"
         onChangeText={onSearchChange}
         placeholder="Search categories"
         placeholderTextColor={theme.mutedText}
-        style={[styles.search, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.border, color: theme.primaryText }]}
+        style={[styles.search, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.hairline, color: theme.primaryText }]}
         value={search}
       />
       <View accessibilityRole="radiogroup" style={styles.grid}>
@@ -49,9 +50,8 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
               style={[
                 styles.option,
                 {
-                  backgroundColor: selected ? theme.selectedNavigationBackground : theme.surface,
-                  borderColor: selected ? theme.primaryAction : theme.border,
-                  borderWidth: selected ? 3 : borderWidths.thin,
+                  backgroundColor: selected ? theme.tintPrimary : theme.surface,
+                  borderColor: selected ? theme.primaryAction : 'transparent',
                 },
               ]}>
               <View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}>
@@ -72,10 +72,9 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
 
 const styles = StyleSheet.create({
   field: { gap: spacing.sm },
-  label: { ...typography.body, fontWeight: '700' },
-  search: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  search: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  option: { alignItems: 'center', borderRadius: borderRadii.md, flexBasis: '47%', flexGrow: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 126, padding: spacing.sm, position: 'relative' },
+  option: { alignItems: 'center', borderRadius: borderRadii.card, borderWidth: borderWidths.thin, flexBasis: '47%', flexGrow: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 126, padding: spacing.sm, position: 'relative' },
   icon: { alignItems: 'center', borderRadius: borderRadii.full, height: 42, justifyContent: 'center', width: 42 },
   optionLabel: { ...typography.caption, fontWeight: '700', textAlign: 'center' },
   archived: { ...typography.label },

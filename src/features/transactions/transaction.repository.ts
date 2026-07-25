@@ -16,6 +16,7 @@ export interface TransactionRepository {
   listFilterOptions(): Promise<TransactionFilterOptions>;
   recent(limit: number): Promise<TransactionListItem[]>;
   summarizeMonth(month: string): Promise<MonthlyTransactionSummary>;
+  hasPostedRefunds(id: string): Promise<boolean>;
   updatePosted(id: string, transaction: TransactionUpdateRecord): Promise<boolean>;
   voidPosted(id: string, updatedAt: string): Promise<boolean>;
 }

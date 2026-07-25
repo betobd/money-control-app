@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzl
 
 import { database } from '@/database/client';
 import { accounts, categories, transactions } from '@/database/schema';
+import { alias } from 'drizzle-orm/sqlite-core';
 import type { ReportRepository } from './report.repository';
 import type {
   CategoryExpenseAggregate,
@@ -15,6 +16,8 @@ import type {
 const UNKNOWN_CATEGORY_ID = 'unknown-category';
 const UNKNOWN_CATEGORY_NAME = 'Unknown category';
 const UNKNOWN_CATEGORY_ICON = 'other';
+const originalTransactions = alias(transactions, 'report_original_transactions');
+const originalCategories = alias(categories, 'report_original_categories');
 
 function groupingExpression(grouping: ReportGrouping): SQL<string> {
   return grouping === 'day'
@@ -45,9 +48,11 @@ export class SQLiteReportRepository implements ReportRepository {
       database
         .select({
           income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-          expenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+          grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+          refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
           incomeCount: sql<number>`sum(case when ${transactions.type} = 'income' then 1 else 0 end)`,
           expenseCount: sql<number>`sum(case when ${transactions.type} = 'expense' then 1 else 0 end)`,
+          refundCount: sql<number>`sum(case when ${transactions.type} = 'refund' then 1 else 0 end)`,
         })
         .from(transactions)
         .where(condition),
@@ -70,9 +75,11 @@ export class SQLiteReportRepository implements ReportRepository {
     const largest = largestRows[0];
     return {
       income: safeInteger(aggregate?.income ?? 0, 'Report income'),
-      expenses: safeInteger(aggregate?.expenses ?? 0, 'Report expenses'),
+      grossExpenses: safeInteger(aggregate?.grossExpenses ?? 0, 'Report gross expenses'),
+      refunds: safeInteger(aggregate?.refunds ?? 0, 'Report refunds'),
       incomeCount: safeInteger(aggregate?.incomeCount ?? 0, 'Report income count'),
       expenseCount: safeInteger(aggregate?.expenseCount ?? 0, 'Report expense count'),
+      refundCount: safeInteger(aggregate?.refundCount ?? 0, 'Report refund count'),
       largestExpense: largest
         ? {
             amount: safeInteger(largest.amount, 'Largest expense'),
@@ -90,12 +97,13 @@ export class SQLiteReportRepository implements ReportRepository {
       .select({
         key,
         income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-        expenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
+        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
       })
       .from(transactions)
       .where(and(
         eq(transactions.status, 'posted'),
-        inArray(transactions.type, ['income', 'expense']),
+        inArray(transactions.type, ['income', 'expense', 'refund']),
         gte(transactions.transactionDate, period.dateFrom),
         lte(transactions.transactionDate, period.dateTo),
       ))
@@ -105,30 +113,37 @@ export class SQLiteReportRepository implements ReportRepository {
     return rows.map((row) => ({
       key: row.key,
       income: safeInteger(row.income, 'Cash-flow income'),
-      expenses: safeInteger(row.expenses, 'Cash-flow expenses'),
+      grossExpenses: safeInteger(row.grossExpenses, 'Cash-flow gross expenses'),
+      refunds: safeInteger(row.refunds, 'Cash-flow refunds'),
     }));
   }
 
   async categoryExpenses(period: ReportPeriod): Promise<CategoryExpenseAggregate[]> {
-    const total = sql<number>`coalesce(sum(${transactions.amount}), 0)`;
+    const effectiveCategoryId = sql<string>`coalesce(${transactions.categoryId}, ${originalTransactions.categoryId})`;
+    const total = sql<number>`coalesce(sum(case
+      when ${transactions.type} = 'expense' then ${transactions.amount}
+      when ${transactions.type} = 'refund' then -${transactions.amount}
+      else 0 end), 0)`;
     const rows = await database
       .select({
-        categoryId: transactions.categoryId,
-        categoryName: categories.name,
-        icon: categories.icon,
+        categoryId: effectiveCategoryId,
+        categoryName: sql<string | null>`coalesce(${categories.name}, ${originalCategories.name})`,
+        icon: sql<string | null>`coalesce(${categories.icon}, ${originalCategories.icon})`,
         total,
         transactionCount: sql<number>`count(*)`,
       })
       .from(transactions)
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(originalTransactions, eq(transactions.originalTransactionId, originalTransactions.id))
+      .leftJoin(originalCategories, eq(originalTransactions.categoryId, originalCategories.id))
       .where(and(
         eq(transactions.status, 'posted'),
-        eq(transactions.type, 'expense'),
+        inArray(transactions.type, ['expense', 'refund']),
         gte(transactions.transactionDate, period.dateFrom),
         lte(transactions.transactionDate, period.dateTo),
       ))
-      .groupBy(transactions.categoryId, categories.id, categories.name, categories.icon)
-      .orderBy(desc(total), asc(transactions.categoryId));
+      .groupBy(effectiveCategoryId)
+      .orderBy(desc(total), asc(effectiveCategoryId));
 
     return rows.map((row) => ({
       categoryId: row.categoryId ?? UNKNOWN_CATEGORY_ID,
@@ -145,6 +160,7 @@ export class SQLiteReportRepository implements ReportRepository {
       case
         when ${transactions.type} = 'income' then ${transactions.amount}
         when ${transactions.type} = 'expense' then -${transactions.amount}
+        when ${transactions.type} = 'refund' then ${transactions.amount}
         else 0
       end
     ), 0)`;
@@ -157,7 +173,7 @@ export class SQLiteReportRepository implements ReportRepository {
         .from(transactions)
         .where(and(
           eq(transactions.status, 'posted'),
-          inArray(transactions.type, ['income', 'expense']),
+          inArray(transactions.type, ['income', 'expense', 'refund']),
           lt(transactions.transactionDate, period.dateFrom),
         )),
       database
@@ -165,7 +181,7 @@ export class SQLiteReportRepository implements ReportRepository {
         .from(transactions)
         .where(and(
           eq(transactions.status, 'posted'),
-          inArray(transactions.type, ['income', 'expense']),
+          inArray(transactions.type, ['income', 'expense', 'refund']),
           gte(transactions.transactionDate, period.dateFrom),
           lte(transactions.transactionDate, period.dateTo),
         ))

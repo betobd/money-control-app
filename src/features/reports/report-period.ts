@@ -79,7 +79,7 @@ export function previousEquivalentPeriod(period: ReportPeriod): ReportPeriod {
 
 export function enumerateReportBuckets(period: ReportPeriod): Omit<
   import('./report.types').CashFlowBucket,
-  'income' | 'expenses' | 'net'
+  'income' | 'grossExpenses' | 'refunds' | 'expenses' | 'net'
 >[] {
   if (period.grouping === 'day') {
     const buckets = [];

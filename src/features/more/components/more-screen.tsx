@@ -1,23 +1,129 @@
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useRouter, type Href } from 'expo-router';
+import { Fragment } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { Card } from '@/components/card';
+import { IconChip } from '@/components/icon-chip';
+import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
+type MenuItem = {
+  accessibilityLabel: string;
+  accessibilityHint: string;
+  icon: SymbolViewProps['name'];
+  label: string;
+  description: string;
+  href: Href;
+};
+
+const menuItems: MenuItem[] = [
+  {
+    accessibilityLabel: 'Open security settings',
+    accessibilityHint: 'Configure PIN, device biometrics, and automatic App Lock',
+    icon: { ios: 'lock.shield.fill', android: 'shield_lock', web: 'lock' },
+    label: 'Security',
+    description: 'PIN, biometrics, and automatic locking',
+    href: '/security' as Href,
+  },
+  {
+    accessibilityLabel: 'Open notification settings',
+    accessibilityHint: 'Configure local recurring, budget, and daily reminders',
+    icon: { ios: 'bell.badge.fill', android: 'notifications', web: 'notifications' },
+    label: 'Notifications',
+    description: 'Local reminders and notification privacy',
+    href: '/notifications-settings' as Href,
+  },
+  {
+    accessibilityLabel: 'Open backup and restore',
+    accessibilityHint: 'Create a local backup or replace local data from a backup file',
+    icon: { ios: 'externaldrive.fill', android: 'backup', web: 'backup' },
+    label: 'Backup & Restore',
+    description: 'Save or restore a complete local copy',
+    href: '/backup' as Href,
+  },
+  {
+    accessibilityLabel: 'Open data export',
+    accessibilityHint: 'Create readable CSV files for spreadsheets, analysis, and sharing',
+    icon: { ios: 'tablecells.fill', android: 'csv', web: 'table_view' },
+    label: 'Data Export',
+    description: 'Readable CSV files for analysis and sharing',
+    href: '/data-export' as Href,
+  },
+  {
+    accessibilityLabel: 'Open reports',
+    accessibilityHint: 'Review income, expenses, categories, net worth, and period comparisons',
+    icon: { ios: 'chart.xyaxis.line', android: 'query_stats', web: 'query_stats' },
+    label: 'Reports',
+    description: 'Explore cash flow, categories, and net worth',
+    href: '/reports' as Href,
+  },
+  {
+    accessibilityLabel: 'Manage categories',
+    accessibilityHint: 'Create, edit, archive, and restore categories',
+    icon: { ios: 'square.grid.2x2.fill', android: 'category', web: 'category' },
+    label: 'Categories',
+    description: 'Manage expense and income categories',
+    href: '/categories' as Href,
+  },
+  {
+    accessibilityLabel: 'Manage recurring transactions',
+    accessibilityHint: 'Review due occurrences and manage recurring rules',
+    icon: { ios: 'repeat', android: 'repeat', web: 'repeat' },
+    label: 'Recurring Transactions',
+    description: 'Review, confirm, pause, and schedule recurring items',
+    href: '/recurring' as Href,
+  },
+];
+
 export function MoreScreen() {
-  const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme();
-  return <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-    <View style={styles.header}><Pressable accessibilityLabel="Close More" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}><SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} /></Pressable><Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>More</Text><View style={styles.headerButton} /></View>
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
-      <Pressable accessibilityLabel="Open security settings" accessibilityHint="Configure PIN, device biometrics, and automatic App Lock" accessibilityRole="button" onPress={() => router.push('/security' as Href)} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'lock.shield.fill', android: 'shield_lock', web: 'lock' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Security</Text><Text style={[styles.description, { color: theme.secondaryText }]}>PIN, biometrics, and automatic locking</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Open notification settings" accessibilityHint="Configure local recurring, budget, and daily reminders" accessibilityRole="button" onPress={() => router.push('/notifications-settings' as Href)} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'bell.badge.fill', android: 'notifications', web: 'notifications' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Notifications</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Local reminders and notification privacy</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Open backup and restore" accessibilityHint="Create a local backup or replace local data from a backup file" accessibilityRole="button" onPress={() => router.push('/backup' as Href)} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'externaldrive.fill', android: 'backup', web: 'backup' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Backup & Restore</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Save or restore a complete local copy</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Open data export" accessibilityHint="Create readable CSV files for spreadsheets, analysis, and sharing" accessibilityRole="button" onPress={() => router.push('/data-export' as Href)} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'tablecells.fill', android: 'csv', web: 'table_view' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Data Export</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Readable CSV files for analysis and sharing</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Open reports" accessibilityHint="Review income, expenses, categories, net worth, and period comparisons" accessibilityRole="button" onPress={() => router.push('/reports' as Href)} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'chart.xyaxis.line', android: 'query_stats', web: 'query_stats' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Reports</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Explore cash flow, categories, and net worth</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Manage categories" accessibilityHint="Create, edit, archive, and restore categories" accessibilityRole="button" onPress={() => router.push('/categories')} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'square.grid.2x2.fill', android: 'category', web: 'category' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Categories</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Manage expense and income categories</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-      <Pressable accessibilityLabel="Manage recurring transactions" accessibilityHint="Review due occurrences and manage recurring rules" accessibilityRole="button" onPress={() => router.push('/recurring')} style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}><View style={[styles.icon, { backgroundColor: theme.elevatedSurface }]}><SymbolView name={{ ios: 'repeat', android: 'repeat', web: 'repeat' }} size={24} tintColor={theme.primaryAction} /></View><View style={styles.text}><Text style={[styles.label, { color: theme.primaryText }]}>Recurring Transactions</Text><Text style={[styles.description, { color: theme.secondaryText }]}>Review, confirm, pause, and schedule recurring items</Text></View><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} /></Pressable>
-    </ScrollView>
-  </View>;
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
+  return (
+    <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Pressable accessibilityLabel="Close More" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
+          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
+        </Pressable>
+        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>More</Text>
+        <View style={styles.headerButton} />
+      </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <Card padding={0}>
+          {menuItems.map((item, index) => (
+            <Fragment key={item.label}>
+              {index > 0 ? <View style={[styles.separator, { backgroundColor: theme.hairline }]} /> : null}
+              <Pressable
+                accessibilityLabel={item.accessibilityLabel}
+                accessibilityHint={item.accessibilityHint}
+                accessibilityRole="button"
+                onPress={() => router.push(item.href)}
+                style={styles.row}>
+                <IconChip background={theme.tintPrimary} color={theme.primaryAction} icon={item.icon} iconSize={22} size={44} />
+                <View style={styles.text}>
+                  <Text style={[styles.label, { color: theme.primaryText }]}>{item.label}</Text>
+                  <Text style={[styles.description, { color: theme.secondaryText }]}>{item.description}</Text>
+                </View>
+                <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} />
+              </Pressable>
+            </Fragment>
+          ))}
+        </Card>
+      </ScrollView>
+    </View>
+  );
 }
-const styles = StyleSheet.create({ screen: { flex: 1 }, header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm }, headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' }, content: { gap: spacing.md, padding: spacing.md }, row: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 76, padding: spacing.md }, icon: { alignItems: 'center', borderRadius: borderRadii.md, height: 44, justifyContent: 'center', width: 44 }, text: { flex: 1 }, label: { ...typography.body, fontWeight: '700' }, description: { ...typography.caption } });
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
+  title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' },
+  content: { padding: spacing.md },
+  row: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 76, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: spacing.md + 44 + spacing.md },
+  text: { flex: 1 },
+  label: { ...typography.body },
+  description: { ...typography.caption },
+});

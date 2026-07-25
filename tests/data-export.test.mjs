@@ -148,6 +148,10 @@ function transaction(transactionId, overrides = {}) {
     sourceAccountName: 'Checking',
     destinationAccountId: null,
     destinationAccountName: null,
+    originalTransactionId: null,
+    originalTransactionDate: null,
+    originalTransactionAmountCop: null,
+    originalTransactionNote: null,
     note: '=private note',
     recurringOccurrenceId: null,
     createdAt: NOW,
@@ -161,9 +165,12 @@ function reportData() {
     period: { preset: 'current-month', dateFrom: '2026-07-01', dateTo: '2026-07-31', grouping: 'day', label: 'July' },
     summary: {
       income: 500_000,
+      grossExpenses: 150_000,
+      refunds: 25_000,
       expenses: 125_000,
       net: 375_000,
       expenseCount: 2,
+      refundCount: 1,
       incomeCount: 1,
       averageExpense: 62_500,
       largestExpense: { amount: 100_000, categoryName: '=Utilities', accountName: 'Checking', transactionDate: '2026-07-10' },
@@ -224,7 +231,7 @@ function setup() {
   return { accounts, files, repository, service };
 }
 
-test('transaction export covers expense, income, transfer, posted, voided, notes policy, filters, and stable chronological order', async () => {
+test('transaction export covers refunds, original references, other types, notes policy, filters, and stable order', async () => {
   const { files, repository, service } = setup();
   repository.transactions = [
     transaction('voided', { transactionDate: '2026-07-11', status: 'voided' }),
@@ -234,18 +241,28 @@ test('transaction export covers expense, income, transfer, posted, voided, notes
       destinationAccountId: 'card', destinationAccountName: 'Archived card', note: 'Transfer',
     }),
     transaction('archived', { sourceAccountName: 'Old cash', categoryName: 'Old category' }),
+    transaction('refund', {
+      transactionDate: '2026-07-12',
+      type: 'refund',
+      amountCop: 10_000,
+      originalTransactionId: 'archived',
+      originalTransactionDate: '2026-07-10',
+      originalTransactionAmountCop: 25_000,
+      originalTransactionNote: 'Original note',
+    }),
   ];
   const filters = {
     ...createDefaultTransactionListFilters(TODAY),
     datePreset: 'custom', customDateFrom: '2026-07-10', customDateTo: '2026-07-12',
   };
   const result = await service.exportTransactions({ filters, includeNotes: false });
-  assert.equal(result.rowCount, 4);
+  assert.equal(result.rowCount, 5);
   assert.equal(result.fileName, 'money-control-transactions-2026-07-10-to-2026-07-12.csv');
   const csv = files.calls[0].contents;
   assert.ok(csv.indexOf('income,') < csv.indexOf('voided,'));
   assert.ok(csv.indexOf('voided,') < csv.indexOf('transfer,'));
-  assert.match(csv, /transfer,posted,25000,,,checking,Checking,card,Archived card,,/);
+  assert.match(csv, /transfer,posted,25000,,,,,,,checking,Checking,card,Archived card,,/);
+  assert.match(csv, /refund,posted,10000,food,Food,archived,2026-07-10,25000,/);
   assert.equal(csv.includes("'=private note"), false);
 
   await service.exportTransactions({
@@ -325,9 +342,12 @@ test('report summary exports correct metric rows, net worth endpoints, empty-cap
   const { files, service } = setup();
   const result = await service.exportReport({ preset: 'current-month' });
   assert.equal(result.fileName, 'money-control-report-2026-07.csv');
-  assert.equal(result.rowCount, 12);
+  assert.equal(result.rowCount, 15);
   const csv = files.calls[0].contents;
   assert.match(csv, /total_income_cop,500000,2026-07-01,2026-07-31/);
+  assert.match(csv, /gross_expenses_cop,150000/);
+  assert.match(csv, /refunds_cop,25000/);
+  assert.match(csv, /net_expenses_cop,125000/);
   assert.match(csv, /net_result_cop,375000/);
   assert.match(csv, /net_worth_start_cop,1000000/);
   assert.match(csv, /net_worth_end_cop,1375000/);
