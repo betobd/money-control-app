@@ -3,7 +3,11 @@ import {
   TransactionValidationError,
   type TransactionService,
 } from '@/features/transactions/transaction.service';
-import type { TransactionInput } from '@/features/transactions/transaction.types';
+import type {
+  ExchangeRateSnapshotInput,
+  TransactionInput,
+} from '@/features/transactions/transaction.types';
+import type { CurrencyCode } from '@/features/currency/currency';
 import { collectDueDates, firstScheduledOnOrAfter } from './recurring-schedule';
 import { notifyRecurringDataChanged } from './recurring-data-events';
 import type { RecurringTransactionRepository } from './recurring-transaction.repository';
@@ -30,7 +34,8 @@ export type RecurringActionErrorCode =
   | 'rule_not_found'
   | 'rule_ended'
   | 'occurrence_not_found'
-  | 'occurrence_not_pending';
+  | 'occurrence_not_pending'
+  | 'missing_exchange_rate';
 
 export class RecurringActionError extends Error {
   constructor(
@@ -48,6 +53,8 @@ export class RecurringTransactionService {
     private readonly createId: () => string,
     private readonly now = () => new Date().toISOString(),
     private readonly today = () => bogotaToday(),
+    /** Resolves the current USD/COP rate snapshot when posting a USD occurrence. */
+    private readonly resolveExchangeRate: () => Promise<ExchangeRateSnapshotInput | null> = async () => null,
   ) {}
 
   listRules() {
@@ -76,12 +83,12 @@ export class RecurringTransactionService {
   }
 
   async createRule(input: RecurringRuleInput): Promise<RecurringRuleRecord> {
-    const normalized = await this.validateRule(input);
+    const { input: normalized, currency } = await this.validateRule(input);
     const timestamp = this.now();
     const rule: RecurringRuleRecord = {
       ...normalized,
       id: this.createId(),
-      currency: 'COP',
+      currency,
       nextOccurrenceDate: normalized.startDate,
       isActive: true,
       endedAt: null,
@@ -98,7 +105,7 @@ export class RecurringTransactionService {
     if (current.endedAt) {
       throw new RecurringActionError('rule_ended', 'Ended recurring transactions cannot be edited.');
     }
-    const normalized = await this.validateRule(input);
+    const { input: normalized, currency } = await this.validateRule(input);
     const latest = await this.repository.findLatestScheduledDate(id);
     const target = latest ? dayAfter(latest) : this.today();
     const nextOccurrenceDate = firstScheduledOnOrAfter(
@@ -110,6 +117,7 @@ export class RecurringTransactionService {
     const updated: RecurringRuleRecord = {
       ...current,
       ...normalized,
+      currency,
       nextOccurrenceDate,
       updatedAt: this.now(),
     };
@@ -134,7 +142,7 @@ export class RecurringTransactionService {
         status: 'pending',
         type: rule.type,
         amount: rule.amount,
-        currency: 'COP',
+        currency: rule.currency,
         accountId: rule.accountId,
         destinationAccountId: rule.destinationAccountId,
         categoryId: rule.categoryId,
@@ -225,9 +233,10 @@ export class RecurringTransactionService {
     if (!isValidCalendarDate(shape.scheduledDate)) {
       throw new RecurringRuleValidationError({ startDate: 'Enter a valid date in YYYY-MM-DD format.' });
     }
-    const normalized = await this.validateShape(shape, shape.scheduledDate);
+    const { shape: normalizedShape, currency } = await this.validateShape(shape, shape.scheduledDate);
     if (!(await this.repository.updatePendingOccurrence(id, {
-      ...normalized,
+      ...normalizedShape,
+      currency,
       scheduledDate: shape.scheduledDate,
       updatedAt: this.now(),
     }))) {
@@ -247,7 +256,19 @@ export class RecurringTransactionService {
 
   async confirmOccurrence(id: string) {
     const occurrence = await this.requirePendingOccurrence(id);
-    const input = this.toTransactionInput(occurrence);
+    // A foreign-currency income/expense occurrence captures its own rate snapshot
+    // at posting time. Without a valid rate, posting is blocked (never posts COP 0).
+    let exchangeRate: ExchangeRateSnapshotInput | null = null;
+    if (occurrence.currency !== 'COP' && occurrence.type !== 'transfer') {
+      exchangeRate = await this.resolveExchangeRate();
+      if (!exchangeRate) {
+        throw new RecurringActionError(
+          'missing_exchange_rate',
+          'Add an exchange rate before posting this USD transaction.',
+        );
+      }
+    }
+    const input = this.toTransactionInput(occurrence, exchangeRate);
     const timestamp = this.now();
     const transaction = await this.transactions.create(
       input,
@@ -264,8 +285,10 @@ export class RecurringTransactionService {
     return transaction;
   }
 
-  private async validateRule(input: RecurringRuleInput): Promise<RecurringRuleInput> {
-    const normalizedShape = await this.validateShape(input, input.startDate);
+  private async validateRule(
+    input: RecurringRuleInput,
+  ): Promise<{ input: RecurringRuleInput; currency: CurrencyCode }> {
+    const { shape: normalizedShape, currency } = await this.validateShape(input, input.startDate);
     const errors: RecurringRuleValidationErrors = {};
     if (!recurringFrequencies.includes(input.frequency)) errors.frequency = 'Select a supported frequency.';
     if (!Number.isInteger(input.interval) || input.interval < 1) {
@@ -278,28 +301,59 @@ export class RecurringTransactionService {
     }
     if (Object.keys(errors).length) throw new RecurringRuleValidationError(errors);
     return {
-      ...normalizedShape,
-      frequency: input.frequency,
-      interval: input.interval,
-      startDate: input.startDate,
-      endDate: input.endDate?.trim() || null,
+      input: {
+        ...normalizedShape,
+        frequency: input.frequency,
+        interval: input.interval,
+        startDate: input.startDate,
+        endDate: input.endDate?.trim() || null,
+      },
+      currency,
     };
   }
 
   private async validateShape<T extends RecurringTransactionShape>(
     input: T,
     transactionDate: string,
-  ): Promise<T> {
-    const transactionInput: TransactionInput = input.type === 'transfer'
-      ? { ...input, transactionDate }
-      : { ...input, transactionDate };
+  ): Promise<{ shape: T; currency: CurrencyCode }> {
+    // Recurring transfers are same-currency only: the destination leg is left for the
+    // service to derive, so a cross-currency pair surfaces as a rate/leg error which
+    // we translate into a clear "not supported" message.
+    const transactionInput: TransactionInput = { ...input, transactionDate };
     try {
       const normalized = await this.transactions.validateTemplate(transactionInput);
-      const { transactionDate: _, ...shape } = normalized;
-      void _;
-      return shape as T;
+      if (normalized.type === 'transfer' && normalized.currency !== normalized.destinationCurrencyCode) {
+        throw new RecurringRuleValidationError({
+          destinationAccountId: 'Recurring cross-currency transfers are not supported in Multi-Currency v1.',
+        });
+      }
+      const shape = (normalized.type === 'transfer'
+        ? {
+            type: 'transfer' as const,
+            amount: normalized.amount,
+            accountId: normalized.accountId,
+            destinationAccountId: normalized.destinationAccountId,
+            categoryId: null,
+            note: normalized.note,
+          }
+        : {
+            type: normalized.type,
+            amount: normalized.amount,
+            accountId: normalized.accountId,
+            categoryId: normalized.categoryId,
+            destinationAccountId: null,
+            note: normalized.note,
+          }) as T;
+      return { shape, currency: normalized.currency };
     } catch (cause) {
+      if (cause instanceof RecurringRuleValidationError) throw cause;
       if (!(cause instanceof TransactionValidationError)) throw cause;
+      // A transfer that fails only on the destination leg/rate is a cross-currency pair.
+      if (input.type === 'transfer' && (cause.fields.destinationAmount || cause.fields.exchangeRate)) {
+        throw new RecurringRuleValidationError({
+          destinationAccountId: 'Recurring cross-currency transfers are not supported in Multi-Currency v1.',
+        });
+      }
       const { transactionDate: dateError, ...fields } = cause.fields;
       throw new RecurringRuleValidationError({
         ...fields,
@@ -308,8 +362,12 @@ export class RecurringTransactionService {
     }
   }
 
-  private toTransactionInput(occurrence: RecurringOccurrenceListItem): TransactionInput {
+  private toTransactionInput(
+    occurrence: RecurringOccurrenceListItem,
+    exchangeRate: ExchangeRateSnapshotInput | null,
+  ): TransactionInput {
     if (occurrence.type === 'transfer') {
+      // Recurring transfers are same-currency; the service derives the destination leg.
       return {
         type: 'transfer',
         amount: occurrence.amount,
@@ -328,6 +386,7 @@ export class RecurringTransactionService {
       destinationAccountId: null,
       transactionDate: occurrence.scheduledDate,
       note: occurrence.note,
+      exchangeRate,
     };
   }
 

@@ -151,7 +151,16 @@ export class SQLiteDataExportRepository implements DataExportRepository {
           transactionDate: transaction.transactionDate,
           type: transaction.type as TransactionExportRow['type'],
           status: transaction.status as TransactionExportRow['status'],
+          currencyCode: transaction.currency,
           amountCop: transaction.amount,
+          baseCurrencyAmountCop: transaction.baseAmountMinor,
+          exchangeRate: transaction.exchangeRateScaled !== null && transaction.exchangeRateScale
+            ? transaction.exchangeRateScaled / transaction.exchangeRateScale
+            : null,
+          exchangeRateDate: transaction.exchangeRateDate,
+          exchangeRateSource: transaction.exchangeRateSource,
+          destinationAmountMinor: transaction.destinationAmountMinor,
+          destinationCurrencyCode: transaction.destinationCurrencyCode,
           categoryId: transaction.type === 'transfer' ? null : row.categoryId,
           categoryName: transaction.type === 'transfer' ? null : row.categoryName,
           originalTransactionId: transaction.originalTransactionId,

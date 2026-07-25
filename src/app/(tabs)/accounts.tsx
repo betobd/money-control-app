@@ -6,9 +6,9 @@ import { Alert, Pressable, StyleSheet, Text, View, type AlertButton } from 'reac
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
 import { AccountActionError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
+import { formatMoneyNumber, type ScaledRate } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountCard } from '@/features/accounts/components/account-card';
 import { AccountsErrorState, EmptyAccountsState, LoadingAccountCard } from '@/features/accounts/components/account-states';
@@ -22,10 +22,17 @@ export default function AccountsScreen() {
   const theme = useAppTheme();
   const [showArchived, setShowArchived] = useState(false);
   const [actionError, setActionError] = useState<string>();
-  const { accounts, error, loading, reload } = useAccounts();
+  const { accounts, rateStatus, error, loading, reload } = useAccounts();
   const activeAccounts = useMemo(() => accounts.filter((account) => !account.isArchived), [accounts]);
   const archivedAccounts = useMemo(() => accounts.filter((account) => account.isArchived), [accounts]);
-  const netWorth = accountService.calculateNetWorth(accounts);
+  const valuationRate: ScaledRate | null = useMemo(
+    () => (rateStatus?.rate ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale } : null),
+    [rateStatus],
+  );
+  const netWorth = useMemo(
+    () => accountService.estimateNetWorth(accounts, valuationRate),
+    [accounts, valuationRate],
+  );
 
   async function openActions(account: AccountWithBalance) {
     setActionError(undefined);
@@ -113,7 +120,14 @@ export default function AccountsScreen() {
         </Text>
       ) : null}
 
-      {!loading && !error ? <NetWorthSummary amount={formatCop(netWorth)} currency="COP" /> : null}
+      {!loading && !error ? (
+        <NetWorthSummary
+          amount={netWorth.totalCopMinor === null ? '' : formatMoneyNumber(netWorth.totalCopMinor, 'COP')}
+          currency="COP"
+          estimated={netWorth.includesForeign && !netWorth.incomplete}
+          incomplete={netWorth.incomplete}
+        />
+      ) : null}
 
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Active accounts</Text>
@@ -133,7 +147,7 @@ export default function AccountsScreen() {
       {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState /> : null}
       {!loading && !error && activeAccounts.length > 0 ? (
         <View accessibilityLabel="Active accounts" style={styles.accounts}>
-          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} valuationRate={valuationRate} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
         </View>
       ) : null}
 
@@ -141,7 +155,7 @@ export default function AccountsScreen() {
         <View style={styles.archivedSection}>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Archived accounts</Text>
           <View accessibilityLabel="Archived accounts" style={styles.accounts}>
-            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} valuationRate={valuationRate} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
           </View>
         </View>
       ) : null}

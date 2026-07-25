@@ -1,13 +1,13 @@
 import { backupLimits, utf8ByteLength } from './backup-limits';
 import {
   BACKUP_CHECKSUM_ALGORITHM,
-  BACKUP_CURRENCY,
   BACKUP_FORMAT,
   BACKUP_TIMEZONE,
   type BackupFile,
   type BackupFileV1,
   type BackupFileV2,
   type BackupFileV3,
+  type BackupFileV4,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -225,9 +225,10 @@ function validateBoolean(value: unknown, path: string, issues: ValidationIssues)
   return true;
 }
 
-function validateCurrency(value: unknown, path: string, issues: ValidationIssues): void {
-  if (value !== BACKUP_CURRENCY) {
-    issue(issues, 'domain_mismatch', path, `${path} must be COP.`);
+function validateCurrency(value: unknown, path: string, issues: ValidationIssues, allowUsd = false): void {
+  const allowed = allowUsd ? ['COP', 'USD'] : ['COP'];
+  if (typeof value !== 'string' || !allowed.includes(value)) {
+    issue(issues, 'domain_mismatch', path, `${path} must be ${allowed.join(' or ')}.`);
   }
 }
 
@@ -275,7 +276,7 @@ function validateTransactionShape(
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4): void {
   rows.forEach((value, index) => {
     const path = `data.accounts[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -283,7 +284,7 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues, version:
     validateId(row.id, `${path}.id`, issues);
     validateString(row.name, `${path}.name`, issues, { nonBlank: true });
     validateEnum(row.type, ['checking', 'savings', 'credit_card', 'cash', 'other'], `${path}.type`, issues);
-    validateCurrency(row.currency, `${path}.currency`, issues);
+    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
     validateSafeInteger(row.openingBalance, `${path}.openingBalance`, issues);
     if (row.creditLimit !== null) {
       validateSafeInteger(row.creditLimit, `${path}.creditLimit`, issues, { nonNegative: true });
@@ -356,10 +357,57 @@ function validateCategoryRows(rows: unknown[], issues: ValidationIssues): void {
   });
 }
 
+const EXCHANGE_RATE_SOURCES = ['frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill'];
+
+/** Format-v4 transaction currency snapshot: base COP amount, rate, and transfer legs. */
+function validateTransactionCurrencyV4(row: Record<string, unknown>, path: string, issues: ValidationIssues): void {
+  const isTransfer = row.type === 'transfer';
+  const isForeign = row.currency === 'USD';
+  // Base COP snapshot: null for transfers; present (positive) for foreign income/expense/refund.
+  if (isTransfer) {
+    if (row.baseAmountMinor !== null) {
+      issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, 'Transfers do not carry a base amount.');
+    }
+  } else if (row.baseAmountMinor !== null) {
+    validateSafeInteger(row.baseAmountMinor, `${path}.baseAmountMinor`, issues, { positive: true });
+  } else if (isForeign) {
+    issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, 'A foreign-currency transaction requires a COP base amount.');
+  }
+  // Rate snapshot: required for foreign income/expense/refund and cross-currency transfers.
+  const hasRate = row.exchangeRateScaled !== null;
+  if (hasRate) {
+    validateSafeInteger(row.exchangeRateScaled, `${path}.exchangeRateScaled`, issues, { positive: true });
+    validateSafeInteger(row.exchangeRateScale, `${path}.exchangeRateScale`, issues, { positive: true });
+    validateCalendarDate(row.exchangeRateDate, `${path}.exchangeRateDate`, issues);
+    if (typeof row.exchangeRateSource !== 'string' || !EXCHANGE_RATE_SOURCES.includes(row.exchangeRateSource)) {
+      issue(issues, 'invalid_value', `${path}.exchangeRateSource`, 'Invalid exchange-rate source.');
+    }
+  }
+  if (!isTransfer && isForeign && !hasRate) {
+    issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, 'A foreign-currency transaction requires a rate snapshot.');
+  }
+  // Destination leg: present for transfers, absent otherwise.
+  if (isTransfer) {
+    validateSafeInteger(row.destinationAmountMinor, `${path}.destinationAmountMinor`, issues, { positive: true });
+    validateCurrency(row.destinationCurrencyCode, `${path}.destinationCurrencyCode`, issues, true);
+    const crossCurrency = row.destinationCurrencyCode !== row.currency;
+    if (crossCurrency && !hasRate) {
+      issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, 'A cross-currency transfer requires a rate snapshot.');
+    }
+  } else {
+    if (row.destinationAmountMinor !== null) {
+      issue(issues, 'domain_mismatch', `${path}.destinationAmountMinor`, 'Only transfers carry a destination leg.');
+    }
+    if (row.destinationCurrencyCode !== null) {
+      issue(issues, 'domain_mismatch', `${path}.destinationCurrencyCode`, 'Only transfers carry a destination currency.');
+    }
+  }
+}
+
 function validateTransactionRows(
   rows: unknown[],
   issues: ValidationIssues,
-  version: 1 | 2 | 3,
+  version: 1 | 2 | 3 | 4,
 ): void {
   rows.forEach((value, index) => {
     const path = `data.transactions[${index}]`;
@@ -368,17 +416,17 @@ function validateTransactionRows(
     validateId(row.id, `${path}.id`, issues);
     validateEnum(
       row.type,
-      version === 3 ? ['income', 'expense', 'transfer', 'refund'] : ['income', 'expense', 'transfer'],
+      version >= 3 ? ['income', 'expense', 'transfer', 'refund'] : ['income', 'expense', 'transfer'],
       `${path}.type`,
       issues,
     );
     validateEnum(row.status, ['posted', 'voided'], `${path}.status`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues);
+    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
-    if (version === 3) {
+    if (version >= 3) {
       validateNullableString(
         row.originalTransactionId,
         `${path}.originalTransactionId`,
@@ -389,7 +437,8 @@ function validateTransactionRows(
     validateNullableString(row.note, `${path}.note`, issues, backupLimits.maxNoteLength);
     validateCalendarDate(row.transactionDate, `${path}.transactionDate`, issues);
     validateAuditFields(row, path, issues);
-    validateTransactionShape(row, path, issues, version === 3);
+    validateTransactionShape(row, path, issues, version >= 3);
+    if (version >= 4) validateTransactionCurrencyV4(row, path, issues);
   });
 }
 
@@ -421,7 +470,7 @@ function validateBudgetRows(rows: unknown[], issues: ValidationIssues): void {
   });
 }
 
-function validateRecurringRows(rows: unknown[], issues: ValidationIssues): void {
+function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringTransactions[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -429,7 +478,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues): void 
     validateId(row.id, `${path}.id`, issues);
     validateEnum(row.type, ['income', 'expense', 'transfer'], `${path}.type`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues);
+    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
@@ -452,7 +501,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues): void 
   });
 }
 
-function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues): void {
+function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringOccurrences[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -463,7 +512,7 @@ function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues): void
     validateEnum(row.status, ['pending', 'posted', 'skipped'], `${path}.status`, issues);
     validateEnum(row.type, ['income', 'expense', 'transfer'], `${path}.type`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues);
+    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
@@ -594,7 +643,11 @@ export class BackupValidator {
     return this.validateVersion(raw, 3) as BackupFileV3;
   }
 
-  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3): BackupFile {
+  validateV4(raw: Record<string, unknown>): BackupFileV4 {
+    return this.validateVersion(raw, 4) as BackupFileV4;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
       issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
@@ -650,8 +703,8 @@ export class BackupValidator {
       validateTransactionRows(transactions, issues, version);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
-      validateRecurringRows(recurring, issues);
-      validateOccurrenceRows(occurrences, issues);
+      validateRecurringRows(recurring, issues, version);
+      validateOccurrenceRows(occurrences, issues, version);
       if (version >= 2) validateCreditCardStatementRows(cardStatements, issues);
     }
     if (issues.length) throw new BackupValidationError(issues);
@@ -723,7 +776,7 @@ export class BackupValidator {
       }
     }
 
-    if (file.formatVersion === 3) {
+    if (file.formatVersion === 3 || file.formatVersion === 4) {
       const transactionsById = new Map(file.data.transactions.map((row) => [row.id, row]));
       const postedRefundTotals = new Map<string, number>();
       for (const transaction of file.data.transactions) {

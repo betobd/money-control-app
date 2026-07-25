@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
+import { getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { CreditCardStatementValidationError } from '../credit-card-statement.service';
@@ -26,14 +28,17 @@ import type {
   CreditCardStatementErrors,
 } from '../credit-card.types';
 
-function money(value: string): number {
-  return /^\d+$/.test(value) ? Number(value) : Number.NaN;
+function editStringFromMinor(minor: number, currency: CurrencyCode): string {
+  const definition = getCurrency(currency);
+  if (definition.fractionDigits === 0) return String(minor);
+  return `${Math.trunc(minor / definition.minorUnitFactor)}.${String(minor % definition.minorUnitFactor).padStart(definition.fractionDigits, '0')}`;
 }
 
 export function UpdateStatementScreen({ accountId }: { accountId: string }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const [dates, setDates] = useState<CreditCardStatementDefaults>();
+  const [cardCurrency, setCardCurrency] = useState<CurrencyCode>('COP');
   const [statementBalance, setStatementBalance] = useState('');
   const [minimumPayment, setMinimumPayment] = useState('');
   const [errors, setErrors] = useState<CreditCardStatementErrors>({});
@@ -46,9 +51,11 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       creditCardService.getDetails(accountId),
     ]).then(([defaults, details]) => {
       const latest = details?.latestStatement;
+      const currency = details?.account.currency ?? 'COP';
+      setCardCurrency(currency);
       setDates(latest?.closingDate === defaults.closingDate ? latest : defaults);
-      setStatementBalance(latest?.closingDate === defaults.closingDate ? String(latest.statementBalance) : '');
-      setMinimumPayment(latest?.closingDate === defaults.closingDate ? String(latest.minimumPayment) : '');
+      setStatementBalance(latest?.closingDate === defaults.closingDate ? editStringFromMinor(latest.statementBalance, currency) : '');
+      setMinimumPayment(latest?.closingDate === defaults.closingDate ? editStringFromMinor(latest.minimumPayment, currency) : '');
     }, (cause: unknown) => {
       setGeneralError(toUserMessage(cause, 'Unable to prepare statement.'));
     });
@@ -63,9 +70,9 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
   }
 
   function changeMoney(field: 'statementBalance' | 'minimumPayment', text: string) {
-    const digits = text.replace(/\D/g, '');
-    if (field === 'statementBalance') setStatementBalance(digits);
-    else setMinimumPayment(digits);
+    const cleaned = sanitizeAmountEntry(text, cardCurrency);
+    if (field === 'statementBalance') setStatementBalance(cleaned);
+    else setMinimumPayment(cleaned);
     setErrors((current) => ({ ...current, [field]: undefined }));
   }
 
@@ -83,10 +90,20 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
     setErrors({});
     setGeneralError(undefined);
     try {
+      const parsedBalance = parseMoney(statementBalance || '0', cardCurrency);
+      const parsedMinimum = parseMoney(minimumPayment || '0', cardCurrency);
+      if (!parsedBalance.ok || !parsedMinimum.ok) {
+        setErrors({
+          statementBalance: parsedBalance.ok ? undefined : 'Enter a valid amount.',
+          minimumPayment: parsedMinimum.ok ? undefined : 'Enter a valid amount.',
+        });
+        setSaving(false);
+        return;
+      }
       await creditCardStatementService.save({
         ...dates,
-        statementBalance: money(statementBalance),
-        minimumPayment: money(minimumPayment),
+        statementBalance: parsedBalance.minor,
+        minimumPayment: parsedMinimum.minor,
       });
       router.back();
     } catch (cause) {

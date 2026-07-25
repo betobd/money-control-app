@@ -10,6 +10,22 @@ Creating a backup reads one consistent SQLite snapshot, builds and self-validate
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.
 
+## Version 4 (Multi-Currency)
+
+Multi-Currency v1 advances the logical format to **v4**. Accounts carry `currency`
+(`COP | USD`); transactions carry the COP `baseAmountMinor` snapshot, the
+exchange-rate snapshot fields, and the transfer destination leg
+(`destinationAmountMinor`, `destinationCurrencyCode`); a portable `exchangeRate`
+(the latest valuation rate, non-secret) is included. The importer accepts v1–v4 and
+rejects future versions. Legacy v1/v2/v3 backups migrate in memory to COP: account
+and transaction currencies become COP, `baseAmountMinor = amount`, transfers become
+same-currency COP transfers (`destinationAmountMinor = amount`,
+`destinationCurrencyCode = COP`), and no exchange-rate rows are invented. Restore
+validation accepts COP/USD, requires a COP base + rate snapshot for USD
+income/expense/refund and both legs + a rate for cross-currency transfers, and
+verifies statement currency matches the card account. Everything below describes the
+shared contract; v4 extends the collections and adds the `exchangeRate` field.
+
 ## Version 3 file contract
 
 Top-level fields are:

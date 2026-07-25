@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -175,7 +175,7 @@ export function RecurringTransactionsScreen() {
           ) : activeRules.slice(0, 5).map((rule) => (
             <Card
               accessible
-              accessibilityLabel={`Upcoming ${rule.type}, ${formatCop(rule.amount)}, ${formatTransactionDate(rule.nextOccurrenceDate)}, ${ruleDetail(rule)}`}
+              accessibilityLabel={`Upcoming ${rule.type}, ${formatMoneyWithSymbol(rule.amount, rule.currency)}, ${formatTransactionDate(rule.nextOccurrenceDate)}, ${ruleDetail(rule)}`}
               key={`upcoming-${rule.id}`}
               style={styles.historyRow}>
               <View style={styles.flex}>
@@ -183,7 +183,7 @@ export function RecurringTransactionsScreen() {
                 <Text numberOfLines={1} style={[styles.meta, { color: theme.secondaryText }]}>{ruleDetail(rule)}</Text>
               </View>
               <View style={styles.right}>
-                <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatCop(rule.amount)}</Text>
+                <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatMoneyWithSymbol(rule.amount, rule.currency)}</Text>
                 <Text style={[styles.meta, { color: theme.secondaryText }]}>{formatTransactionDate(rule.nextOccurrenceDate)}</Text>
               </View>
             </Card>
@@ -245,7 +245,7 @@ export function RecurringTransactionsScreen() {
           ) : history.map((occurrence) => (
             <Card
               accessible
-              accessibilityLabel={`${occurrence.status}, ${occurrenceLabel(occurrence)}, ${formatCop(occurrence.amount)}, ${formatTransactionDate(occurrence.scheduledDate)}`}
+              accessibilityLabel={`${occurrence.status}, ${occurrenceLabel(occurrence)}, ${formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}, ${formatTransactionDate(occurrence.scheduledDate)}`}
               key={occurrence.id}
               style={styles.historyRow}>
               <View style={styles.flex}>
@@ -257,7 +257,7 @@ export function RecurringTransactionsScreen() {
                 </Text>
               </View>
               <View style={styles.right}>
-                <Text style={[styles.amount, { color: theme.primaryText }]}>{formatCop(occurrence.amount)}</Text>
+                <Text style={[styles.amount, { color: theme.primaryText }]}>{formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}</Text>
                 <Text style={[styles.status, { color: occurrence.status === 'posted' ? theme.income : theme.mutedText }]}>
                   {occurrence.status === 'posted' ? 'Posted' : 'Skipped'}
                 </Text>
@@ -312,7 +312,7 @@ function OccurrenceCard({
             {ruleDetail(occurrence)}
           </Text>
         </View>
-        <Text style={[styles.amount, { color: typeColor(occurrence.type, theme) }]}>{formatCop(occurrence.amount)}</Text>
+        <Text style={[styles.amount, { color: typeColor(occurrence.type, theme) }]}>{formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}</Text>
       </View>
       <View style={styles.actions}>
         <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: confirming }} disabled={busy} onPress={onConfirm} style={[styles.actionButton, { backgroundColor: theme.primaryAction, opacity: busy && !confirming ? 0.5 : 1 }]}>
@@ -362,7 +362,7 @@ function RuleCard({
           </Text>
         </View>
         <View style={styles.right}>
-          <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatCop(rule.amount)}</Text>
+          <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatMoneyWithSymbol(rule.amount, rule.currency)}</Text>
           <Text accessibilityLabel={`Rule status ${status}`} style={[styles.status, { color: ended ? theme.mutedText : rule.isActive ? theme.income : theme.warning }]}>{status}</Text>
         </View>
       </View>

@@ -4,6 +4,7 @@ import {
   previousEquivalentPeriod,
   resolveReportPeriod,
 } from './report-period';
+import type { ScaledRate } from '@/features/currency/currency';
 import type { ReportRepository } from './report.repository';
 import type {
   CashFlowBucket,
@@ -88,7 +89,10 @@ export function buildComparisonMetric(
 }
 
 export class ReportService {
-  constructor(private readonly repository: ReportRepository) {}
+  constructor(
+    private readonly repository: ReportRepository,
+    private readonly resolveValuationRate: () => Promise<ScaledRate | null> = async () => null,
+  ) {}
 
   async load(
     selection: ReportPeriodSelection,
@@ -96,6 +100,7 @@ export class ReportService {
   ): Promise<ReportData> {
     const period = resolveReportPeriod(selection, today);
     const previousPeriod = previousEquivalentPeriod(period);
+    const valuationRate = await this.resolveValuationRate();
     const [
       summaryAggregate,
       previousSummaryAggregate,
@@ -107,7 +112,7 @@ export class ReportService {
       this.repository.summarize(previousPeriod),
       this.repository.cashFlow(period),
       this.repository.categoryExpenses(period),
-      this.repository.netWorth(period, period.grouping),
+      this.repository.netWorth(period, period.grouping, valuationRate),
     ]);
 
     const summary = normalizeSummary(summaryAggregate);

@@ -16,7 +16,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import {
+  formatMoneyWithSymbol,
+  getCurrency,
+  parseMoney,
+} from '@/features/currency/currency';
+import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { RefundActionError, RefundValidationError } from '../refund.service';
@@ -35,17 +41,41 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
   const [generalError, setGeneralError] = useState<string>();
   const [saving, setSaving] = useState(false);
 
+  const refundCurrency = summary?.original.currency ?? 'COP';
+
   async function save() {
-    if (saving) return;
+    if (saving || !summary) return;
     setSaving(true);
     setErrors({});
     setGeneralError(undefined);
     try {
+      const parsed = parseMoney(amountDigits || '0', refundCurrency);
+      if (!parsed.ok) {
+        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setSaving(false);
+        return;
+      }
+      let exchangeRate = null;
+      if (refundCurrency !== 'COP') {
+        const rate = await exchangeRateService.getValuationRate();
+        if (!rate) {
+          setErrors({ exchangeRate: 'Add an exchange rate before saving this USD refund.' });
+          setSaving(false);
+          return;
+        }
+        exchangeRate = {
+          rateScaled: rate.rateScaled,
+          rateScale: rate.rateScale,
+          effectiveDate: rate.effectiveDate,
+          source: rate.source,
+        };
+      }
       const refund = await refundService.create({
         originalTransactionId,
-        amount: amountDigits ? Number(amountDigits) : 0,
+        amount: parsed.minor,
         transactionDate,
         note,
+        exchangeRate,
       });
       router.replace({ pathname: '/transactions/[id]', params: { id: refund.id } });
     } catch (cause) {
@@ -107,9 +137,9 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
             {summary.original.accountName} · {summary.original.transactionDate}
           </Text>
           <View style={styles.amountRow}>
-            <Metric label="Gross" value={formatCop(summary.grossAmount)} />
-            <Metric label="Refunded" value={formatCop(summary.refundedAmount)} />
-            <Metric label="Remaining" value={formatCop(summary.refundableRemaining)} />
+            <Metric label="Gross" value={formatMoneyWithSymbol(summary.grossAmount, refundCurrency)} />
+            <Metric label="Refunded" value={formatMoneyWithSymbol(summary.refundedAmount, refundCurrency)} />
+            <Metric label="Remaining" value={formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)} />
           </View>
         </View>
 
@@ -120,17 +150,17 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.secondaryText }]}>Refund amount (COP)</Text>
+          <Text style={[styles.label, { color: theme.secondaryText }]}>Refund amount ({refundCurrency})</Text>
           <TextInput
-            accessibilityLabel={`Refund amount in Colombian pesos, maximum ${summary.refundableRemaining}`}
+            accessibilityLabel={`Refund amount in ${getCurrency(refundCurrency).name}`}
             autoFocus
-            keyboardType="number-pad"
-            maxLength={16}
+            keyboardType={getCurrency(refundCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
+            maxLength={20}
             onChangeText={(value) => {
-              setAmountDigits(value.replace(/\D/g, '').slice(0, 16));
+              setAmountDigits(sanitizeAmountEntry(value, refundCurrency));
               setErrors((current) => ({ ...current, amount: undefined }));
             }}
-            placeholder="0"
+            placeholder={getCurrency(refundCurrency).fractionDigits > 0 ? '0.00' : '0'}
             placeholderTextColor={theme.mutedText}
             style={[
               styles.amountInput,
@@ -143,9 +173,15 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
             value={amountDigits}
           />
           <Text style={[styles.helper, { color: theme.mutedText }]}>
-            Maximum refundable: {formatCop(summary.refundableRemaining)}
+            Maximum refundable: {formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)}
           </Text>
           {errors.amount ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.amount}</Text> : null}
+          {refundCurrency !== 'COP' ? (
+            <Text style={[styles.helper, { color: theme.mutedText }]}>
+              A USD refund uses the current saved USD/COP reference rate. Your bank may use a different rate.
+            </Text>
+          ) : null}
+          {errors.exchangeRate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.exchangeRate}</Text> : null}
         </View>
 
         <View style={styles.field}>

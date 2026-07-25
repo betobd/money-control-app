@@ -1,6 +1,7 @@
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import type { BudgetMonthView } from '@/features/budgets/budget.types';
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
+import { convertUsdMinorToCopMinor } from '@/features/currency/currency';
 import { calculateCreditCardStatementView } from '@/features/credit-cards/credit-card-statement.service';
 import type { RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
 import type { ReportData, ReportPeriodSelection } from '@/features/reports/report.types';
@@ -49,8 +50,12 @@ type TransactionFilterService = {
   listFilterOptions(): Promise<TransactionFilterOptions>;
 };
 
+type ExportValuationRate = { rateScaled: number; rateScale: number; effectiveDate: string; source: string } | null;
+
 type DataExportServiceOptions = {
   today?: () => string;
+  /** Resolves the current USD/COP valuation rate for estimated-COP account columns. */
+  resolveValuationRate?: () => Promise<ExportValuationRate>;
 };
 
 export type DataExportErrorCode = 'no_data' | 'row_limit_exceeded';
@@ -63,6 +68,7 @@ export class DataExportError extends Error {
 
 type AccountCsvRow = AccountExportSource & {
   status: 'active' | 'archived';
+  estimatedBaseCurrencyCop: number | null;
   currentDebt: number | null;
   availableCredit: number | null;
   utilizationPercentage: number | null;
@@ -155,7 +161,10 @@ export class DataExportService {
     options: DataExportServiceOptions = {},
   ) {
     this.today = options.today ?? (() => bogotaToday());
+    this.resolveValuationRate = options.resolveValuationRate ?? (async () => null);
   }
+
+  private readonly resolveValuationRate: () => Promise<ExportValuationRate>;
 
   cleanupStaleFiles(): Promise<void> {
     return this.files.cleanupStaleFiles();
@@ -223,7 +232,14 @@ export class DataExportService {
       { header: 'transaction_date', value: (row) => row.transactionDate },
       { header: 'type', value: (row) => row.type },
       { header: 'status', value: (row) => row.status },
-      { header: 'amount_cop', value: (row) => row.amountCop },
+      { header: 'currency_code', value: (row) => row.currencyCode },
+      { header: 'amount_minor', value: (row) => row.amountCop },
+      { header: 'base_currency_amount_cop', value: (row) => row.baseCurrencyAmountCop },
+      { header: 'exchange_rate', value: (row) => row.exchangeRate },
+      { header: 'exchange_rate_date', value: (row) => row.exchangeRateDate },
+      { header: 'exchange_rate_source', value: (row) => row.exchangeRateSource },
+      { header: 'destination_amount_minor', value: (row) => row.destinationAmountMinor },
+      { header: 'destination_currency_code', value: (row) => row.destinationCurrencyCode },
       { header: 'category_id', value: (row) => row.categoryId },
       { header: 'category_name', value: (row) => row.categoryName, protectFormula: true },
       { header: 'original_transaction_id', value: (row) => row.originalTransactionId },
@@ -249,15 +265,23 @@ export class DataExportService {
   }
 
   async exportAccounts(): Promise<ExportResult> {
+    const rate = await this.resolveValuationRate();
+    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
     const rows = (await this.accounts.list(true))
       .sort(compareAuditRows)
       .map((account): AccountCsvRow => {
         const utilization = account.type === 'credit_card'
           ? calculateCreditCardUtilization(account.balance, account.creditLimit)
           : null;
+        const estimatedCop = account.currency === 'COP'
+          ? account.balance
+          : scaledRate
+            ? convertUsdMinorToCopMinor(account.balance, scaledRate)
+            : null;
         return {
           ...account,
           status: account.isArchived ? 'archived' : 'active',
+          estimatedBaseCurrencyCop: estimatedCop,
           currentDebt: utilization?.currentDebt ?? null,
           availableCredit: utilization?.availableCredit ?? null,
           utilizationPercentage: utilization?.utilizationBasisPoints === null
@@ -267,16 +291,22 @@ export class DataExportService {
         };
       });
     this.requireRows('accounts', rows.length, exportLimits.otherRows);
+    const valuationRate = rate ? rate.rateScaled / rate.rateScale : null;
     const columns: CsvColumn<AccountCsvRow>[] = [
       { header: 'account_id', value: (row) => row.id },
       { header: 'name', value: (row) => row.name, protectFormula: true },
       { header: 'type', value: (row) => row.type },
       { header: 'status', value: (row) => row.status },
-      { header: 'opening_balance_cop', value: (row) => row.openingBalance },
-      { header: 'current_balance_cop', value: (row) => row.balance },
-      { header: 'credit_limit_cop', value: (row) => row.type === 'credit_card' ? row.creditLimit : null },
-      { header: 'current_debt_cop', value: (row) => row.currentDebt },
-      { header: 'available_credit_cop', value: (row) => row.availableCredit },
+      { header: 'currency_code', value: (row) => row.currency },
+      { header: 'opening_balance_minor', value: (row) => row.openingBalance },
+      { header: 'current_balance_minor', value: (row) => row.balance },
+      { header: 'estimated_base_currency_balance_cop', value: (row) => row.estimatedBaseCurrencyCop },
+      { header: 'valuation_rate', value: (row) => row.currency === 'COP' ? null : valuationRate },
+      { header: 'valuation_rate_date', value: (row) => row.currency === 'COP' ? null : rate?.effectiveDate ?? null },
+      { header: 'valuation_rate_source', value: (row) => row.currency === 'COP' ? null : rate?.source ?? null },
+      { header: 'credit_limit_minor', value: (row) => row.type === 'credit_card' ? row.creditLimit : null },
+      { header: 'current_debt_minor', value: (row) => row.currentDebt },
+      { header: 'available_credit_minor', value: (row) => row.availableCredit },
       { header: 'utilization_percentage', value: (row) => row.utilizationPercentage },
       { header: 'statement_closing_day', value: (row) => row.type === 'credit_card' ? row.statementClosingDay : null },
       { header: 'payment_due_day', value: (row) => row.type === 'credit_card' ? row.paymentDueDay : null },

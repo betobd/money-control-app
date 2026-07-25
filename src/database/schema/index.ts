@@ -13,6 +13,13 @@ import {
 const MAX_SAFE_MONEY = 9_007_199_254_740_991;
 const MAX_SAFE_MONEY_SQL = sql.raw(String(MAX_SAFE_MONEY));
 const MIN_SAFE_MONEY_SQL = sql.raw(String(-MAX_SAFE_MONEY));
+
+// Multi-Currency v1 supports COP (base) and USD only.
+const SUPPORTED_CURRENCIES_SQL = sql.raw(`('COP', 'USD')`);
+const EXCHANGE_RATE_SOURCES_SQL = sql.raw(
+  `('frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill')`,
+);
+const VALUATION_RATE_SOURCES_SQL = sql.raw(`('frankfurter', 'manual')`);
 const auditColumns = {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -35,7 +42,7 @@ export const accounts = sqliteTable(
   },
   (table) => [
     check('accounts_name_not_empty', sql`length(trim(${table.name})) > 0`),
-    check('accounts_currency_cop', sql`${table.currency} = 'COP'`),
+    check('accounts_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
     check('accounts_type_valid', sql`${table.type} IN ('checking', 'savings', 'credit_card', 'cash', 'other')`),
     check('accounts_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('accounts_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
@@ -140,6 +147,16 @@ export const transactions = sqliteTable(
       (): AnySQLiteColumn => transactions.id,
       { onDelete: 'restrict', onUpdate: 'restrict' },
     ),
+    // COP base-currency snapshot for income/expense/refund (NULL for transfers).
+    baseAmountMinor: integer('base_amount_minor'),
+    // Immutable exchange-rate snapshot captured at record time (NULL for COP).
+    exchangeRateScaled: integer('exchange_rate_scaled'),
+    exchangeRateScale: integer('exchange_rate_scale'),
+    exchangeRateDate: text('exchange_rate_date'),
+    exchangeRateSource: text('exchange_rate_source'),
+    // Destination leg for transfers (source leg reuses amount/currency/accountId).
+    destinationAmountMinor: integer('destination_amount_minor'),
+    destinationCurrencyCode: text('destination_currency_code'),
     note: text('note'),
     transactionDate: text('transaction_date').notNull(),
     ...auditColumns,
@@ -148,7 +165,7 @@ export const transactions = sqliteTable(
     check('transactions_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer', 'refund')`),
     check('transactions_status_valid', sql`${table.status} IN ('posted', 'voided')`),
     check('transactions_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('transactions_currency_cop', sql`${table.currency} = 'COP'`),
+    check('transactions_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
     check(
       'transactions_date_valid',
       sql`${table.transactionDate} GLOB '????-??-??' AND date(${table.transactionDate}) = ${table.transactionDate}`,
@@ -163,6 +180,58 @@ export const transactions = sqliteTable(
         (${table.type} = 'transfer' AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NOT NULL AND ${table.accountId} <> ${table.destinationAccountId} AND ${table.categoryId} IS NULL AND ${table.originalTransactionId} IS NULL)
         OR
         (${table.type} = 'refund' AND ${table.accountId} IS NOT NULL AND ${table.destinationAccountId} IS NULL AND ${table.categoryId} IS NULL AND ${table.originalTransactionId} IS NOT NULL AND ${table.originalTransactionId} <> ${table.id})
+      )`,
+    ),
+    // Base COP snapshot: absent for transfers; for others it is optional (COP rows
+    // may omit it and be read as COALESCE(base_amount_minor, amount)) but, when
+    // present, is a positive safe integer.
+    check(
+      'transactions_base_amount_valid',
+      sql`(
+        (${table.type} = 'transfer' AND ${table.baseAmountMinor} IS NULL)
+        OR
+        (${table.type} <> 'transfer' AND (${table.baseAmountMinor} IS NULL OR (typeof(${table.baseAmountMinor}) = 'integer' AND ${table.baseAmountMinor} > 0 AND ${table.baseAmountMinor} <= ${MAX_SAFE_MONEY_SQL})))
+      )`,
+    ),
+    // Destination leg is only for transfers; optional (same-currency COP transfers
+    // may omit it) but valid when present.
+    check(
+      'transactions_destination_leg_valid',
+      sql`(
+        (${table.type} = 'transfer' AND (${table.destinationAmountMinor} IS NULL OR (typeof(${table.destinationAmountMinor}) = 'integer' AND ${table.destinationAmountMinor} > 0 AND ${table.destinationAmountMinor} <= ${MAX_SAFE_MONEY_SQL})) AND (${table.destinationCurrencyCode} IS NULL OR ${table.destinationCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}))
+        OR
+        (${table.type} <> 'transfer' AND ${table.destinationAmountMinor} IS NULL AND ${table.destinationCurrencyCode} IS NULL)
+      )`,
+    ),
+    // A foreign-currency (USD) income/expense/refund MUST carry a COP base snapshot
+    // and a full rate snapshot. COP rows are exempt.
+    check(
+      'transactions_foreign_snapshot_present',
+      sql`(
+        ${table.type} = 'transfer'
+        OR ${table.currency} = 'COP'
+        OR (${table.baseAmountMinor} IS NOT NULL AND typeof(${table.exchangeRateScaled}) = 'integer' AND ${table.exchangeRateScaled} > 0 AND typeof(${table.exchangeRateScale}) = 'integer' AND ${table.exchangeRateScale} > 0 AND ${table.exchangeRateDate} IS NOT NULL)
+      )`,
+    ),
+    // A cross-currency transfer MUST carry a full effective-rate snapshot. A
+    // same-currency transfer (or one with an omitted destination currency, read as
+    // the source currency) is exempt.
+    check(
+      'transactions_transfer_rate_present',
+      sql`(
+        ${table.type} <> 'transfer'
+        OR coalesce(${table.destinationCurrencyCode}, ${table.currency}) = ${table.currency}
+        OR (typeof(${table.exchangeRateScaled}) = 'integer' AND ${table.exchangeRateScaled} > 0 AND typeof(${table.exchangeRateScale}) = 'integer' AND ${table.exchangeRateScale} > 0 AND ${table.exchangeRateDate} IS NOT NULL)
+      )`,
+    ),
+    // Rate columns, when present, are valid.
+    check(
+      'transactions_rate_columns_valid',
+      sql`(
+        (${table.exchangeRateScaled} IS NULL OR (typeof(${table.exchangeRateScaled}) = 'integer' AND ${table.exchangeRateScaled} > 0 AND ${table.exchangeRateScaled} <= ${MAX_SAFE_MONEY_SQL}))
+        AND (${table.exchangeRateScale} IS NULL OR (typeof(${table.exchangeRateScale}) = 'integer' AND ${table.exchangeRateScale} > 0 AND ${table.exchangeRateScale} <= ${MAX_SAFE_MONEY_SQL}))
+        AND (${table.exchangeRateDate} IS NULL OR (${table.exchangeRateDate} GLOB '????-??-??' AND date(${table.exchangeRateDate}) = ${table.exchangeRateDate}))
+        AND (${table.exchangeRateSource} IS NULL OR ${table.exchangeRateSource} IN ${EXCHANGE_RATE_SOURCES_SQL})
       )`,
     ),
     index('transactions_date_idx').on(table.transactionDate),
@@ -252,7 +321,7 @@ export const recurringTransactions = sqliteTable(
     check('recurring_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
     check('recurring_frequency_valid', sql`${table.frequency} IN ('daily', 'weekly', 'monthly', 'yearly')`),
     check('recurring_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('recurring_currency_cop', sql`${table.currency} = 'COP'`),
+    check('recurring_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
     check('recurring_interval_positive', sql`${table.interval} > 0`),
     check('recurring_start_date_valid', sql`${table.startDate} GLOB '????-??-??' AND date(${table.startDate}) = ${table.startDate}`),
     check('recurring_next_date_valid', sql`${table.nextOccurrenceDate} GLOB '????-??-??' AND date(${table.nextOccurrenceDate}) = ${table.nextOccurrenceDate}`),
@@ -306,7 +375,7 @@ export const recurringOccurrences = sqliteTable(
     check('recurring_occurrence_status_valid', sql`${table.status} IN ('pending', 'posted', 'skipped')`),
     check('recurring_occurrence_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
     check('recurring_occurrence_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('recurring_occurrence_currency_cop', sql`${table.currency} = 'COP'`),
+    check('recurring_occurrence_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
     check('recurring_occurrence_date_valid', sql`${table.scheduledDate} GLOB '????-??-??' AND date(${table.scheduledDate}) = ${table.scheduledDate}`),
     check('recurring_occurrence_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('recurring_occurrence_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
@@ -395,6 +464,35 @@ export const scheduledNotifications = sqliteTable(
     check('scheduled_notification_scheduled_at_utc', sql`${table.scheduledAt} GLOB '????-??-??T??:??:??*Z'`),
     uniqueIndex('scheduled_notifications_domain_uidx').on(table.domainType, table.domainId, table.notificationKind),
     uniqueIndex('scheduled_notifications_native_id_uidx').on(table.scheduledNotificationId),
+  ],
+);
+
+export const exchangeRates = sqliteTable(
+  'exchange_rates',
+  {
+    // Singleton per currency pair, e.g. 'USD-COP'. v1 stores the USD/COP pair.
+    id: text('id').primaryKey(),
+    baseCurrencyCode: text('base_currency_code').notNull(),
+    quoteCurrencyCode: text('quote_currency_code').notNull(),
+    rateScaled: integer('rate_scaled').notNull(),
+    rateScale: integer('rate_scale').notNull(),
+    effectiveDate: text('effective_date').notNull(),
+    fetchedAt: text('fetched_at').notNull(),
+    provider: text('provider'),
+    source: text('source').notNull(),
+    ...auditColumns,
+  },
+  (table) => [
+    check('exchange_rates_base_supported', sql`${table.baseCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('exchange_rates_quote_supported', sql`${table.quoteCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('exchange_rates_pair_distinct', sql`${table.baseCurrencyCode} <> ${table.quoteCurrencyCode}`),
+    check('exchange_rates_scaled_valid', sql`typeof(${table.rateScaled}) = 'integer' AND ${table.rateScaled} > 0 AND ${table.rateScaled} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('exchange_rates_scale_valid', sql`typeof(${table.rateScale}) = 'integer' AND ${table.rateScale} > 0 AND ${table.rateScale} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('exchange_rates_effective_date_valid', sql`${table.effectiveDate} GLOB '????-??-??' AND date(${table.effectiveDate}) = ${table.effectiveDate}`),
+    check('exchange_rates_fetched_at_utc', sql`${table.fetchedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('exchange_rates_source_valid', sql`${table.source} IN ${VALUATION_RATE_SOURCES_SQL}`),
+    check('exchange_rates_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('exchange_rates_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
   ],
 );
 

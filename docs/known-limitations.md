@@ -5,7 +5,8 @@ Money Control v1 is a personal, local-first Android finance app. These limitatio
 ## Product scope
 
 - Personal, single-device, local-first. No cloud sync, no multi-device, no shared accounts.
-- Colombian pesos only; whole-peso integer amounts (no fractional COP, no multi-currency).
+- Two currencies: COP (base, whole pesos) and USD (cents). No EUR/other currencies, no user-configurable base currency. Money is integer minor units (COP factor 1, USD factor 100). See [currency-and-rates.md](currency-and-rates.md).
+- Multi-Currency v1 limitations: budgets are COP-only; no recurring cross-currency transfers; no FX gain/loss or tax accounting; the historical net-worth timeline values USD at the current saved rate (Option A), not historical daily FX. The USD/COP reference rate is from Frankfurter and may differ from your bank's rate.
 - No bank synchronization, no automatic transaction detection, no automatic statement import.
 - No installment modeling, no interest calculation, no issuer minimum-payment formula.
 - No chargebacks/disputes, no split transactions, no projects, no tags.

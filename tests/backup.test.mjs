@@ -43,22 +43,35 @@ const category = (id, type, overrides = {}) => ({
   ...overrides,
 });
 
-const transaction = (id, overrides = {}) => ({
-  id,
-  type: 'expense',
-  status: 'posted',
-  amount: 50_000,
-  currency: 'COP',
-  accountId: 'checking',
-  destinationAccountId: null,
-  categoryId: 'food',
-  originalTransactionId: null,
-  note: 'Preserved note',
-  transactionDate: '2026-07-16',
-  createdAt: NOW,
-  updatedAt: NOW,
-  ...overrides,
-});
+const transaction = (id, overrides = {}) => {
+  const base = {
+    id,
+    type: 'expense',
+    status: 'posted',
+    amount: 50_000,
+    currency: 'COP',
+    accountId: 'checking',
+    destinationAccountId: null,
+    categoryId: 'food',
+    originalTransactionId: null,
+    note: 'Preserved note',
+    transactionDate: '2026-07-16',
+    createdAt: NOW,
+    updatedAt: NOW,
+    ...overrides,
+  };
+  const isTransfer = base.type === 'transfer';
+  return {
+    ...base,
+    baseAmountMinor: base.baseAmountMinor ?? (isTransfer ? null : base.amount),
+    exchangeRateScaled: base.exchangeRateScaled ?? null,
+    exchangeRateScale: base.exchangeRateScale ?? null,
+    exchangeRateDate: base.exchangeRateDate ?? null,
+    exchangeRateSource: base.exchangeRateSource ?? null,
+    destinationAmountMinor: base.destinationAmountMinor ?? (isTransfer ? base.amount : null),
+    destinationCurrencyCode: base.destinationCurrencyCode ?? (isTransfer ? 'COP' : null),
+  };
+};
 
 function representativeData() {
   return {
@@ -108,6 +121,10 @@ function representativeData() {
     creditCardStatements: [
       { id: 'statement', accountId: 'card', periodStart: '2026-06-16', periodEnd: '2026-07-15', closingDate: '2026-07-15', dueDate: '2026-08-05', statementBalance: 200_000, minimumPayment: 20_000, createdAt: NOW, updatedAt: NOW },
     ],
+    exchangeRate: {
+      id: 'USD-COP', baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', rateScaled: 41_000_000, rateScale: 10_000,
+      effectiveDate: '2026-07-16', fetchedAt: NOW, provider: 'frankfurter', source: 'frankfurter', createdAt: NOW, updatedAt: NOW,
+    },
   };
 }
 
@@ -115,6 +132,7 @@ const emptyData = () => ({
   accounts: [], categories: [], transactions: [], transactionSplits: [], budgets: [],
   recurringTransactions: [], recurringOccurrences: [],
   creditCardStatements: [],
+  exchangeRate: null,
 });
 
 async function createFile(data = representativeData()) {
@@ -134,7 +152,9 @@ async function validate(file, declaredSize = 0) {
     ? validator.validateV1(envelope.raw)
     : envelope.formatVersion === 2
       ? validator.validateV2(envelope.raw)
-      : validator.validateV3(envelope.raw);
+      : envelope.formatVersion === 3
+        ? validator.validateV3(envelope.raw)
+        : validator.validateV4(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -154,7 +174,7 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 3);
+  assert.equal(file.formatVersion, 4);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
@@ -185,7 +205,7 @@ test('generates the versioned format, UTC/Bogotá/COP metadata, all collections,
 test('orders every collection by ID and produces the same checksum for the same canonical data', async () => {
   const data = representativeData();
   const first = await createFile(data);
-  const reversed = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, [...rows].reverse()]));
+  const reversed = Object.fromEntries(Object.entries(data).map(([key, rows]) => [key, Array.isArray(rows) ? [...rows].reverse() : rows]));
   const second = await createFile(reversed);
   assert.deepEqual(first.data, second.data);
   assert.equal(first.integrity.checksum, second.integrity.checksum);
@@ -231,7 +251,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 4;
+  future.formatVersion = 5;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');

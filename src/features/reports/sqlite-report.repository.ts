@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzl
 import { database } from '@/database/client';
 import { accounts, categories, transactions } from '@/database/schema';
 import { alias } from 'drizzle-orm/sqlite-core';
+import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
 import type { ReportRepository } from './report.repository';
 import type {
   CategoryExpenseAggregate,
@@ -33,10 +34,6 @@ function safeInteger(value: unknown, label: string): number {
   return numberValue;
 }
 
-function safeMoneySum(left: number, right: number, label: string): number {
-  return safeInteger(left + right, label);
-}
-
 export class SQLiteReportRepository implements ReportRepository {
   async summarize(period: ReportPeriod): Promise<ReportSummaryAggregate> {
     const condition = and(
@@ -47,9 +44,9 @@ export class SQLiteReportRepository implements ReportRepository {
     const [aggregateRows, largestRows] = await Promise.all([
       database
         .select({
-          income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-          grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
-          refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
+          income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+          grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+          refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
           incomeCount: sql<number>`sum(case when ${transactions.type} = 'income' then 1 else 0 end)`,
           expenseCount: sql<number>`sum(case when ${transactions.type} = 'expense' then 1 else 0 end)`,
           refundCount: sql<number>`sum(case when ${transactions.type} = 'refund' then 1 else 0 end)`,
@@ -58,7 +55,7 @@ export class SQLiteReportRepository implements ReportRepository {
         .where(condition),
       database
         .select({
-          amount: transactions.amount,
+          amount: sql<number>`coalesce(${transactions.baseAmountMinor}, ${transactions.amount})`,
           categoryName: categories.name,
           accountName: accounts.name,
           transactionDate: transactions.transactionDate,
@@ -67,7 +64,7 @@ export class SQLiteReportRepository implements ReportRepository {
         .innerJoin(accounts, eq(transactions.accountId, accounts.id))
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(and(condition, eq(transactions.type, 'expense')))
-        .orderBy(desc(transactions.amount), desc(transactions.transactionDate), desc(transactions.id))
+        .orderBy(sql`coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) desc`, desc(transactions.transactionDate), desc(transactions.id))
         .limit(1),
     ]);
 
@@ -96,9 +93,9 @@ export class SQLiteReportRepository implements ReportRepository {
     const rows = await database
       .select({
         key,
-        income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
-        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
+        income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
       })
       .from(transactions)
       .where(and(
@@ -121,8 +118,8 @@ export class SQLiteReportRepository implements ReportRepository {
   async categoryExpenses(period: ReportPeriod): Promise<CategoryExpenseAggregate[]> {
     const effectiveCategoryId = sql<string>`coalesce(${transactions.categoryId}, ${originalTransactions.categoryId})`;
     const total = sql<number>`coalesce(sum(case
-      when ${transactions.type} = 'expense' then ${transactions.amount}
-      when ${transactions.type} = 'refund' then -${transactions.amount}
+      when ${transactions.type} = 'expense' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount})
+      when ${transactions.type} = 'refund' then -coalesce(${transactions.baseAmountMinor}, ${transactions.amount})
       else 0 end), 0)`;
     const rows = await database
       .select({
@@ -154,48 +151,76 @@ export class SQLiteReportRepository implements ReportRepository {
     }));
   }
 
-  async netWorth(period: ReportPeriod, grouping: ReportGrouping): Promise<NetWorthAggregate> {
+  /**
+   * Net-worth timeline in COP. COP contributions are exact; USD contributions
+   * (opening balances and posted effects, valued in native USD) are converted at
+   * the current saved valuation rate — the documented Option A estimate. When no
+   * rate exists, USD contributions are excluded. Transfers remain excluded (they
+   * are net-worth-neutral within a currency); cross-currency transfer FX drift is
+   * an accepted v1 limitation. See docs/decisions/0005-multi-currency-cop-usd.md.
+   */
+  async netWorth(
+    period: ReportPeriod,
+    grouping: ReportGrouping,
+    valuationRate: ScaledRate | null = null,
+  ): Promise<NetWorthAggregate> {
     const key = groupingExpression(grouping);
-    const effect = sql<number>`coalesce(sum(
+    const effectFor = (currency: 'COP' | 'USD') => sql<number>`coalesce(sum(
       case
-        when ${transactions.type} = 'income' then ${transactions.amount}
-        when ${transactions.type} = 'expense' then -${transactions.amount}
-        when ${transactions.type} = 'refund' then ${transactions.amount}
+        when ${transactions.currency} = ${currency} and ${transactions.type} = 'income' then ${transactions.amount}
+        when ${transactions.currency} = ${currency} and ${transactions.type} = 'expense' then -${transactions.amount}
+        when ${transactions.currency} = ${currency} and ${transactions.type} = 'refund' then ${transactions.amount}
         else 0
       end
     ), 0)`;
+    const copEffect = effectFor('COP');
+    const usdEffect = effectFor('USD');
+    const effectFilter = (extra: SQL) => and(
+      eq(transactions.status, 'posted'),
+      inArray(transactions.type, ['income', 'expense', 'refund']),
+      extra,
+    );
     const [openingRows, previousRows, changeRows] = await Promise.all([
       database
-        .select({ total: sql<number>`coalesce(sum(${accounts.openingBalance}), 0)` })
+        .select({
+          cop: sql<number>`coalesce(sum(case when ${accounts.currency} = 'COP' then ${accounts.openingBalance} else 0 end), 0)`,
+          usd: sql<number>`coalesce(sum(case when ${accounts.currency} = 'USD' then ${accounts.openingBalance} else 0 end), 0)`,
+        })
         .from(accounts),
       database
-        .select({ total: effect })
+        .select({ cop: copEffect, usd: usdEffect })
         .from(transactions)
-        .where(and(
-          eq(transactions.status, 'posted'),
-          inArray(transactions.type, ['income', 'expense', 'refund']),
-          lt(transactions.transactionDate, period.dateFrom),
-        )),
+        .where(effectFilter(lt(transactions.transactionDate, period.dateFrom))),
       database
-        .select({ key, amount: effect })
+        .select({ key, cop: copEffect, usd: usdEffect })
         .from(transactions)
-        .where(and(
-          eq(transactions.status, 'posted'),
-          inArray(transactions.type, ['income', 'expense', 'refund']),
+        .where(effectFilter(and(
           gte(transactions.transactionDate, period.dateFrom),
           lte(transactions.transactionDate, period.dateTo),
-        ))
+        )!))
         .groupBy(key)
         .orderBy(asc(key)),
     ]);
 
-    const openingBalance = safeInteger(openingRows[0]?.total ?? 0, 'Opening-balance total');
-    const previousEffect = safeInteger(previousRows[0]?.total ?? 0, 'Previous net-worth effect');
+    const toCop = (usdMinor: number): number =>
+      valuationRate && usdMinor !== 0 ? convertUsdMinorToCopMinor(usdMinor, valuationRate) : 0;
+
+    const openingCop = safeInteger(openingRows[0]?.cop ?? 0, 'Opening-balance total');
+    const openingUsd = safeInteger(openingRows[0]?.usd ?? 0, 'Opening USD total');
+    const prevCop = safeInteger(previousRows[0]?.cop ?? 0, 'Previous net-worth effect');
+    const prevUsd = safeInteger(previousRows[0]?.usd ?? 0, 'Previous USD effect');
+    const startingNetWorth = safeInteger(
+      openingCop + toCop(openingUsd) + prevCop + toCop(prevUsd),
+      'Starting net worth',
+    );
     return {
-      startingNetWorth: safeMoneySum(openingBalance, previousEffect, 'Starting net worth'),
+      startingNetWorth,
       changes: changeRows.map((row) => ({
         key: row.key,
-        amount: safeInteger(row.amount, 'Net-worth change'),
+        amount: safeInteger(
+          safeInteger(row.cop, 'Net-worth COP change') + toCop(safeInteger(row.usd, 'Net-worth USD change')),
+          'Net-worth change',
+        ),
       })),
     };
   }

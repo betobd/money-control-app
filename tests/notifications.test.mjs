@@ -279,7 +279,7 @@ test('credit-card reminders schedule closing and due offsets, preserve privacy, 
   const settings = new SettingsRepository();
   const permission = new Permission();
   const card = {
-    account: { id: 'card', name: 'Private Visa', isArchived: false },
+    account: { id: 'card', name: 'Private Visa', isArchived: false, currency: 'COP' },
     setupComplete: true,
     cycle: { nextClosingDate: '2026-08-15' },
     latestStatement: { id: 'statement', dueDate: '2026-08-05', remainingStatement: 300000, minimumPayment: 0, minimumRemaining: 0 },
@@ -309,7 +309,7 @@ test('credit-card reminders schedule closing and due offsets, preserve privacy, 
 
 test('credit-card notification taps validate the card before routing', async () => {
   const recurring = { async getOccurrence() { return null; }, async getRule() { return null; } };
-  const cards = { async getDetails(id) { return id === 'card' ? { account: { id } } : null; } };
+  const cards = { async getDetails(id) { return id === 'card' ? { account: { id, currency: 'COP' } } : null; } };
   const service = new NotificationNavigationService(recurring, cards);
   assert.deepEqual(parseTarget({ version: 1, target: 'credit-card', cardId: 'card' }), { version: 1, target: 'credit-card', cardId: 'card' });
   assert.equal(parseTarget({ version: 1, target: 'credit-card' }), null);

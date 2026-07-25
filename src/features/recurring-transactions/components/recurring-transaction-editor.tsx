@@ -19,7 +19,8 @@ import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
-import { AmountInput } from '@/features/add-transaction/components/amount-input';
+import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
+import { parseMoney, type CurrencyCode } from '@/features/currency/currency';
 import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
 import { TransactionTypeSelector } from '@/features/add-transaction/components/transaction-type-selector';
@@ -100,6 +101,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   const activeAccounts = accounts.filter((account) => !account.isArchived);
   const selectedAccount = accounts.find((account) => account.id === accountId);
+  const editorCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
   const selectedDestination = accounts.find((account) => account.id === destinationAccountId);
   const categories = type === 'income' ? incomeCategories : expenseCategories;
   const pickerAccounts = picker === 'source'
@@ -123,10 +125,17 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
     setSaving(true);
     setErrors({});
     setGeneralError(undefined);
+    const parsed = parseMoney(digits || '0', editorCurrency);
+    if (!parsed.ok) {
+      setErrors({ amount: 'Enter a valid amount greater than zero.' });
+      setSaving(false);
+      return;
+    }
+    const amount = parsed.minor;
     const shape: RecurringTransactionShape = type === 'transfer'
       ? {
           type: 'transfer',
-          amount: digits ? Number(digits) : 0,
+          amount,
           accountId,
           destinationAccountId,
           categoryId: null,
@@ -134,7 +143,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         }
       : {
           type,
-          amount: digits ? Number(digits) : 0,
+          amount,
           accountId,
           destinationAccountId: null,
           categoryId,
@@ -173,7 +182,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
-        <AmountInput autoFocus={false} digits={digits} error={errors.amount} onDigitsChange={setDigits} type={type} />
+        <AmountInput autoFocus={false} currency={editorCurrency} digits={digits} error={errors.amount} onDigitsChange={(value) => setDigits(sanitizeAmountEntry(value, editorCurrency))} type={type} />
         <TransactionTypeSelector onChange={changeType} value={type} />
 
         {type === 'transfer' ? (

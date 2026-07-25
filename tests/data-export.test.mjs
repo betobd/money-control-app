@@ -261,8 +261,8 @@ test('transaction export covers refunds, original references, other types, notes
   const csv = files.calls[0].contents;
   assert.ok(csv.indexOf('income,') < csv.indexOf('voided,'));
   assert.ok(csv.indexOf('voided,') < csv.indexOf('transfer,'));
-  assert.match(csv, /transfer,posted,25000,,,,,,,checking,Checking,card,Archived card,,/);
-  assert.match(csv, /refund,posted,10000,food,Food,archived,2026-07-10,25000,/);
+  assert.match(csv, /transfer,posted,,25000,.*checking,Checking,card,Archived card/);
+  assert.match(csv, /refund,posted,,10000,.*food,Food,archived,2026-07-10,25000,/);
   assert.equal(csv.includes("'=private note"), false);
 
   await service.exportTransactions({
@@ -293,8 +293,8 @@ test('accounts export preserves derived and signed balances with blank non-card 
   const { files, service } = setup();
   await service.exportAccounts();
   const csv = files.calls[0].contents;
-  assert.match(csv, /'=Checking,checking,active,100000,75000,,,,,,/);
-  assert.match(csv, /Card,credit_card,archived,-500000,-300000,2000000,300000,1700000,15,15,5/);
+  assert.match(csv, /'=Checking,checking,active,COP,100000,75000,75000,/);
+  assert.match(csv, /Card,credit_card,archived,COP,-500000,-300000,.*2000000,300000,1700000,15,15,5/);
 });
 
 test('budgets and recurring exports preserve domain calculations, lifecycle, archived labels, and optional notes', async () => {

@@ -10,6 +10,7 @@ import {
   transactions,
 } from '@/database/schema';
 import type { AccountDeletionEligibility, AccountRepository, AccountUpdateRecord, NewAccountRecord } from './account.repository';
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { Account, AccountType, AccountWithBalance } from './account.types';
 
 type AccountRow = typeof accounts.$inferSelect;
@@ -18,7 +19,7 @@ function mapAccount(row: AccountRow): Account {
   return {
     ...row,
     type: row.type as AccountType,
-    currency: 'COP',
+    currency: row.currency as CurrencyCode,
   };
 }
 
@@ -32,7 +33,7 @@ export class SQLiteAccountRepository implements AccountRepository {
           when ${transactions.type} = 'expense' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
           when ${transactions.type} = 'refund' and ${transactions.accountId} = ${accounts.id} then ${transactions.amount}
           when ${transactions.type} = 'transfer' and ${transactions.accountId} = ${accounts.id} then -${transactions.amount}
-          when ${transactions.type} = 'transfer' and ${transactions.destinationAccountId} = ${accounts.id} then ${transactions.amount}
+          when ${transactions.type} = 'transfer' and ${transactions.destinationAccountId} = ${accounts.id} then coalesce(${transactions.destinationAmountMinor}, ${transactions.amount})
           else 0
         end
       ), 0)

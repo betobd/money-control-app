@@ -2,19 +2,82 @@ import type { Account, AccountWithBalance } from '@/features/accounts/account.ty
 import type { AccountRepository } from '@/features/accounts/account.repository';
 import type { Category } from '@/features/categories/category.types';
 import type { CategoryRepository } from '@/features/categories/category.repository';
+import {
+  isSupportedCurrency,
+  toBaseCurrencyMinor,
+  type CurrencyCode,
+} from '@/features/currency/currency';
 import { notifyFinancialDataChanged } from './financial-data-events';
 import { isValidCalendarDate } from './transaction-date';
 import type { TransactionRepository } from './transaction.repository';
 import {
   supportedTransactionTypes,
+  type ExchangeRateSnapshotInput,
   type NormalizedTransactionListQuery,
+  type ResolvedTransactionInput,
   type TransactionInput,
   type TransactionListQuery,
   type TransactionListItem,
   type TransactionRecord,
+  type TransactionSnapshotFields,
   type TransactionUpdateRecord,
   type TransactionValidationErrors,
 } from './transaction.types';
+
+const MISSING_RATE_MESSAGE = 'Add an exchange rate before saving this USD transaction.';
+const INCOMPLETE_TRANSFER_MESSAGE = 'Enter both the amount sent and the amount received.';
+
+function isValidRateInput(rate: ExchangeRateSnapshotInput | null | undefined): rate is ExchangeRateSnapshotInput {
+  return Boolean(
+    rate &&
+      Number.isSafeInteger(rate.rateScaled) &&
+      rate.rateScaled > 0 &&
+      Number.isSafeInteger(rate.rateScale) &&
+      rate.rateScale > 0 &&
+      isValidCalendarDate(rate.effectiveDate),
+  );
+}
+
+const EMPTY_SNAPSHOT: TransactionSnapshotFields = {
+  baseAmountMinor: null,
+  exchangeRateScaled: null,
+  exchangeRateScale: null,
+  exchangeRateDate: null,
+  exchangeRateSource: null,
+  destinationAmountMinor: null,
+  destinationCurrencyCode: null,
+};
+
+/** Builds the persisted currency snapshot for a resolved, validated transaction input. */
+function buildSnapshot(input: ResolvedTransactionInput): TransactionSnapshotFields {
+  if (input.type === 'transfer') {
+    const crossCurrency = input.currency !== input.destinationCurrencyCode;
+    return {
+      ...EMPTY_SNAPSHOT,
+      destinationAmountMinor: input.destinationAmountMinor,
+      destinationCurrencyCode: input.destinationCurrencyCode,
+      exchangeRateScaled: crossCurrency && input.exchangeRate ? input.exchangeRate.rateScaled : null,
+      exchangeRateScale: crossCurrency && input.exchangeRate ? input.exchangeRate.rateScale : null,
+      exchangeRateDate: crossCurrency && input.exchangeRate ? input.exchangeRate.effectiveDate : null,
+      exchangeRateSource: crossCurrency && input.exchangeRate ? input.exchangeRate.source : null,
+    };
+  }
+  if (input.currency === 'COP') {
+    return { ...EMPTY_SNAPSHOT, baseAmountMinor: input.amount };
+  }
+  const rate = input.exchangeRate as ExchangeRateSnapshotInput;
+  return {
+    ...EMPTY_SNAPSHOT,
+    baseAmountMinor: toBaseCurrencyMinor(input.amount, input.currency, {
+      rateScaled: rate.rateScaled,
+      rateScale: rate.rateScale,
+    }),
+    exchangeRateScaled: rate.rateScaled,
+    exchangeRateScale: rate.rateScale,
+    exchangeRateDate: rate.effectiveDate,
+    exchangeRateSource: rate.source,
+  };
+}
 
 const transactionStatuses = ['posted', 'voided'] as const;
 const DEFAULT_LIST_LIMIT = 40;
@@ -154,18 +217,32 @@ export class TransactionService {
   ): Promise<TransactionRecord> {
     return this.serializeWrite(async () => {
       const normalized = this.normalize(input);
-      await this.validate(normalized);
+      const resolved = await this.validate(normalized);
       const timestamp = this.now();
+      const snapshot = buildSnapshot(resolved);
       const metadata = {
         id: this.createId(),
         status: 'posted' as const,
-        currency: 'COP' as const,
+        currency: resolved.currency,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
-      const transaction: TransactionRecord = normalized.type === 'transfer'
-        ? { ...normalized, ...metadata, categoryId: null, originalTransactionId: null }
-        : { ...normalized, ...metadata, destinationAccountId: null, originalTransactionId: null };
+      const { exchangeRate: _ignoredRate, ...fields } = resolved;
+      const transaction: TransactionRecord = fields.type === 'transfer'
+        ? {
+            ...fields,
+            ...metadata,
+            ...snapshot,
+            categoryId: null,
+            originalTransactionId: null,
+          }
+        : {
+            ...fields,
+            ...metadata,
+            ...snapshot,
+            destinationAccountId: null,
+            originalTransactionId: null,
+          };
 
       await persist(transaction);
       notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
@@ -173,10 +250,9 @@ export class TransactionService {
     });
   }
 
-  async validateTemplate(input: TransactionInput): Promise<TransactionInput> {
+  async validateTemplate(input: TransactionInput): Promise<ResolvedTransactionInput> {
     const normalized = this.normalize(input);
-    await this.validate(normalized, undefined, {}, false);
-    return normalized;
+    return this.validate(normalized, undefined, {}, false);
   }
 
   async update(id: string, input: TransactionInput): Promise<TransactionListItem> {
@@ -209,17 +285,20 @@ export class TransactionService {
     if (normalized.type !== current.type) {
       errors.type = 'Transaction type cannot be changed.';
     }
-    await this.validate(normalized, current, errors);
+    const resolved = await this.validate(normalized, current, errors);
 
     const updatedAt = this.now();
+    const snapshot = buildSnapshot(resolved);
     const update: TransactionUpdateRecord = {
-      amount: normalized.amount,
-      accountId: normalized.accountId,
-      destinationAccountId: normalized.type === 'transfer' ? normalized.destinationAccountId : null,
-      categoryId: normalized.type === 'transfer' ? null : normalized.categoryId,
-      transactionDate: normalized.transactionDate,
-      note: normalized.note,
+      amount: resolved.amount,
+      currency: resolved.currency,
+      accountId: resolved.accountId,
+      destinationAccountId: resolved.type === 'transfer' ? resolved.destinationAccountId : null,
+      categoryId: resolved.type === 'transfer' ? null : resolved.categoryId,
+      transactionDate: resolved.transactionDate,
+      note: resolved.note,
       updatedAt,
+      ...snapshot,
     };
     if (!(await this.repository.updatePosted(id, update))) {
       await this.throwFailedWrite(id, 'edit');
@@ -266,12 +345,15 @@ export class TransactionService {
     original?: TransactionListItem,
     errors: TransactionValidationErrors = {},
     validateTransferFunds = true,
-  ): Promise<void> {
+  ): Promise<ResolvedTransactionInput> {
     if (!supportedTransactionTypes.includes(input.type)) {
       errors.type = 'Select a supported transaction type.';
     }
     if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
-      errors.amount = 'Enter a positive whole COP amount.';
+      errors.amount = 'Enter a valid amount greater than zero.';
+    }
+    if (input.currency !== undefined && !isSupportedCurrency(input.currency)) {
+      errors.currency = 'Select a supported currency.';
     }
     if (!isValidCalendarDate(input.transactionDate)) {
       errors.transactionDate = 'Enter a valid date in YYYY-MM-DD format.';
@@ -280,24 +362,25 @@ export class TransactionService {
       errors.note = 'Note must be 200 characters or fewer.';
     }
 
-    if (input.type === 'transfer') {
-      await this.validateTransfer(input, errors, original, validateTransferFunds);
-    } else {
-      await this.validateCategorizedTransaction(input, errors, original);
-    }
+    const resolved = input.type === 'transfer'
+      ? await this.validateTransfer(input, errors, original, validateTransferFunds)
+      : await this.validateCategorizedTransaction(input, errors, original);
     if (Object.keys(errors).length > 0) throw new TransactionValidationError(errors);
+    return resolved;
   }
 
   private async validateCategorizedTransaction(
     input: Extract<TransactionInput, { type: 'expense' | 'income' }>,
     errors: TransactionValidationErrors,
     original?: TransactionListItem,
-  ): Promise<void> {
+  ): Promise<ResolvedTransactionInput> {
     const account = input.accountId ? await this.accounts.findById(input.accountId) : null;
     if (!input.accountId) {
       errors.accountId = 'Select an account.';
     } else if (!this.isAllowedHistoricalReference(account, input.accountId, original?.accountId)) {
       errors.accountId = 'Select an active account.';
+    } else if (input.currency !== undefined && account && account.currency !== input.currency) {
+      errors.currency = 'The amount currency must match the account currency.';
     }
 
     const category = input.categoryId ? await this.categories.findById(input.categoryId) : null;
@@ -308,6 +391,22 @@ export class TransactionService {
     } else if (category?.type !== input.type) {
       errors.categoryId = `Select an ${input.type} category.`;
     }
+
+    // The account is the source of truth for currency.
+    const currency: CurrencyCode = account?.currency ?? input.currency ?? 'COP';
+
+    // A foreign-currency income/expense must carry a valid COP rate snapshot.
+    if (currency !== 'COP' && !isValidRateInput(input.exchangeRate)) {
+      errors.exchangeRate = MISSING_RATE_MESSAGE;
+    }
+
+    const { exchangeRate, ...rest } = input;
+    return {
+      ...rest,
+      currency,
+      exchangeRate: exchangeRate ?? null,
+      destinationAccountId: null,
+    };
   }
 
   private async validateTransfer(
@@ -315,17 +414,37 @@ export class TransactionService {
     errors: TransactionValidationErrors,
     original?: TransactionListItem,
     validateFunds = true,
-  ): Promise<void> {
+  ): Promise<ResolvedTransactionInput> {
+    const accounts = await this.accounts.list(true);
+    const source = accounts.find((account) => account.id === input.accountId);
+    const destination = accounts.find((account) => account.id === input.destinationAccountId);
+    const currency: CurrencyCode = source?.currency ?? input.currency ?? 'COP';
+    const destinationCurrencyCode: CurrencyCode =
+      destination?.currency ?? input.destinationCurrencyCode ?? currency;
+    const crossCurrency = currency !== destinationCurrencyCode;
+    const destinationAmountMinor = input.destinationAmountMinor ?? (crossCurrency ? Number.NaN : input.amount);
+
+    const resolved: ResolvedTransactionInput = {
+      type: 'transfer',
+      amount: input.amount,
+      currency,
+      accountId: input.accountId,
+      destinationAccountId: input.destinationAccountId,
+      destinationAmountMinor,
+      destinationCurrencyCode,
+      categoryId: null,
+      transactionDate: input.transactionDate,
+      note: input.note,
+      exchangeRate: input.exchangeRate ?? null,
+    };
+
     if (!input.accountId) errors.accountId = 'Select a source account.';
     if (!input.destinationAccountId) errors.destinationAccountId = 'Select a destination account.';
     if (input.accountId && input.destinationAccountId && input.accountId === input.destinationAccountId) {
       errors.destinationAccountId = 'Source and destination accounts must be different.';
     }
-    if (errors.accountId || errors.destinationAccountId) return;
+    if (errors.accountId || errors.destinationAccountId) return resolved;
 
-    const accounts = await this.accounts.list(true);
-    const source = accounts.find((account) => account.id === input.accountId);
-    const destination = accounts.find((account) => account.id === input.destinationAccountId);
     this.validateTransferReference(source, input.accountId, original?.accountId, 'source', errors);
     this.validateTransferReference(
       destination,
@@ -334,25 +453,40 @@ export class TransactionService {
       'destination',
       errors,
     );
-    if (errors.accountId || errors.destinationAccountId || !source || !destination) return;
-    if (!validateFunds) return;
+    if (errors.accountId || errors.destinationAccountId || !source || !destination) return resolved;
 
+    if (!Number.isSafeInteger(destinationAmountMinor) || destinationAmountMinor <= 0) {
+      errors.destinationAmount = INCOMPLETE_TRANSFER_MESSAGE;
+    }
+    if (crossCurrency) {
+      // Cross-currency: both amounts are authoritative and an effective rate is saved.
+      if (!isValidRateInput(input.exchangeRate)) errors.exchangeRate = INCOMPLETE_TRANSFER_MESSAGE;
+    } else if (destinationAmountMinor !== input.amount) {
+      // Same-currency: the destination must receive exactly the source amount.
+      errors.destinationAmount = 'A same-currency transfer must send and receive the same amount.';
+    }
+    if (errors.amount || errors.destinationAmount || errors.exchangeRate) return resolved;
+    if (!validateFunds) return resolved;
+
+    // Balances are per-account in native currency: source loses `amount`, destination
+    // gains its own-currency `destinationAmountMinor`.
     const projected = new Map(accounts.map((account) => [account.id, account.balance]));
     const affected = new Set<string>();
     if (original?.type === 'transfer' && original.status === 'posted') {
+      const originalDestinationAmount = original.destinationAmountMinor ?? original.amount;
       this.applyBalanceEffect(projected, original.accountId, original.amount, affected);
-      this.applyBalanceEffect(projected, original.destinationAccountId, -original.amount, affected);
+      this.applyBalanceEffect(projected, original.destinationAccountId, -originalDestinationAmount, affected);
     }
     this.applyBalanceEffect(projected, input.accountId, -input.amount, affected);
-    this.applyBalanceEffect(projected, input.destinationAccountId, input.amount, affected);
+    this.applyBalanceEffect(projected, input.destinationAccountId, destinationAmountMinor, affected);
 
     for (const accountId of affected) {
       const account = accounts.find((candidate) => candidate.id === accountId);
       const balance = projected.get(accountId);
       if (!account || balance === undefined) continue;
       if (!Number.isSafeInteger(balance)) {
-        errors.amount = 'Transfer would exceed the supported safe COP balance range.';
-        return;
+        errors.amount = 'Transfer would exceed the supported safe balance range.';
+        return resolved;
       }
       if (
         account.type !== 'credit_card'
@@ -360,9 +494,10 @@ export class TransactionService {
         && balance < account.balance
       ) {
         errors.amount = 'Transfer would leave an asset account with insufficient funds.';
-        return;
+        return resolved;
       }
     }
+    return resolved;
   }
 
   private isAllowedHistoricalReference(

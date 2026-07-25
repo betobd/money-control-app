@@ -22,11 +22,30 @@ import { AccountValidationError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { accountTypes, type AccountField, type AccountType, type AccountValidationErrors } from '@/features/accounts/account.types';
+import {
+  getCurrency,
+  listCurrencies,
+  parseMoney,
+  type CurrencyCode,
+} from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-function parseWholePesos(value: string): number {
-  if (!/^-?\d+$/.test(value.trim())) return Number.NaN;
-  return Number(value);
+/** Sanitizes raw input for the given currency: digits, optional dot (for USD), optional sign. */
+function sanitizeMoneyInput(value: string, currency: CurrencyCode, allowNegative: boolean): string {
+  const allowDot = getCurrency(currency).fractionDigits > 0;
+  const pattern = allowNegative
+    ? allowDot ? /[^\d.-]/g : /[^\d-]/g
+    : allowDot ? /[^\d.]/g : /\D/g;
+  return value.replace(pattern, '');
+}
+
+/** Formats a stored minor-unit magnitude for editing (no grouping). */
+function editStringFromMinor(minorMagnitude: number, currency: CurrencyCode): string {
+  const definition = getCurrency(currency);
+  if (definition.fractionDigits === 0) return String(minorMagnitude);
+  const whole = Math.trunc(minorMagnitude / definition.minorUnitFactor);
+  const fraction = minorMagnitude % definition.minorUnitFactor;
+  return `${whole}.${String(fraction).padStart(definition.fractionDigits, '0')}`;
 }
 
 export function AccountForm({ accountId }: { accountId?: string }) {
@@ -35,6 +54,8 @@ export function AccountForm({ accountId }: { accountId?: string }) {
   const theme = useAppTheme();
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('checking');
+  const [currency, setCurrency] = useState<CurrencyCode>('COP');
+  const [currencyEditable, setCurrencyEditable] = useState(true);
   const [openingBalance, setOpeningBalance] = useState('0');
   const [creditLimit, setCreditLimit] = useState('');
   const [statementClosingDay, setStatementClosingDay] = useState('');
@@ -48,13 +69,20 @@ export function AccountForm({ accountId }: { accountId?: string }) {
 
   useEffect(() => {
     if (!accountId) return;
-    Promise.all([accountService.get(accountId), accountService.canEditOpeningBalance(accountId)])
-      .then(([account, canEdit]) => {
+    Promise.all([
+      accountService.get(accountId),
+      accountService.canEditOpeningBalance(accountId),
+      accountService.canChangeCurrency(accountId),
+    ])
+      .then(([account, canEdit, canChangeCurrency]) => {
         if (!account) throw new Error('Account not found.');
         setName(account.name);
         setType(account.type);
-        setOpeningBalance(String(account.type === 'credit_card' ? Math.abs(account.openingBalance) : account.openingBalance));
-        setCreditLimit(account.creditLimit === null ? '' : String(account.creditLimit));
+        setCurrency(account.currency);
+        setCurrencyEditable(canChangeCurrency);
+        const openingMagnitude = account.type === 'credit_card' ? Math.abs(account.openingBalance) : account.openingBalance;
+        setOpeningBalance(editStringFromMinor(openingMagnitude, account.currency));
+        setCreditLimit(account.creditLimit === null ? '' : editStringFromMinor(account.creditLimit, account.currency));
         setStatementClosingDay(account.statementClosingDay === null ? '' : String(account.statementClosingDay));
         setPaymentDueDay(account.paymentDueDay === null ? '' : String(account.paymentDueDay));
         setOpeningBalanceEditable(canEdit);
@@ -72,11 +100,28 @@ export function AccountForm({ accountId }: { accountId?: string }) {
     setErrors({});
     setGeneralError(undefined);
     try {
+      const fieldErrors: AccountValidationErrors = {};
+      const openingParsed = parseMoney(openingBalance.trim() || '0', currency, { allowNegative: true });
+      if (!openingParsed.ok) {
+        fieldErrors.openingBalance = 'Enter a valid amount.';
+      }
+      let creditLimitMinor: number | null = null;
+      if (type === 'credit_card' && creditLimit.trim()) {
+        const creditParsed = parseMoney(creditLimit, currency);
+        if (!creditParsed.ok) fieldErrors.creditLimit = 'Enter a valid amount.';
+        else creditLimitMinor = creditParsed.minor;
+      }
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors);
+        setSaving(false);
+        return;
+      }
       const input = {
         name,
         type,
-        openingBalance: parseWholePesos(openingBalance),
-        creditLimit: type === 'credit_card' && creditLimit.trim() ? parseWholePesos(creditLimit) : null,
+        currency,
+        openingBalance: openingParsed.ok ? openingParsed.minor : 0,
+        creditLimit: creditLimitMinor,
         statementClosingDay: type === 'credit_card' && statementClosingDay.trim() ? Number(statementClosingDay) : null,
         paymentDueDay: type === 'credit_card' && paymentDueDay.trim() ? Number(paymentDueDay) : null,
       };
@@ -167,19 +212,48 @@ export function AccountForm({ accountId }: { accountId?: string }) {
           </View>
         </FormField>
 
-        <FormField label="Currency" theme={theme}>
-          <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface }]}>
-            <Text style={[styles.inputText, { color: theme.secondaryText }]}>COP · Colombian peso</Text>
-          </View>
+        <FormField label="Currency" error={errors.currency} theme={theme}>
+          {currencyEditable ? (
+            <View style={styles.currencyRow}>
+              {listCurrencies().map((option) => {
+                const selected = currency === option.code;
+                return (
+                  <Pressable
+                    accessibilityLabel={`${option.code} ${option.name}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    key={option.code}
+                    onPress={() => { setCurrency(option.code); clearError('currency'); clearError('openingBalance'); clearError('creditLimit'); }}
+                    style={[
+                      styles.currencyChip,
+                      {
+                        backgroundColor: selected ? theme.tintPrimary : theme.surface,
+                        borderColor: selected ? theme.primaryAction : 'transparent',
+                      },
+                    ]}>
+                    <Text style={[styles.currencyCode, { color: selected ? theme.primaryText : theme.secondaryText }]}>{option.code}</Text>
+                    <Text style={[styles.currencyName, { color: selected ? theme.primaryText : theme.mutedText }]}>{option.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface }]}>
+              <Text style={[styles.inputText, { color: theme.secondaryText }]}>{currency} · {getCurrency(currency).name}</Text>
+            </View>
+          )}
+          {!currencyEditable && isEditing ? (
+            <Text style={[styles.help, { color: theme.secondaryText }]}>The currency cannot be changed after this account has financial activity.</Text>
+          ) : null}
         </FormField>
 
-        <FormField label="Opening balance" error={errors.openingBalance} theme={theme}>
+        <FormField label={`Opening balance (${currency})`} error={errors.openingBalance} theme={theme}>
           <TextInput
-            accessibilityLabel="Opening balance in whole Colombian pesos"
+            accessibilityLabel={`Opening balance in ${getCurrency(currency).name}`}
             editable={openingBalanceEditable}
-            keyboardType="number-pad"
-            onChangeText={(value) => { setOpeningBalance(value.replace(/[^\d-]/g, '')); clearError('openingBalance'); }}
-            placeholder="0"
+            keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
+            onChangeText={(value) => { setOpeningBalance(sanitizeMoneyInput(value, currency, true)); clearError('openingBalance'); }}
+            placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
             placeholderTextColor={theme.mutedText}
             style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance), openingBalanceEditable)]}
             value={openingBalance}
@@ -188,17 +262,17 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         </FormField>
 
         {type === 'credit_card' ? (
-          <FormField label="Credit limit" error={errors.creditLimit} theme={theme}>
+          <FormField label={`Credit limit (${currency})`} error={errors.creditLimit} theme={theme}>
             <TextInput
-              accessibilityLabel="Credit limit in whole Colombian pesos"
-              keyboardType="number-pad"
-              onChangeText={(value) => { setCreditLimit(value.replace(/\D/g, '')); clearError('creditLimit'); }}
-              placeholder="0"
+              accessibilityLabel={`Credit limit in ${getCurrency(currency).name}`}
+              keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
+              onChangeText={(value) => { setCreditLimit(sanitizeMoneyInput(value, currency, false)); clearError('creditLimit'); }}
+              placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
               placeholderTextColor={theme.mutedText}
               style={[styles.moneyInput, inputStyle(Boolean(errors.creditLimit))]}
               value={creditLimit}
             />
-            <Text style={[styles.help, { color: theme.secondaryText }]}>Whole Colombian pesos. Must cover the card’s current debt.</Text>
+            <Text style={[styles.help, { color: theme.secondaryText }]}>In the card&apos;s currency. Must cover the card&apos;s current debt.</Text>
           </FormField>
         ) : null}
 
@@ -287,6 +361,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   typeText: { ...typography.caption, flexShrink: 1, fontFamily: fonts.sans.bold, fontWeight: '700' },
+  currencyRow: { flexDirection: 'row', gap: spacing.sm },
+  currencyChip: {
+    alignItems: 'flex-start',
+    borderRadius: borderRadii.card,
+    borderWidth: borderWidths.thin,
+    flex: 1,
+    gap: spacing.xs,
+    minHeight: 60,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  currencyCode: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
+  currencyName: { ...typography.caption },
   error: { ...typography.caption },
   help: { ...typography.caption },
   saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },

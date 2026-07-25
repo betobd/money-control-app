@@ -18,7 +18,7 @@ The portable backup model mirrors all eight application-owned financial/statemen
 - `is_archived`, `archived_at`
 - UTC `created_at`, `updated_at`
 
-Currency is currently constrained to `COP`. Referenced accounts cannot be physically deleted. Opening balance is editable only before the account has any posted transaction; future service logic enforces that history-dependent rule.
+As of Multi-Currency v1 (migration `0009`, [ADR 0005](decisions/0005-multi-currency-cop-usd.md)) `currency` is constrained to `COP` or `USD`. All existing integer money columns (`opening_balance`, `credit_limit`, and every transaction/statement amount) are **minor-unit** values — COP has `minorUnitFactor = 1` (whole pesos) so existing values are unchanged, and USD has `minorUnitFactor = 100` (cents). Physical column names are kept; `*Minor` naming is used in TypeScript models and newly added columns. An account's currency is immutable once it has financial history. Referenced accounts cannot be physically deleted. Opening balance is editable only before the account has any posted transaction; future service logic enforces that history-dependent rule.
 
 The Accounts service trims names and enforces case-insensitive uniqueness among active accounts. Migration 002 adds a partial unique index on `lower(trim(name))` for active rows as database defense in depth. Archived rows are outside that index and may retain historical duplicate names. Restoration clears the archive fields without changing the account ID and revalidates the name against active accounts.
 
@@ -46,14 +46,15 @@ One card has at most one statement per closing date. Statement rows are non-fina
 ### `transactions`
 
 - `id`
-- `type` (`income | expense | transfer`)
+- `type` (`income | expense | transfer | refund`)
 - `status` (`posted | voided`), default `posted`
-- positive integer `amount` in whole COP and `currency = COP`
+- positive integer `amount` in the account's currency minor units; `currency` is `COP` or `USD`
 - `account_id`; transfer-only `destination_account_id`
 - category for income/expense and no category for transfers
 - optional `note`
 - local `transaction_date` in `YYYY-MM-DD`
 - UTC `created_at`, `updated_at`
+- Multi-Currency v1 (migration `0009`) adds nullable `base_amount_minor` (COP snapshot for income/expense/refund), the exchange-rate snapshot (`exchange_rate_scaled`, `exchange_rate_scale`, `exchange_rate_date`, `exchange_rate_source`), and the transfer destination leg (`destination_amount_minor`, `destination_currency_code`). USD income/expense/refund require the base amount + rate snapshot; cross-currency transfers require both leg amounts + a rate. Reports/Budgets/Home aggregate `coalesce(base_amount_minor, amount)`. See [currency-and-rates.md](currency-and-rates.md).
 
 Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. Posted transactions may be edited in place while preserving `id` and `created_at`; edits and voiding advance `updated_at`. Voided transactions cannot be edited or restored to posted. The schema validates row shape, while services validate category compatibility and archive state.
 
@@ -103,6 +104,14 @@ Rules do not reserve funds and never post transactions automatically. Active ref
 Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applied migrations are never edited; later changes receive new ordered migrations.
 
 Migrations are **hand-authored** `.sql` files (several include triggers and guard constraints Drizzle Kit does not model). `drizzle-kit generate` is therefore not the source of truth and must not be used to author new migrations — add new ordered files by hand following the existing pattern. The `meta/` snapshot files are complete only for the earliest migrations, so `drizzle-kit generate` diffs against them would be misleading; ignore them when authoring migrations. The runtime migrator uses `_journal.json` plus the bundled `.sql` files and is unaffected. See [known-limitations.md](known-limitations.md).
+
+### `exchange_rates`
+
+Migration `0009` adds `exchange_rates`, a single-row-per-pair cache of the latest
+valid USD/COP valuation rate: scaled integer `rate_scaled` / `rate_scale`,
+`effective_date`, UTC `fetched_at`, `provider`, and `source` (`frankfurter | manual`).
+It holds no personal or financial data and is portable application data (included in
+backup v4). See [currency-and-rates.md](currency-and-rates.md).
 
 ### Device-local notification tables
 

@@ -85,11 +85,24 @@ export default function HomeScreen() {
         </Text>
       ) : null}
 
-      <Card accessibilityLabel={`Total balance ${formatCop(dashboard.totalBalance)} Colombian pesos`} style={styles.hero} variant="hero">
-        <Overline color={theme.mutedText}>Total balance · COP</Overline>
-        <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.primaryText }]}>
-          {formatCop(dashboard.totalBalance)}
-        </Text>
+      <Card
+        accessibilityLabel={
+          dashboard.netWorth.totalCopMinor === null
+            ? 'Estimated net worth is incomplete because no USD/COP exchange rate is available'
+            : `${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} ${formatCop(dashboard.netWorth.totalCopMinor)} Colombian pesos`
+        }
+        style={styles.hero}
+        variant="hero">
+        <Overline color={theme.mutedText}>
+          {dashboard.netWorth.includesForeign ? 'Estimated net worth · COP' : 'Total balance · COP'}
+        </Overline>
+        {dashboard.netWorth.totalCopMinor === null ? (
+          <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.warning }]}>Estimated — incomplete</Text>
+        ) : (
+          <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.primaryText }]}>
+            {formatCop(dashboard.netWorth.totalCopMinor)}
+          </Text>
+        )}
         <View style={styles.trendRow}>
           <SymbolView
             name={netUp ? { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' } : { ios: 'arrow.down', android: 'arrow_downward', web: 'arrow_downward' }}

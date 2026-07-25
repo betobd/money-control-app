@@ -9,6 +9,7 @@ export type FinancialDataChange =
     }
   | { kind: 'budget'; operation: 'create' | 'update' | 'remove'; budgetId: string }
   | { kind: 'account'; operation: 'create' | 'update' | 'archive' | 'restore' | 'delete'; accountId: string }
+  | { kind: 'exchange-rate'; operation: 'update' }
   | { kind: 'restore' }
   | { kind: 'unspecified' };
 

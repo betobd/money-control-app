@@ -65,8 +65,8 @@ export class SQLiteBudgetRepository implements BudgetRepository {
         spent: sql<number>`(
           select coalesce(sum(
             case
-              when refund_rows.type = 'expense' then refund_rows.amount
-              when refund_rows.type = 'refund' then -refund_rows.amount
+              when refund_rows.type = 'expense' then coalesce(refund_rows.base_amount_minor, refund_rows.amount)
+              when refund_rows.type = 'refund' then -coalesce(refund_rows.base_amount_minor, refund_rows.amount)
               else 0
             end
           ), 0)
@@ -94,8 +94,8 @@ export class SQLiteBudgetRepository implements BudgetRepository {
         spent: sql<number>`(
           select coalesce(sum(
             case
-              when refund_rows.type = 'expense' then refund_rows.amount
-              when refund_rows.type = 'refund' then -refund_rows.amount
+              when refund_rows.type = 'expense' then coalesce(refund_rows.base_amount_minor, refund_rows.amount)
+              when refund_rows.type = 'refund' then -coalesce(refund_rows.base_amount_minor, refund_rows.amount)
               else 0
             end
           ), 0)

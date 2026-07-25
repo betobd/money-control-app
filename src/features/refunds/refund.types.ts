@@ -1,16 +1,26 @@
-import type { TransactionListItem, TransactionRecord } from '@/features/transactions/transaction.types';
+import type { CurrencyCode } from '@/features/currency/currency';
+import type {
+  ExchangeRateSnapshotInput,
+  TransactionListItem,
+  TransactionRecord,
+} from '@/features/transactions/transaction.types';
 
 export type RefundInput = {
   originalTransactionId: string;
   amount: number;
   transactionDate: string;
   note: string | null;
+  /** Required when the original expense is in a foreign currency (USD). */
+  exchangeRate?: ExchangeRateSnapshotInput | null;
 };
 
 export type RefundCreateRecord = {
   id: string;
   originalTransactionId: string;
   amount: number;
+  currency: CurrencyCode;
+  baseAmountMinor: number;
+  exchangeRate: ExchangeRateSnapshotInput | null;
   transactionDate: string;
   note: string | null;
   createdAt: string;
@@ -27,7 +37,7 @@ export type RefundSummary = {
   refundStatus: 'none' | 'partial' | 'full';
 };
 
-export type RefundValidationErrors = Partial<Record<'amount' | 'transactionDate' | 'note', string>>;
+export type RefundValidationErrors = Partial<Record<'amount' | 'transactionDate' | 'note' | 'exchangeRate', string>>;
 
 export interface RefundRepository {
   createAtomic(record: RefundCreateRecord, today: string): Promise<TransactionRecord>;

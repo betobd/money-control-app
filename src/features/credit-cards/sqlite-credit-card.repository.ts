@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
 import { creditCardStatements, transactions } from '@/database/schema';
@@ -31,10 +31,13 @@ export class SQLiteCreditCardRepository implements CreditCardRepository {
   }
 
   async listPaymentsAfter(accountId: string, dateExclusive: string): Promise<CreditCardPaymentRecord[]> {
+    // Attribution uses the destination (card-currency) leg. For a cross-currency
+    // card payment this is the actual amount credited to the card in its currency;
+    // legacy same-currency transfers fall back to the single amount.
     return database
       .select({
         id: transactions.id,
-        amount: transactions.amount,
+        amount: sql<number>`coalesce(${transactions.destinationAmountMinor}, ${transactions.amount})`,
         transactionDate: transactions.transactionDate,
       })
       .from(transactions)

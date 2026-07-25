@@ -1,4 +1,4 @@
-import { formatCop } from '@/features/accounts/account-format';
+import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import type { BudgetView } from '@/features/budgets/budget.types';
 import type { RecurringOccurrenceListItem, RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
@@ -7,7 +7,7 @@ import type { CreditCardDetails } from '@/features/credit-cards/credit-card.type
 
 type RecurringContentSource = Pick<
   RecurringOccurrenceListItem | RecurringRuleListItem,
-  'type' | 'amount' | 'categoryName'
+  'type' | 'amount' | 'categoryName' | 'currency'
 >;
 
 export function recurringReminderContent(
@@ -23,8 +23,8 @@ export function recurringReminderContent(
       : 'You have a recurring transaction to review.';
   const timingText = timing === 'upcoming' ? 'is coming up' : timing === 'overdue' ? 'is overdue' : 'is due today';
   const detail = source.type === 'transfer'
-    ? `A recurring transfer of ${formatCop(source.amount)} ${timingText}.`
-    : `${source.categoryName ?? 'A recurring transaction'} for ${formatCop(source.amount)} ${timingText}.`;
+    ? `A recurring transfer of ${formatMoneyWithSymbol(source.amount, source.currency)} ${timingText}.`
+    : `${source.categoryName ?? 'A recurring transaction'} for ${formatMoneyWithSymbol(source.amount, source.currency)} ${timingText}.`;
   return {
     title: 'Money Control reminder',
     body: mode === 'private' ? privateBody : detail,
@@ -82,7 +82,7 @@ export function creditCardReminderContent(
   const remaining = card.latestStatement?.remainingStatement ?? 0;
   const detailedBody = kind === 'closing'
     ? `${card.account.name} closes on ${date}.`
-    : `${card.account.name} has ${formatCop(remaining)} remaining, due ${date}.`;
+    : `${card.account.name} has ${formatMoneyWithSymbol(remaining, card.account.currency)} remaining, due ${date}.`;
   return {
     title: kind === 'closing' ? 'Statement closing soon' : 'Credit card payment due',
     body: mode === 'private' ? privateBody : detailedBody,

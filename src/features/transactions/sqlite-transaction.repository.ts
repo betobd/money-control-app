@@ -15,6 +15,7 @@ import { alias } from 'drizzle-orm/sqlite-core';
 
 import { database } from '@/database/client';
 import { accounts, categories, transactions } from '@/database/schema';
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { TransactionRepository } from './transaction.repository';
 import type {
   MonthlyTransactionSummary,
@@ -62,7 +63,7 @@ function mapRow(row: TransactionRow): TransactionListItem {
     status: row.transaction.status as 'posted' | 'voided',
     accountId: row.transaction.accountId!,
     note: row.transaction.note,
-    currency: 'COP' as const,
+    currency: row.transaction.currency as CurrencyCode,
   } as TransactionRecord;
 
   return {
@@ -164,9 +165,9 @@ export class SQLiteTransactionRepository implements TransactionRepository {
       : `${year}-${String(monthNumber + 1).padStart(2, '0')}-01`;
     const [row] = await database
       .select({
-        income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then ${transactions.amount} else 0 end), 0)`,
-        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then ${transactions.amount} else 0 end), 0)`,
-        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then ${transactions.amount} else 0 end), 0)`,
+        income: sql<number>`coalesce(sum(case when ${transactions.type} = 'income' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+        grossExpenses: sql<number>`coalesce(sum(case when ${transactions.type} = 'expense' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
+        refunds: sql<number>`coalesce(sum(case when ${transactions.type} = 'refund' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount}) else 0 end), 0)`,
       })
       .from(transactions)
       .where(

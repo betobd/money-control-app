@@ -1,5 +1,6 @@
 import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import { toBaseCurrencyMinor } from '@/features/currency/currency';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type {
   TransactionListCursor,
@@ -46,7 +47,7 @@ export class RefundService {
     };
     const errors: RefundValidationErrors = {};
     if (!Number.isSafeInteger(normalized.amount) || normalized.amount <= 0) {
-      errors.amount = 'Enter a positive whole COP amount.';
+      errors.amount = 'Enter a valid amount greater than zero.';
     }
     if (!isValidCalendarDate(normalized.transactionDate)) {
       errors.transactionDate = 'Enter a valid date in YYYY-MM-DD format.';
@@ -56,11 +57,39 @@ export class RefundService {
     }
     if (Object.keys(errors).length > 0) throw new RefundValidationError(errors);
 
+    // A refund inherits the original expense's account and currency. A foreign
+    // (USD) refund carries its own refund-date rate snapshot and COP base amount.
+    const original = await this.transactions.get(normalized.originalTransactionId);
+    const currency = original?.currency ?? 'COP';
+    let baseAmountMinor = normalized.amount;
+    let exchangeRate = normalized.exchangeRate ?? null;
+    if (currency !== 'COP') {
+      if (
+        !exchangeRate ||
+        !Number.isSafeInteger(exchangeRate.rateScaled) ||
+        exchangeRate.rateScaled <= 0 ||
+        !Number.isSafeInteger(exchangeRate.rateScale) ||
+        exchangeRate.rateScale <= 0 ||
+        !isValidCalendarDate(exchangeRate.effectiveDate)
+      ) {
+        throw new RefundValidationError({ exchangeRate: 'Add an exchange rate before saving this USD refund.' });
+      }
+      baseAmountMinor = toBaseCurrencyMinor(normalized.amount, currency, {
+        rateScaled: exchangeRate.rateScaled,
+        rateScale: exchangeRate.rateScale,
+      });
+    } else {
+      exchangeRate = null;
+    }
+
     const timestamp = this.now();
     const refund = await this.repository.createAtomic({
       id: this.createId(),
       originalTransactionId: normalized.originalTransactionId,
       amount: normalized.amount,
+      currency,
+      baseAmountMinor,
+      exchangeRate,
       transactionDate: normalized.transactionDate,
       note: normalized.note,
       createdAt: timestamp,

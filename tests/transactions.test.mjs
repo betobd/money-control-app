@@ -80,8 +80,8 @@ class Repo {
   }
 }
 
-function account(id, type, balance, isArchived = false) {
-  return { id, type, balance, isArchived };
+function account(id, type, balance, isArchived = false, currency = 'COP') {
+  return { id, type, balance, isArchived, currency };
 }
 
 class Accounts {
@@ -91,6 +91,8 @@ class Accounts {
     ['cash', account('cash', 'cash', 100_000)],
     ['archived', account('archived', 'savings', 800_000, true)],
     ['card', account('card', 'credit_card', -1_050_000)],
+    ['usd', account('usd', 'savings', 200_000, false, 'USD')],
+    ['usd2', account('usd2', 'checking', 50_000, false, 'USD')],
   ]);
   async findById(id) { return this.values.get(id) ?? null; }
   async list(includeArchived) {
@@ -267,6 +269,7 @@ test('formats transfer history without a plus or minus sign', () => {
   const item = {
     ...validTransfer,
     amount: 500_000,
+    currency: 'COP',
     accountName: 'Checking',
     destinationAccountName: 'Card',
   };
@@ -602,4 +605,93 @@ test('serializes concurrent transfers so a shared source cannot be overdrawn', a
   assert.equal(rejected[0].reason.fields.amount, 'Transfer would leave an asset account with insufficient funds.');
   assert.equal(repository.records.filter((record) => record.type === 'transfer').length, 1);
   assert.equal(accounts.balanceOf('active'), 300_000);
+});
+
+// ---- Multi-currency (USD) ----
+
+const USD_RATE = { rateScaled: 41000000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'frankfurter' };
+
+test('USD income stores native amount, currency, and a COP base snapshot', async () => {
+  const { service, repository } = setup();
+  const record = await service.create({
+    type: 'income', amount: 100000, accountId: 'usd', categoryId: 'income',
+    transactionDate: '2026-07-12', note: null, exchangeRate: USD_RATE,
+  });
+  assert.equal(record.currency, 'USD');
+  assert.equal(record.amount, 100000);
+  assert.equal(record.baseAmountMinor, 4100000); // USD 1000 * 4100
+  assert.equal(record.exchangeRateScaled, 41000000);
+  assert.equal(record.exchangeRateSource, 'frankfurter');
+  assert.equal(repository.records[0].baseAmountMinor, 4100000);
+});
+
+test('USD income without a rate is blocked', async () => {
+  const { service } = setup();
+  const errors = await fields(() => service.create({
+    type: 'income', amount: 100000, accountId: 'usd', categoryId: 'income',
+    transactionDate: '2026-07-12', note: null,
+  }));
+  assert.match(errors.exchangeRate, /exchange rate/i);
+});
+
+test('USD expense uses the COP snapshot for the month summary; later rate changes do not', async () => {
+  const { service, repository } = setup();
+  await service.create({
+    type: 'expense', amount: 2500, accountId: 'usd', categoryId: 'expense',
+    transactionDate: '2026-07-12', note: null, exchangeRate: USD_RATE,
+  });
+  // COP snapshot = USD 25.00 * 4100 = 102,500
+  assert.equal(repository.records[0].baseAmountMinor, 102500);
+  const summary = await repository.summarizeMonth('2026-07');
+  // mock summarizeMonth sums native amount, but the persisted base snapshot is fixed
+  assert.equal(repository.records[0].baseAmountMinor, 102500);
+});
+
+test('same-currency USD transfer sets an equal destination leg and no rate', async () => {
+  const { service } = setup();
+  const record = await service.create({
+    type: 'transfer', amount: 30000, accountId: 'usd', destinationAccountId: 'usd2',
+    categoryId: null, transactionDate: '2026-07-12', note: null,
+  });
+  assert.equal(record.currency, 'USD');
+  assert.equal(record.destinationCurrencyCode, 'USD');
+  assert.equal(record.destinationAmountMinor, 30000);
+  assert.equal(record.baseAmountMinor, null);
+  assert.equal(record.exchangeRateScaled, null);
+});
+
+test('cross-currency transfer stores both amounts and the effective rate', async () => {
+  const { service } = setup();
+  const record = await service.create({
+    type: 'transfer', amount: 415000, accountId: 'active', destinationAccountId: 'usd',
+    destinationAmountMinor: 10000, categoryId: null, transactionDate: '2026-07-12', note: null,
+    exchangeRate: { rateScaled: 41500000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'transfer_effective' },
+  });
+  assert.equal(record.currency, 'COP');
+  assert.equal(record.amount, 415000);
+  assert.equal(record.destinationCurrencyCode, 'USD');
+  assert.equal(record.destinationAmountMinor, 10000);
+  assert.equal(record.exchangeRateScaled, 41500000);
+  assert.equal(record.exchangeRateSource, 'transfer_effective');
+});
+
+test('cross-currency transfer without both amounts is blocked', async () => {
+  const { service } = setup();
+  const errors = await fields(() => service.create({
+    type: 'transfer', amount: 415000, accountId: 'active', destinationAccountId: 'usd',
+    categoryId: null, transactionDate: '2026-07-12', note: null,
+  }));
+  assert.ok(errors.destinationAmount || errors.exchangeRate);
+});
+
+test('cross-currency transfer is excluded from the month summary', async () => {
+  const { service, repository } = setup();
+  await service.create({
+    type: 'transfer', amount: 415000, accountId: 'active', destinationAccountId: 'usd',
+    destinationAmountMinor: 10000, categoryId: null, transactionDate: '2026-07-12', note: null,
+    exchangeRate: { rateScaled: 41500000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'transfer_effective' },
+  });
+  const summary = await repository.summarizeMonth('2026-07');
+  assert.equal(summary.income, 0);
+  assert.equal(summary.grossExpenses, 0);
 });

@@ -1,3 +1,4 @@
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { TransactionRecord } from '@/features/transactions/transaction.types';
 import type {
   RecurringOccurrenceListItem,
@@ -29,7 +30,7 @@ export interface RecurringTransactionRepository {
   listRecentOccurrences(limit: number): Promise<RecurringOccurrenceListItem[]>;
   updatePendingOccurrence(
     id: string,
-    occurrence: RecurringTransactionShape & { scheduledDate: string; updatedAt: string },
+    occurrence: RecurringTransactionShape & { currency: CurrencyCode; scheduledDate: string; updatedAt: string },
   ): Promise<boolean>;
   skipPendingOccurrence(id: string, updatedAt: string): Promise<boolean>;
   postPendingOccurrence(

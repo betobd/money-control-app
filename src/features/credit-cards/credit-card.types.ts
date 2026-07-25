@@ -1,4 +1,5 @@
 import type { AccountWithBalance } from '@/features/accounts/account.types';
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { TransactionListItem } from '@/features/transactions/transaction.types';
 
 export type CreditCardCycle = {
@@ -93,7 +94,10 @@ export type CreditCardPaymentInput = {
   cardAccountId: string;
   sourceAccountId: string;
   option: CreditCardPaymentOption;
+  /** Amount credited to the card, in the card's currency. */
   amount: number | null;
+  /** Amount debited from the source, in the source currency. Required only for cross-currency payments. */
+  sourceAmount?: number | null;
   transactionDate: string;
   note: string | null;
   confirmOverpayment?: boolean;
@@ -110,6 +114,11 @@ export type CreditCardPaymentPreview = {
   statementRemaining: number;
   minimumRemaining: number;
   amount: number;
+  /** True when source and card currencies differ (both amounts are saved). */
+  crossCurrency: boolean;
+  sourceCurrency: CurrencyCode;
+  cardCurrency: CurrencyCode;
+  sourceAmount: number;
   expectedCardBalance: number;
   expectedDebt: number;
   expectedStatementRemaining: number;

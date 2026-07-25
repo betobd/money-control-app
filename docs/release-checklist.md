@@ -12,14 +12,16 @@ Run and confirm all pass:
 - Android production export: `npx expo export --platform android`
 - `git diff --check` — no whitespace/conflict markers
 
-Per-feature test scripts are defined in `package.json` (`test:accounts`, `test:transactions`, `test:refunds`, `test:budgets`, `test:reports`, `test:recurring`, `test:credit-cards`, `test:notifications`, `test:backup`, `test:data-export`, `test:security`).
+Per-feature test scripts are defined in `package.json` (`test:accounts`, `test:transactions`, `test:refunds`, `test:budgets`, `test:reports`, `test:recurring`, `test:credit-cards`, `test:notifications`, `test:backup`, `test:data-export`, `test:security`, `test:currency`, `test:exchange-rates`, `test:multi-currency-migration`).
 
 ## Financial correctness (must hold)
 
 - Refunds never count as income; transfers never count as income or expense; card payments never count as expenses.
 - Voided transactions never affect balances, reports, or budgets.
 - No fake statement data is shown; no fake zero-value financial data during loading.
-- COP values are whole safe integers everywhere; no NaN/Infinity/float in persisted or displayed money.
+- Money is stored as integer minor units (COP factor 1, USD factor 100); no NaN/Infinity/float in persisted or displayed money or exchange rates (no SQLite REAL).
+- USD income/expense/refund store a COP base snapshot + rate; Reports/Budgets/Home use the snapshot and never change when the rate refreshes. Estimated net worth converts USD at the latest saved rate (or is marked incomplete when no rate exists).
+- Existing COP data is numerically unchanged after migration 0009; legacy backups migrate to COP.
 - Home totals match Reports and Data Export for the same period.
 - Positive card balances display as **Credit balance**, not **Current debt**.
 - Restore over an existing database that contains a linked refund succeeds.

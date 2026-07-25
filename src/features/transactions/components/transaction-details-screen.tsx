@@ -17,10 +17,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { formatCop } from '@/features/accounts/account-format';
 import { useAccounts } from '@/features/accounts/use-accounts';
+import {
+  formatExchangeRate,
+  formatMoney,
+  formatMoneyWithSymbol,
+  getCurrency,
+  parseMoney,
+  type CurrencyCode,
+} from '@/features/currency/currency';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
-import { AmountInput } from '@/features/add-transaction/components/amount-input';
+import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
 import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
@@ -153,8 +160,25 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                 transaction.status === 'voided' && styles.voidedAmount,
                 { color: transaction.status === 'voided' ? theme.mutedText : theme.primaryText },
               ]}>
-              {formatCop(transaction.amount)}
+              {formatMoneyWithSymbol(transaction.amount, transaction.currency)}
             </Text>
+            {transaction.type !== 'transfer' && transaction.currency !== 'COP' && transaction.baseAmountMinor !== null ? (
+              <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
+                {formatMoney(transaction.baseAmountMinor, 'COP')} at the rate saved when recorded
+                {transaction.exchangeRateScaled && transaction.exchangeRateScale
+                  ? ` (COP ${formatExchangeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale })}/USD)`
+                  : ''}
+              </Text>
+            ) : null}
+            {transaction.type === 'transfer' && transaction.destinationAmountMinor !== null && transaction.destinationCurrencyCode
+              && transaction.destinationCurrencyCode !== transaction.currency ? (
+              <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
+                → {formatMoneyWithSymbol(transaction.destinationAmountMinor, transaction.destinationCurrencyCode)}
+                {transaction.exchangeRateScaled && transaction.exchangeRateScale
+                  ? ` · effective COP ${formatExchangeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale })}/USD`
+                  : ''}
+              </Text>
+            ) : null}
             {transaction.status === 'voided' ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
                 Excluded from balances and reports
@@ -171,10 +195,10 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                     ? 'Partially refunded'
                     : 'Refund status'}
               </Text>
-              <DetailRow label="Gross amount" value={formatCop(refundSummary.grossAmount)} />
-              <DetailRow label="Refunded" value={formatCop(refundSummary.refundedAmount)} />
-              <DetailRow label="Net expense" value={formatCop(refundSummary.netExpense)} />
-              <DetailRow label="Refundable remaining" value={formatCop(refundSummary.refundableRemaining)} />
+              <DetailRow label="Gross amount" value={formatMoneyWithSymbol(refundSummary.grossAmount, transaction.currency)} />
+              <DetailRow label="Refunded" value={formatMoneyWithSymbol(refundSummary.refundedAmount, transaction.currency)} />
+              <DetailRow label="Net expense" value={formatMoneyWithSymbol(refundSummary.netExpense, transaction.currency)} />
+              <DetailRow label="Refundable remaining" value={formatMoneyWithSymbol(refundSummary.refundableRemaining, transaction.currency)} />
               {refundSummary.refunds.map((refund) => (
                 <Pressable
                   accessibilityHint="Opens refund details"
@@ -186,7 +210,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                     {refund.status === 'voided' ? 'Voided refund' : 'Refund'} · {formatTransactionDate(refund.transactionDate)}
                   </Text>
                   <Text style={[styles.refundLinkAmount, { color: refund.status === 'voided' ? theme.mutedText : theme.primaryAction }]}>
-                    +{formatCop(refund.amount)}
+                    +{formatMoneyWithSymbol(refund.amount, refund.currency)}
                   </Text>
                 </Pressable>
               ))}
@@ -306,7 +330,8 @@ function TransactionEditForm({
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const type = transaction.type as TransactionFormType;
-  const [amountDigits, setAmountDigits] = useState(String(transaction.amount));
+  const editCurrency: CurrencyCode = transaction.currency;
+  const [amountDigits, setAmountDigits] = useState(editStringFromMinor(transaction.amount, editCurrency));
   const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(transaction.destinationAccountId ?? undefined);
   const [selectedCategoryId, setSelectedCategoryId] = useState(transaction.categoryId ?? undefined);
@@ -336,8 +361,23 @@ function TransactionEditForm({
     setErrors({});
     setGeneralError(undefined);
     try {
+      const parsedAmount = parseMoney(amountDigits || '0', editCurrency);
+      if (!parsedAmount.ok) {
+        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setSaving(false);
+        return;
+      }
+      // Preserve the original rate snapshot; the amount recomputes the COP base against it.
+      const savedRate = transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateDate && transaction.exchangeRateSource
+        ? {
+            rateScaled: transaction.exchangeRateScaled,
+            rateScale: transaction.exchangeRateScale,
+            effectiveDate: transaction.exchangeRateDate,
+            source: transaction.exchangeRateSource,
+          }
+        : null;
       const common = {
-        amount: amountDigits ? Number(amountDigits) : 0,
+        amount: parsedAmount.minor,
         accountId: selectedAccountId,
         transactionDate,
         note,
@@ -348,12 +388,19 @@ function TransactionEditForm({
           type: 'transfer',
           destinationAccountId: destinationAccountId ?? '',
           categoryId: null,
+          // Preserve the destination leg; for cross-currency, keep both amounts + rate.
+          destinationAmountMinor: transaction.destinationCurrencyCode === transaction.currency
+            ? parsedAmount.minor
+            : transaction.destinationAmountMinor ?? undefined,
+          destinationCurrencyCode: transaction.destinationCurrencyCode ?? undefined,
+          exchangeRate: savedRate,
         });
       } else {
         await transactionService.update(transaction.id, {
           ...common,
           type: transaction.type,
           categoryId: selectedCategoryId ?? '',
+          exchangeRate: savedRate,
         });
       }
       await onSaved();
@@ -381,9 +428,10 @@ function TransactionEditForm({
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.editArea}>
       <ScrollView contentContainerStyle={styles.editContent} keyboardShouldPersistTaps="handled">
         <AmountInput
+          currency={editCurrency}
           digits={amountDigits}
           error={errors.amount}
-          onDigitsChange={setAmountDigits}
+          onDigitsChange={(value) => setAmountDigits(sanitizeAmountEntry(value, editCurrency))}
           type={type}
         />
         <View style={[styles.lockedType, { backgroundColor: theme.elevatedSurface }]}>
@@ -524,6 +572,16 @@ function CenteredState({ label, loading = false }: { label: string; loading?: bo
       ) : null}
     </View>
   );
+}
+
+/** Formats a stored minor-unit amount for editing (no grouping). */
+function editStringFromMinor(minor: number, currency: CurrencyCode): string {
+  const definition = getCurrency(currency);
+  const magnitude = Math.abs(minor);
+  if (definition.fractionDigits === 0) return String(magnitude);
+  const whole = Math.trunc(magnitude / definition.minorUnitFactor);
+  const fraction = magnitude % definition.minorUnitFactor;
+  return `${whole}.${String(fraction).padStart(definition.fractionDigits, '0')}`;
 }
 
 function formatAuditTimestamp(value: string): string {

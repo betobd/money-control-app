@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import { calendarDaysBetween } from '@/features/credit-cards/credit-card-cycle.service';
 import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
 import type { TransactionListItem } from '@/features/transactions/transaction.types';
@@ -53,6 +53,8 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
   }
 
   const { account, utilization, latestStatement, cycle } = details;
+  const cardCurrency = account.currency;
+  const money = (value: number) => formatMoneyWithSymbol(value, cardCurrency);
   const utilizationPercent = utilization.utilizationBasisPoints === null
     ? '—'
     : `${(utilization.utilizationBasisPoints / 100).toFixed(utilization.utilizationBasisPoints % 100 === 0 ? 0 : 1)}%`;
@@ -82,11 +84,11 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
         <Section title="Current card position">
           <Card variant="hero" padding={spacing.lg} style={styles.hero}>
             <Overline color={theme.secondaryText}>Current debt</Overline>
-            <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={[styles.amount, { color: utilization.currentDebt > 0 ? theme.expense : theme.primaryText }]}>{formatCop(utilization.currentDebt)}</Text>
+            <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={[styles.amount, { color: utilization.currentDebt > 0 ? theme.expense : theme.primaryText }]}>{money(utilization.currentDebt)}</Text>
             <Text style={[styles.caption, { color: theme.mutedText }]}>The total amount currently owed based on transactions recorded in Money Control.</Text>
             <View style={styles.metricRow}>
-              <Metric label="Credit limit" value={account.creditLimit === null ? 'Unavailable' : formatCop(account.creditLimit)} />
-              <Metric label="Available credit" value={utilization.availableCredit === null ? 'Unavailable' : formatCop(utilization.availableCredit)} />
+              <Metric label="Credit limit" value={account.creditLimit === null ? 'Unavailable' : money(account.creditLimit)} />
+              <Metric label="Available credit" value={utilization.availableCredit === null ? 'Unavailable' : money(utilization.availableCredit)} />
             </View>
             <View accessibilityLabel={`Credit utilization ${utilizationPercent}, ${utilizationLabels[utilization.status]}`} style={styles.progressSection}>
               <View style={styles.metricRow}>
@@ -114,16 +116,16 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
                 <Text style={[styles.cardTitle, { color: theme.primaryText }]}>{statementLabels[latestStatement.status]}</Text>
                 <Text style={[styles.caption, { color: latestStatement.status === 'overdue' ? theme.destructive : theme.secondaryText }]}>{dueText(dueDays)}</Text>
               </View>
-              <MetricRow label="Statement balance" value={formatCop(latestStatement.statementBalance)} />
+              <MetricRow label="Statement balance" value={money(latestStatement.statementBalance)} />
               <Text style={[styles.caption, { color: theme.mutedText }]}>The amount billed on the latest statement from your bank.</Text>
-              <MetricRow label="Minimum payment" value={formatCop(latestStatement.minimumPayment)} />
-              <MetricRow label="Minimum remaining" value={formatCop(latestStatement.minimumRemaining)} />
+              <MetricRow label="Minimum payment" value={money(latestStatement.minimumPayment)} />
+              <MetricRow label="Minimum remaining" value={money(latestStatement.minimumRemaining)} />
               <Text style={[styles.caption, { color: theme.mutedText }]}>The minimum shown by your bank. Money Control does not calculate it.</Text>
-              <MetricRow label="Remaining statement" value={formatCop(latestStatement.remainingStatement)} />
-              <MetricRow label="Amount paid" value={formatCop(latestStatement.amountPaid)} />
+              <MetricRow label="Remaining statement" value={money(latestStatement.remainingStatement)} />
+              <MetricRow label="Amount paid" value={money(latestStatement.amountPaid)} />
               <MetricRow label="Closing date" value={formatTransactionDate(latestStatement.closingDate)} />
               <MetricRow label="Due date" value={formatTransactionDate(latestStatement.dueDate)} />
-              {latestStatement.amountPaidAfterDueDate > 0 ? <Text style={[styles.caption, { color: theme.warning }]}>Includes {formatCop(latestStatement.amountPaidAfterDueDate)} paid after the due date.</Text> : null}
+              {latestStatement.amountPaidAfterDueDate > 0 ? <Text style={[styles.caption, { color: theme.warning }]}>Includes {money(latestStatement.amountPaidAfterDueDate)} paid after the due date.</Text> : null}
               <Text style={[styles.caption, { color: theme.mutedText }]}>Statement payment attribution is estimated from card payments recorded after the statement closing date. The bank remains the authoritative source.</Text>
             </View>
           ) : (
@@ -153,10 +155,10 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
                   <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>{formatTransactionDate(statement.periodStart)} – {formatTransactionDate(statement.periodEnd)}</Text>
                   <Text style={[styles.caption, { color: statement.status === 'overdue' ? theme.destructive : theme.secondaryText }]}>{statementLabels[statement.status]}{statement.status === 'paid' && !statement.paidOnTime ? ' · late' : ''}</Text>
                 </View>
-                <MetricRow label="Statement balance" value={formatCop(statement.statementBalance)} />
-                <MetricRow label="Minimum payment" value={formatCop(statement.minimumPayment)} />
-                <MetricRow label="Amount paid" value={formatCop(statement.amountPaid)} />
-                <MetricRow label="Remaining statement" value={formatCop(statement.remainingStatement)} />
+                <MetricRow label="Statement balance" value={money(statement.statementBalance)} />
+                <MetricRow label="Minimum payment" value={money(statement.minimumPayment)} />
+                <MetricRow label="Amount paid" value={money(statement.amountPaid)} />
+                <MetricRow label="Remaining statement" value={money(statement.remainingStatement)} />
                 <MetricRow label="Due date" value={formatTransactionDate(statement.dueDate)} />
               </View>
             ))}
@@ -203,7 +205,7 @@ function TransactionSection({ title, items, empty }: { title: string; items: Tra
                   {item.type === 'transfer' ? item.accountName : item.type === 'refund' ? 'Refund' : item.categoryName ?? 'Expense'}
                 </Text>
                 <Text style={[styles.bodyStrong, styles.moneyText, { color: item.type === 'transfer' ? theme.income : item.type === 'refund' ? theme.primaryAction : theme.expense }]}>
-                  {item.type === 'expense' ? '−' : '+'}{formatCop(item.amount)}
+                  {item.type === 'expense' ? '−' : '+'}{formatMoneyWithSymbol(item.amount, item.currency)}
                 </Text>
               </View>
               <Text style={[styles.caption, { color: theme.secondaryText }]}>

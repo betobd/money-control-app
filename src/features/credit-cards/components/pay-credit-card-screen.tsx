@@ -18,7 +18,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import {
+  formatMoneyWithSymbol,
+  getCurrency,
+  parseMoney,
+  type CurrencyCode,
+} from '@/features/currency/currency';
+import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -44,6 +50,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
   const [sourceId, setSourceId] = useState('');
   const [option, setOption] = useState<CreditCardPaymentOption | null>(null);
   const [amountDigits, setAmountDigits] = useState('');
+  const [sourceAmountDigits, setSourceAmountDigits] = useState('');
   const [customAmountTouched, setCustomAmountTouched] = useState(false);
   const [date, setDate] = useState(bogotaToday);
   const [note, setNote] = useState('');
@@ -60,11 +67,19 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     [details],
   );
   const selectedOption = options.find((candidate) => candidate.type === option);
-  const customAmount = Number(amountDigits || 0);
-  const customAmountValid = /^\d+$/.test(amountDigits) && Number.isSafeInteger(customAmount) && customAmount > 0;
+  const cardCurrency: CurrencyCode = details?.account.currency ?? 'COP';
+  const money = (value: number) => formatMoneyWithSymbol(value, cardCurrency);
+  const selectedSource = sources.find((source) => source.id === effectiveSourceId);
+  const sourceCurrency: CurrencyCode = selectedSource?.currency ?? 'COP';
+  const crossCurrency = Boolean(selectedSource) && sourceCurrency !== cardCurrency;
+  const parsedCustom = parseMoney(amountDigits || '0', cardCurrency);
+  const customAmount = parsedCustom.ok ? parsedCustom.minor : 0;
+  const customAmountValid = parsedCustom.ok && customAmount > 0;
   const customAmountError = option === 'other' && customAmountTouched && !customAmountValid
-    ? 'Enter a positive whole, safe COP amount.'
+    ? 'Enter a valid amount greater than zero.'
     : undefined;
+  const parsedSourceAmount = parseMoney(sourceAmountDigits || '0', sourceCurrency);
+  const sourceAmountValue = parsedSourceAmount.ok ? parsedSourceAmount.minor : 0;
 
   const buildInput = useCallback((confirmOverpayment: boolean): CreditCardPaymentInput | null => {
     if (!option) return null;
@@ -73,11 +88,12 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       sourceAccountId: effectiveSourceId,
       option,
       amount: option === 'other' ? customAmount : null,
+      sourceAmount: crossCurrency ? sourceAmountValue : null,
       transactionDate: date,
       note,
       confirmOverpayment,
     };
-  }, [accountId, customAmount, date, effectiveSourceId, note, option]);
+  }, [accountId, crossCurrency, customAmount, date, effectiveSourceId, note, option, sourceAmountValue]);
 
   useEffect(() => {
     if (!option || !selectedOption || selectedOption.isAvailable) return;
@@ -94,6 +110,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     const input = buildInput(false);
     if (!details || !effectiveSourceId || !input || !selectedOption?.isAvailable) return;
     if (input.option === 'other' && !customAmountValid) return;
+    if (crossCurrency && sourceAmountValue <= 0) return;
     let active = true;
     const timer = setTimeout(() => {
       setPreview(undefined);
@@ -108,7 +125,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       active = false;
       clearTimeout(timer);
     };
-  }, [buildInput, customAmountValid, details, effectiveSourceId, selectedOption]);
+  }, [buildInput, crossCurrency, customAmountValid, details, effectiveSourceId, selectedOption, sourceAmountValue]);
 
   function selectPaymentOption(value: CreditCardPaymentOptionView) {
     if (!value.isAvailable) return;
@@ -180,9 +197,9 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.summary, { backgroundColor: theme.elevatedSurface }]}>
-          <Value label="Current debt" value={formatCop(details.utilization.currentDebt)} />
+          <Value label="Current debt" value={money(details.utilization.currentDebt)} />
           <Text style={[styles.help, { color: theme.mutedText }]}>The total amount currently owed based on transactions recorded in Money Control.</Text>
-          <Value label="Remaining statement" value={details.latestStatement ? formatCop(details.latestStatement.remainingStatement) : 'No statement recorded'} />
+          <Value label="Remaining statement" value={details.latestStatement ? money(details.latestStatement.remainingStatement) : 'No statement recorded'} />
           <Text style={[styles.help, { color: theme.mutedText }]}>The unpaid portion of the latest statement based on qualifying card payments.</Text>
         </View>
 
@@ -191,7 +208,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
             {sources.map((source) => (
               <SourceChoice
                 key={source.id}
-                label={`${source.name} · ${formatCop(source.balance)}`}
+                label={`${source.name} · ${formatMoneyWithSymbol(source.balance, source.currency)} ${source.currency}`}
                 onPress={() => setSourceId(source.id)}
                 selected={effectiveSourceId === source.id}
               />
@@ -205,6 +222,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
             {options.map((item) => (
               <PaymentOptionChoice
                 key={item.type}
+                currency={cardCurrency}
                 onPress={() => selectPaymentOption(item)}
                 selected={option === item.type}
                 value={item}
@@ -215,13 +233,13 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         </Field>
 
         {option === 'other' ? (
-          <Field label="Other amount">
+          <Field label={`Other amount (${cardCurrency}, credited to card)`}>
             <TextInput
-              accessibilityLabel="Other card payment amount"
-              keyboardType="number-pad"
+              accessibilityLabel={`Other card payment amount in ${getCurrency(cardCurrency).name}`}
+              keyboardType={getCurrency(cardCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
               onBlur={() => setCustomAmountTouched(true)}
               onChangeText={(value) => {
-                setAmountDigits(value.replace(/\D/g, ''));
+                setAmountDigits(sanitizeAmountEntry(value, cardCurrency));
                 setCustomAmountTouched(true);
                 setPreview(undefined);
               }}
@@ -231,6 +249,26 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               value={amountDigits}
             />
             {customAmountError ? <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.destructive }]}>{customAmountError}</Text> : null}
+          </Field>
+        ) : null}
+
+        {crossCurrency ? (
+          <Field label={`Amount sent from source (${sourceCurrency})`}>
+            <TextInput
+              accessibilityLabel={`Amount debited from the source account in ${getCurrency(sourceCurrency).name}`}
+              keyboardType={getCurrency(sourceCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
+              onChangeText={(value) => {
+                setSourceAmountDigits(sanitizeAmountEntry(value, sourceCurrency));
+                setPreview(undefined);
+              }}
+              placeholder="Enter amount your account was debited"
+              placeholderTextColor={theme.mutedText}
+              style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
+              value={sourceAmountDigits}
+            />
+            <Text style={[styles.help, { color: theme.mutedText }]}>
+              This card payment converts {sourceCurrency} to {cardCurrency}. Enter the actual amount sent and credited; both are saved.
+            </Text>
           </Field>
         ) : null}
 
@@ -261,22 +299,25 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
           {preview ? (
             <View style={[styles.review, { backgroundColor: preview.overpaymentAmount > 0 ? theme.tintWarning : theme.surface }]}>
               <Value label="Source account" value={preview.sourceAccountName} />
-              <Value label="Source available balance" value={formatCop(preview.sourceBalance)} />
+              <Value label="Source available balance" value={`${formatMoneyWithSymbol(preview.sourceBalance, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
               <Value label="Selected payment option" value={preview.optionLabel} />
-              <Value label="Payment amount" value={formatCop(preview.amount)} />
-              <Value label="Current debt" value={formatCop(preview.currentDebt)} />
-              <Value label="Remaining statement" value={details.latestStatement ? formatCop(preview.statementRemaining) : 'No statement recorded'} />
-              <Value label="Expected debt" value={formatCop(preview.expectedDebt)} />
-              <Value label="Expected statement remaining" value={details.latestStatement ? formatCop(preview.expectedStatementRemaining) : 'No statement recorded'} />
+              <Value label={preview.crossCurrency ? 'Amount credited to card' : 'Payment amount'} value={money(preview.amount)} />
+              {preview.crossCurrency ? (
+                <Value label="Amount sent from source" value={`${formatMoneyWithSymbol(preview.sourceAmount, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
+              ) : null}
+              <Value label="Current debt" value={money(preview.currentDebt)} />
+              <Value label="Remaining statement" value={details.latestStatement ? money(preview.statementRemaining) : 'No statement recorded'} />
+              <Value label="Expected debt" value={money(preview.expectedDebt)} />
+              <Value label="Expected statement remaining" value={details.latestStatement ? money(preview.expectedStatementRemaining) : 'No statement recorded'} />
               <Value label="Payment date" value={date} />
               {preview.amountBeyondStatement > 0 && preview.overpaymentAmount === 0 ? (
                 <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>This payment will cover the latest statement and also reduce newer card charges.</Text>
               ) : null}
               {preview.expectedStatementRemaining > 0 && preview.expectedStatementRemaining < preview.statementRemaining ? (
-                <Text style={[styles.help, { color: theme.secondaryText }]}>This payment covers part of the statement, leaving {formatCop(preview.expectedStatementRemaining)}.</Text>
+                <Text style={[styles.help, { color: theme.secondaryText }]}>This payment covers part of the statement, leaving {money(preview.expectedStatementRemaining)}.</Text>
               ) : null}
               {preview.overpaymentAmount > 0 ? (
-                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>This payment exceeds the current debt by {formatCop(preview.overpaymentAmount)}. The card will have a positive balance.</Text>
+                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>This payment exceeds the current debt by {money(preview.overpaymentAmount)}. The card will have a positive balance.</Text>
               ) : null}
             </View>
           ) : <Text style={[styles.help, { color: theme.mutedText }]}>Select an available option to review the payment.</Text>}
@@ -309,10 +350,10 @@ function SourceChoice({ label, onPress, selected }: { label: string; onPress: ()
   return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={[styles.choice, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent' }]}><Text style={[styles.help, { color: selected ? theme.primaryText : theme.secondaryText }]}>{label}</Text></Pressable>;
 }
 
-function PaymentOptionChoice({ onPress, selected, value }: { onPress: () => void; selected: boolean; value: CreditCardPaymentOptionView }) {
+function PaymentOptionChoice({ onPress, selected, value, currency }: { onPress: () => void; selected: boolean; value: CreditCardPaymentOptionView; currency: CurrencyCode }) {
   const theme = useAppTheme();
   const detail = value.amount !== null
-    ? formatCop(value.amount)
+    ? formatMoneyWithSymbol(value.amount, currency)
     : value.unavailableReason ?? 'Enter a custom amount';
   return (
     <Pressable

@@ -2,7 +2,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { formatCop, accountTypeLabels } from '@/features/accounts/account-format';
+import { accountTypeLabels } from '@/features/accounts/account-format';
+import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -54,7 +55,7 @@ export function AccountPicker({
             const selected = account.id === selectedId;
             return (
               <Pressable
-                accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, balance ${formatCop(account.balance)}`}
+                accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, balance ${formatMoneyWithSymbol(account.balance, account.currency)} ${account.currency}`}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
                 key={account.id}
@@ -73,7 +74,7 @@ export function AccountPicker({
                     {accountTypeLabels[account.type]}
                   </Text>
                 </View>
-                <Text style={[styles.balance, { color: theme.secondaryText }]}>{formatCop(account.balance)}</Text>
+                <Text style={[styles.balance, { color: theme.secondaryText }]}>{formatMoneyWithSymbol(account.balance, account.currency)} {account.currency}</Text>
               </Pressable>
             );
           })}

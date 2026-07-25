@@ -1,15 +1,19 @@
+import type { CurrencyCode } from '@/features/currency/currency';
+
 export const BACKUP_FORMAT = 'money-control-backup' as const;
-export const CURRENT_BACKUP_FORMAT_VERSION = 3 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0008' as const;
+export const CURRENT_BACKUP_FORMAT_VERSION = 4 as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0009' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
+/** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
 export const BACKUP_CHECKSUM_ALGORITHM = 'SHA-256' as const;
 
+/** Account currency is COP or USD as of format v4. Accounts gained no other fields. */
 export type BackupAccount = {
   id: string;
   name: string;
   type: 'checking' | 'savings' | 'credit_card' | 'cash' | 'other';
-  currency: 'COP';
+  currency: CurrencyCode;
   openingBalance: number;
   creditLimit: number | null;
   statementClosingDay: number | null;
@@ -21,6 +25,27 @@ export type BackupAccount = {
 };
 
 export type BackupAccountV1 = Omit<BackupAccount, 'statementClosingDay' | 'paymentDueDay'>;
+
+export type ExchangeRateSnapshotSource =
+  | 'frankfurter'
+  | 'manual'
+  | 'transfer_effective'
+  | 'frankfurter_prefill';
+
+/** Portable latest valuation rate (non-secret application data). */
+export type BackupExchangeRate = {
+  id: string;
+  baseCurrencyCode: CurrencyCode;
+  quoteCurrencyCode: CurrencyCode;
+  rateScaled: number;
+  rateScale: number;
+  effectiveDate: string;
+  fetchedAt: string;
+  provider: string | null;
+  source: 'frankfurter' | 'manual';
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type BackupCreditCardStatement = {
   id: string;
@@ -51,7 +76,7 @@ export type BackupTransactionV2 = {
   type: 'income' | 'expense' | 'transfer';
   status: 'posted' | 'voided';
   amount: number;
-  currency: 'COP';
+  currency: CurrencyCode;
   accountId: string;
   destinationAccountId: string | null;
   categoryId: string | null;
@@ -61,9 +86,22 @@ export type BackupTransactionV2 = {
   updatedAt: string;
 };
 
-export type BackupTransaction = Omit<BackupTransactionV2, 'type'> & {
+/** Format v3 transaction: refund + originalTransactionId, still COP-only. */
+export type BackupTransactionV3 = Omit<BackupTransactionV2, 'type'> & {
   type: 'income' | 'expense' | 'transfer' | 'refund';
   originalTransactionId: string | null;
+};
+
+/** Format v4 canonical transaction: COP or USD, COP base snapshot, rate snapshot, transfer legs. */
+export type BackupTransaction = Omit<BackupTransactionV3, 'currency'> & {
+  currency: CurrencyCode;
+  baseAmountMinor: number | null;
+  exchangeRateScaled: number | null;
+  exchangeRateScale: number | null;
+  exchangeRateDate: string | null;
+  exchangeRateSource: ExchangeRateSnapshotSource | null;
+  destinationAmountMinor: number | null;
+  destinationCurrencyCode: CurrencyCode | null;
 };
 
 export type BackupTransactionSplit = {
@@ -87,7 +125,7 @@ export type BackupRecurringTransaction = {
   id: string;
   type: 'income' | 'expense' | 'transfer';
   amount: number;
-  currency: 'COP';
+  currency: CurrencyCode;
   accountId: string;
   destinationAccountId: string | null;
   categoryId: string | null;
@@ -110,7 +148,7 @@ export type BackupRecurringOccurrence = {
   status: 'pending' | 'posted' | 'skipped';
   type: 'income' | 'expense' | 'transfer';
   amount: number;
-  currency: 'COP';
+  currency: CurrencyCode;
   accountId: string;
   destinationAccountId: string | null;
   categoryId: string | null;
@@ -142,7 +180,14 @@ export type BackupDataV2 = {
 };
 
 export type BackupDataV3 = Omit<BackupDataV2, 'transactions'> & {
+  transactions: BackupTransactionV3[];
+};
+
+/** Canonical current data shape (format v4). */
+export type BackupDataV4 = Omit<BackupDataV3, 'transactions'> & {
   transactions: BackupTransaction[];
+  /** Portable latest USD/COP valuation rate, or null. */
+  exchangeRate: BackupExchangeRate | null;
 };
 
 export type BackupSummary = {
@@ -192,11 +237,16 @@ export type BackupFileV2 = Omit<BackupFileV1, 'formatVersion' | 'summary' | 'dat
 };
 
 export type BackupFileV3 = Omit<BackupFileV2, 'formatVersion' | 'data'> & {
-  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  formatVersion: 3;
   data: BackupDataV3;
 };
 
-export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3;
+export type BackupFileV4 = Omit<BackupFileV3, 'formatVersion' | 'data'> & {
+  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  data: BackupDataV4;
+};
+
+export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3 | BackupFileV4;
 
 export type BackupPreview = {
   fileName: string;
@@ -214,7 +264,7 @@ export type BackupPreview = {
 
 export type RestoreCandidate = {
   file: BackupFile;
-  data: BackupDataV3;
+  data: BackupDataV4;
   preview: BackupPreview;
 };
 

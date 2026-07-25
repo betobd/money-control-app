@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, isNull, lte, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 
+import type { CurrencyCode } from '@/features/currency/currency';
 import { database } from '@/database/client';
 import {
   accounts,
@@ -43,7 +44,7 @@ function mapRule(row: {
 }): RecurringRuleListItem {
   return {
     ...row.rule,
-    currency: 'COP',
+    currency: row.rule.currency as RecurringRuleRecord['currency'],
     type: row.rule.type as RecurringRuleRecord['type'],
     frequency: row.rule.frequency as RecurringRuleRecord['frequency'],
     accountName: row.accountName,
@@ -60,7 +61,7 @@ function mapOccurrence(row: {
 }): RecurringOccurrenceListItem {
   return {
     ...row.occurrence,
-    currency: 'COP',
+    currency: row.occurrence.currency as RecurringOccurrenceRecord['currency'],
     type: row.occurrence.type as RecurringOccurrenceRecord['type'],
     status: row.occurrence.status as RecurringOccurrenceRecord['status'],
     accountName: row.accountName,
@@ -118,7 +119,7 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
       .orderBy(asc(recurringTransactions.nextOccurrenceDate), asc(recurringTransactions.id));
     return rows.map((row) => ({
       ...row,
-      currency: 'COP',
+      currency: row.currency as RecurringRuleRecord['currency'],
       type: row.type as RecurringRuleRecord['type'],
       frequency: row.frequency as RecurringRuleRecord['frequency'],
     } as RecurringRuleRecord));
@@ -191,13 +192,14 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
 
   async updatePendingOccurrence(
     id: string,
-    occurrence: RecurringTransactionShape & { scheduledDate: string; updatedAt: string },
+    occurrence: RecurringTransactionShape & { currency: CurrencyCode; scheduledDate: string; updatedAt: string },
   ): Promise<boolean> {
     const rows = await database
       .update(recurringOccurrences)
       .set({
         type: occurrence.type,
         amount: occurrence.amount,
+        currency: occurrence.currency,
         accountId: occurrence.accountId,
         destinationAccountId: occurrence.destinationAccountId,
         categoryId: occurrence.categoryId,

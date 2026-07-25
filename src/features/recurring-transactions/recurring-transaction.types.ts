@@ -1,3 +1,4 @@
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { CategorizedTransactionType, SupportedTransactionType } from '@/features/transactions/transaction.types';
 
 export const recurringFrequencies = ['daily', 'weekly', 'monthly', 'yearly'] as const;
@@ -31,7 +32,7 @@ export type RecurringRuleInput = RecurringTransactionShape & {
 
 export type RecurringRuleRecord = RecurringRuleInput & {
   id: string;
-  currency: 'COP';
+  currency: CurrencyCode;
   nextOccurrenceDate: string;
   isActive: boolean;
   endedAt: string | null;
@@ -50,7 +51,7 @@ export type RecurringOccurrenceRecord = RecurringTransactionShape & {
   recurringTransactionId: string;
   scheduledDate: string;
   status: RecurringOccurrenceStatus;
-  currency: 'COP';
+  currency: CurrencyCode;
   transactionId: string | null;
   createdAt: string;
   updatedAt: string;

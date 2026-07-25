@@ -1,4 +1,5 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
+import { deriveCrossCurrencyRate } from '@/features/currency/currency';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type { TransactionRecord } from '@/features/transactions/transaction.types';
@@ -97,11 +98,22 @@ export class CreditCardPaymentService {
     }
     const amount = input.option === 'other' ? input.amount : selectedOption.amount;
     if (amount === null || !Number.isSafeInteger(amount) || amount <= 0) {
-      throw new CreditCardPaymentValidationError('Payment amount must be a positive whole, safe COP amount.');
+      throw new CreditCardPaymentValidationError('Payment amount must be a positive whole, safe amount.');
+    }
+    // `amount` is always in the card's currency (it credits the card).
+    const cardCurrency = details.account.currency;
+    const sourceCurrency = source.currency;
+    const crossCurrency = sourceCurrency !== cardCurrency;
+    let sourceAmount = amount;
+    if (crossCurrency) {
+      sourceAmount = input.sourceAmount ?? 0;
+      if (!Number.isSafeInteger(sourceAmount) || sourceAmount <= 0) {
+        throw new CreditCardPaymentValidationError('Enter the amount to send from the source account.');
+      }
     }
     const expectedCardBalance = details.account.balance + amount;
     if (!Number.isSafeInteger(expectedCardBalance)) {
-      throw new CreditCardPaymentValidationError('Payment would exceed the supported safe COP balance range.');
+      throw new CreditCardPaymentValidationError('Payment would exceed the supported safe balance range.');
     }
     const latest = details.latestStatement;
     const cutoff = latest
@@ -121,6 +133,10 @@ export class CreditCardPaymentService {
       statementRemaining,
       minimumRemaining: latest?.minimumRemaining ?? 0,
       amount,
+      crossCurrency,
+      sourceCurrency,
+      cardCurrency,
+      sourceAmount,
       expectedCardBalance,
       expectedDebt: expectedCardBalance < 0 ? Math.abs(expectedCardBalance) : 0,
       expectedStatementRemaining,
@@ -135,6 +151,28 @@ export class CreditCardPaymentService {
     const preview = await this.preview(input);
     if (preview.overpaymentAmount > 0 && !input.confirmOverpayment) {
       throw new CreditCardOverpaymentConfirmationRequired(preview);
+    }
+    if (preview.crossCurrency) {
+      // Store both actual amounts and the effective rate; attribution uses the card leg.
+      const copMinor = preview.sourceCurrency === 'COP' ? preview.sourceAmount : preview.amount;
+      const usdMinor = preview.sourceCurrency === 'USD' ? preview.sourceAmount : preview.amount;
+      const rate = deriveCrossCurrencyRate(copMinor, usdMinor);
+      return this.transactions.create({
+        type: 'transfer',
+        amount: preview.sourceAmount,
+        accountId: preview.sourceAccountId,
+        destinationAccountId: preview.cardAccountId,
+        destinationAmountMinor: preview.amount,
+        categoryId: null,
+        transactionDate: input.transactionDate,
+        note: input.note,
+        exchangeRate: {
+          rateScaled: rate.rateScaled,
+          rateScale: rate.rateScale,
+          effectiveDate: input.transactionDate,
+          source: 'transfer_effective',
+        },
+      });
     }
     return this.transactions.create({
       type: 'transfer',

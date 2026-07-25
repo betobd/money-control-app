@@ -3,9 +3,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProgressBar } from '@/components/progress-bar';
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { accountTypeLabels, formatCop } from '@/features/accounts/account-format';
+import { accountTypeLabels } from '@/features/accounts/account-format';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
+import {
+  accessibleMoney,
+  convertUsdMinorToCopMinor,
+  formatMoney,
+  formatMoneyNumber,
+  type ScaledRate,
+} from '@/features/currency/currency';
 import { CreditCardCycleService } from '@/features/credit-cards/credit-card-cycle.service';
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
 import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
@@ -15,13 +22,16 @@ type AccountCardProps = {
   account: AccountWithBalance;
   onActions: (account: AccountWithBalance) => void;
   onOpen?: (account: AccountWithBalance) => void;
+  /** Current USD/COP valuation rate, for the estimated-COP line on USD accounts. */
+  valuationRate?: ScaledRate | null;
 };
 
-export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
+export function AccountCard({ account, onActions, onOpen, valuationRate }: AccountCardProps) {
   const theme = useAppTheme();
   const isCard = account.type === 'credit_card';
   const isDebt = isCard && account.balance < 0;
   const isCredit = isCard && account.balance > 0;
+  const isForeign = account.currency !== 'COP';
   const balanceLabel = isCard
     ? isCredit
       ? 'Credit balance'
@@ -29,7 +39,11 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
     : account.type === 'cash'
       ? 'Current balance'
       : 'Available balance';
-  const formattedBalance = formatCop(isCard ? Math.abs(account.balance) : account.balance);
+  const displayMagnitude = isCard ? Math.abs(account.balance) : account.balance;
+  const formattedBalance = formatMoneyNumber(displayMagnitude, account.currency);
+  const estimatedCopMinor = isForeign && valuationRate
+    ? convertUsdMinorToCopMinor(displayMagnitude, valuationRate)
+    : null;
   const utilization = account.type === 'credit_card'
     ? calculateCreditCardUtilization(account.balance, account.creditLimit)
     : null;
@@ -39,7 +53,7 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
 
   return (
     <View
-      accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, ${balanceLabel}, ${formattedBalance} COP${account.isArchived ? ', archived' : ''}`}
+      accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, ${balanceLabel}, ${accessibleMoney(displayMagnitude, account.currency)}${account.isArchived ? ', archived' : ''}`}
       style={[
         styles.card,
         { backgroundColor: account.isArchived ? theme.disabledSurface : theme.surface },
@@ -88,8 +102,19 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
             style={[styles.amount, { color: isDebt ? theme.expense : theme.primaryText }]}>
             {formattedBalance}
           </Text>
-          <Text style={[styles.currency, { color: theme.mutedText }]}>COP</Text>
+          <Text style={[styles.currency, { color: theme.mutedText }]}>{account.currency}</Text>
         </View>
+        {isForeign ? (
+          estimatedCopMinor !== null ? (
+            <Text style={[styles.estimate, { color: theme.mutedText }]}>
+              ≈ {formatMoney(estimatedCopMinor, 'COP')} · Estimated in COP
+            </Text>
+          ) : (
+            <Text style={[styles.estimate, { color: theme.warning }]}>
+              Add an exchange rate to include this account in estimated net worth.
+            </Text>
+          )
+        ) : null}
         {isDebt ? (
           <Text style={[styles.debtNote, { color: theme.expense }]}>Debt · reduces net worth</Text>
         ) : null}
@@ -107,7 +132,7 @@ export function AccountCard({ account, onActions, onOpen }: AccountCardProps) {
                 value={utilization.utilizationBasisPoints / 10000}
               />
             ) : null}
-            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available credit {utilization.availableCredit === null ? 'unavailable' : formatCop(utilization.availableCredit)} · Credit utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
+            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available credit {utilization.availableCredit === null ? 'unavailable' : formatMoney(utilization.availableCredit, account.currency)} · Credit utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
             {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
           </View>
         ) : null}
@@ -130,6 +155,7 @@ const styles = StyleSheet.create({
   amountRow: { alignItems: 'baseline', flexDirection: 'row', maxWidth: '100%' },
   amount: { ...typography.moneyHero, flexShrink: 1, fontSize: 24, lineHeight: 30 },
   currency: { ...typography.caption, marginLeft: spacing.xs },
+  estimate: { ...typography.caption },
   debtNote: { ...typography.caption, fontWeight: '600' },
   cardDetails: { gap: spacing.sm, paddingTop: spacing.xs },
 });

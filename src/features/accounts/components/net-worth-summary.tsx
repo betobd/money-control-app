@@ -8,28 +8,44 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 type NetWorthSummaryProps = {
   amount: string;
   currency: string;
+  /** True when the estimate includes USD accounts converted at the current rate. */
+  estimated?: boolean;
+  /** True when USD accounts are excluded because no valid rate exists. */
+  incomplete?: boolean;
 };
 
-export function NetWorthSummary({ amount, currency }: NetWorthSummaryProps) {
+export function NetWorthSummary({ amount, currency, estimated, incomplete }: NetWorthSummaryProps) {
   const theme = useAppTheme();
+  const title = estimated || incomplete ? 'Estimated net worth' : 'Total net worth';
+  const note = incomplete
+    ? 'USD accounts are not included because no USD/COP exchange rate is available.'
+    : estimated
+      ? 'Includes USD accounts converted using the latest saved reference rate.'
+      : 'Assets minus current debt';
 
   return (
     <Card
-      accessibilityLabel={`Total net worth, ${amount} ${currency}. Assets minus current debt.`}
+      accessibilityLabel={`${title}, ${incomplete ? 'estimated, incomplete' : amount + ' ' + currency}. ${note}`}
       style={styles.card}
       variant="raised">
-      <Overline>Total net worth</Overline>
+      <Overline>{title}</Overline>
       <View style={styles.amountRow}>
-        <Text
-          adjustsFontSizeToFit
-          minimumFontScale={0.65}
-          numberOfLines={1}
-          style={[styles.amount, { color: theme.primaryAction }]}>
-          {amount}
-        </Text>
-        <Text style={[styles.currency, { color: theme.mutedText }]}>{currency}</Text>
+        {incomplete ? (
+          <Text style={[styles.amount, { color: theme.warning }]}>Estimated — incomplete</Text>
+        ) : (
+          <>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.65}
+              numberOfLines={1}
+              style={[styles.amount, { color: theme.primaryAction }]}>
+              {amount}
+            </Text>
+            <Text style={[styles.currency, { color: theme.mutedText }]}>{currency}</Text>
+          </>
+        )}
       </View>
-      <Text style={[styles.note, { color: theme.mutedText }]}>Assets minus current debt</Text>
+      <Text style={[styles.note, { color: theme.mutedText }]}>{note}</Text>
     </Card>
   );
 }

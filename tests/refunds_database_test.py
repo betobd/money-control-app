@@ -82,7 +82,7 @@ for row, message in [
     (('before-expense', 'refund', 'posted', 1, 'COP', 'checking', None, None, 'expense', None, '2026-07-19', now, now), 'early refund'),
 ]:
     try:
-        database.execute('INSERT INTO transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', row)
+        database.execute('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,original_transaction_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', row)
         raise AssertionError(f'database accepted {message}')
     except sqlite3.IntegrityError:
         pass

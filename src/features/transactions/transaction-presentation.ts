@@ -1,6 +1,6 @@
 import type { SymbolViewProps } from 'expo-symbols';
 
-import { formatCop } from '@/features/accounts/account-format';
+import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import { fallbackCategoryIcon, getCategoryIcon } from '@/features/categories/category-icons';
 import { formatTransactionDate } from './transaction-date';
 import type { TransactionListItem, TransactionSection } from './transaction.types';
@@ -16,9 +16,10 @@ const refundIcon: SymbolViewProps['name'] = {
   web: 'assignment_return',
 };
 
-export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount' | 'type'>) {
-  if (item.type === 'transfer') return formatCop(item.amount);
-  return `${item.type === 'expense' ? '-' : '+'}${formatCop(item.amount)}`;
+export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount' | 'type' | 'currency'>) {
+  const formatted = formatMoneyWithSymbol(item.amount, item.currency);
+  if (item.type === 'transfer') return formatted;
+  return `${item.type === 'expense' ? '-' : '+'}${formatted}`;
 }
 
 export function transactionTitle(item: Pick<TransactionListItem, 'note' | 'categoryName' | 'type'>) {

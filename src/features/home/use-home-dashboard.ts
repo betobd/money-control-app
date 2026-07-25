@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
 
 import { accountService } from '@/features/accounts/accounts';
+import type { EstimatedNetWorth } from '@/features/accounts/account.service';
 import type { BudgetSummary } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
+import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
 import { bogotaToday, monthFromDate } from '@/features/transactions/transaction-date';
 import { transactionService } from '@/features/transactions/transactions';
 import type { MonthlyTransactionSummary, TransactionListItem } from '@/features/transactions/transaction.types';
@@ -10,7 +12,7 @@ import { toUserMessage } from '@/errors/user-error';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
 
 type State = {
-  totalBalance: number;
+  netWorth: EstimatedNetWorth;
   summary: MonthlyTransactionSummary;
   recent: TransactionListItem[];
   budget: BudgetSummary;
@@ -26,7 +28,7 @@ const emptyBudget: BudgetSummary = {
 
 export function useHomeDashboard() {
   const [data, setData] = useState<State>({
-    totalBalance: 0,
+    netWorth: { totalCopMinor: 0, incomplete: false, includesForeign: false },
     summary: {
       income: 0,
       grossExpenses: 0,
@@ -45,14 +47,21 @@ export function useHomeDashboard() {
     setLoading(true);
     setError(undefined);
     try {
-      const [accounts, summary, recent, budget] = await Promise.all([
+      const [accounts, rateStatus, summary, recent, budget] = await Promise.all([
         accountService.list(true),
+        exchangeRateService.getStatus(),
         transactionService.summarizeMonth(month),
         transactionService.recent(3),
         budgetService.listMonth(month),
       ]);
+      const valuationRate = rateStatus.rate
+        ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale }
+        : null;
+      if (accounts.some((account) => account.currency !== 'COP')) {
+        void exchangeRateService.ensureFreshRate();
+      }
       setData({
-        totalBalance: accountService.calculateNetWorth(accounts),
+        netWorth: accountService.estimateNetWorth(accounts, valuationRate),
         summary,
         recent,
         budget: budget.summary,

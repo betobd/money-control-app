@@ -11,10 +11,23 @@ This document is the normative source for financial calculations and invariants.
 - **Posted transaction**: an active transaction included in balances and reports.
 - **Voided transaction**: retained history excluded from balances and reports.
 
+## 1a. Multi-currency (COP base + USD)
+
+As of Multi-Currency v1 ([ADR 0005](decisions/0005-multi-currency-cop-usd.md),
+[currency-and-rates.md](currency-and-rates.md)) accounts may be COP or USD. COP is
+the fixed base currency for all consolidated reporting. Money is integer minor units
+(COP `minorUnitFactor 1`; USD `minorUnitFactor 100`). Each USD income/expense/refund
+stores a COP `base_amount_minor` snapshot plus an immutable exchange-rate snapshot;
+Reports, Budgets, and Home read the snapshot, so refreshing the rate never rewrites
+history. Cross-currency transfers store both actual amounts and the effective rate.
+Net worth converts USD at the latest saved valuation rate (estimated; marked
+incomplete when no rate exists). Rate changes never create income or expense.
+Budgets remain COP-only. No monetary value or rate is stored as floating point.
+
 ## 2. Money representation
 
-- All monetary values are integer counts of whole Colombian pesos stored in SQLite `INTEGER` columns.
-- `100000` means `$100.000 COP`.
+- Monetary values are integer counts of the currency's minor units stored in SQLite `INTEGER` columns. COP minor units are whole pesos; USD minor units are cents.
+- `100000` means `$100.000 COP` (or `USD 1,000.00` in a USD account).
 - Fractional values, decimal COP input, floating-point storage, `NaN`, infinity, and exponent notation are invalid.
 - JavaScript monetary values use `number` and must pass `Number.isSafeInteger()`. `BigInt` is not used in the Accounts phase.
 - Transaction amounts are positive magnitudes. Direction is represented by transaction type and signed account effects.

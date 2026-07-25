@@ -47,6 +47,17 @@ Formula protection is applied only to exported user-authored text columns: accou
 
 Numeric columns are typed as numbers before serialization, so legitimate negative account balances and budget remaining values are not apostrophe-prefixed. IDs, controlled enums, and application-generated dates are not treated as user text.
 
+## Multi-currency columns
+
+As of Multi-Currency v1, exports include native and COP values. The transactions CSV
+adds `currency_code`, `amount_minor` (native, replacing `amount_cop`),
+`base_currency_amount_cop` (the COP snapshot), `exchange_rate`, `exchange_rate_date`,
+`exchange_rate_source`, `destination_amount_minor`, and `destination_currency_code`.
+The accounts CSV adds `currency_code`, `estimated_base_currency_balance_cop`, and
+`valuation_rate` / `valuation_rate_date` / `valuation_rate_source`, with native
+`opening_balance_minor` / `current_balance_minor` columns. Report exports remain COP
+using saved transaction snapshots. See [currency-and-rates.md](currency-and-rates.md).
+
 ## Money and date conventions
 
 Money columns contain raw whole COP integers without thousands separators, decimal fractions, currency symbols, or parentheses. For example, `1250000` means COP 1,250,000.

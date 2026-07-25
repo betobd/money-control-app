@@ -16,8 +16,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
+import {
+  convertCopMinorToUsdMinor,
+  convertUsdMinorToCopMinor,
+  deriveCrossCurrencyRate,
+  formatExchangeRate,
+  parseMoney,
+  type CurrencyCode,
+  type ScaledRate,
+} from '@/features/currency/currency';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
-import { AmountInput } from '@/features/add-transaction/components/amount-input';
+import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
 import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
@@ -29,7 +38,7 @@ import { useCategories } from '@/features/categories/use-categories';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { transactionService } from '@/features/transactions/transactions';
-import type { TransactionValidationErrors } from '@/features/transactions/transaction.types';
+import type { ExchangeRateSnapshotInput, TransactionValidationErrors } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AccountPickerField = 'account' | 'source' | 'destination' | null;
@@ -39,6 +48,7 @@ export default function AddTransactionModal() {
   const theme = useAppTheme();
   const [type, setType] = useState<TransactionFormType>('expense');
   const [amountDigits, setAmountDigits] = useState('');
+  const [destinationAmountDigits, setDestinationAmountDigits] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>();
   const [selectedAccountId, setSelectedAccountId] = useState<string>();
   const [destinationAccountId, setDestinationAccountId] = useState<string>();
@@ -51,13 +61,21 @@ export default function AddTransactionModal() {
   const [showSuccess, setShowSuccess] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { accounts } = useAccounts();
+  const { accounts, rateStatus } = useAccounts();
   const activeAccounts = accounts.filter((account) => !account.isArchived);
   const expenseCategories = useCategories('expense', false).categories;
   const incomeCategories = useCategories('income', false).categories;
   const categories = type === 'income' ? incomeCategories : expenseCategories;
   const selectedAccount = activeAccounts.find((account) => account.id === selectedAccountId);
   const destinationAccount = activeAccounts.find((account) => account.id === destinationAccountId);
+  const sourceCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
+  const destinationCurrency: CurrencyCode = destinationAccount?.currency ?? 'COP';
+  const entryCurrency: CurrencyCode = type === 'transfer' ? sourceCurrency : sourceCurrency;
+  const crossCurrency = type === 'transfer' && Boolean(selectedAccount) && Boolean(destinationAccount) && sourceCurrency !== destinationCurrency;
+  const needsForeignRate = (type !== 'transfer' && sourceCurrency !== 'COP') || crossCurrency;
+  const valuationRate: ScaledRate | null = rateStatus?.rate
+    ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale }
+    : null;
   const effectiveCategoryId = categories.some((category) => category.id === selectedCategoryId)
     ? selectedCategoryId
     : categories[0]?.id;
@@ -95,24 +113,70 @@ export default function AddTransactionModal() {
     setGeneralError(undefined);
 
     try {
+      const parsedSource = parseMoney(amountDigits || '0', sourceCurrency);
+      if (!parsedSource.ok) {
+        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setSaving(false);
+        return;
+      }
+      const amount = parsedSource.minor;
       const common = {
-        amount: amountDigits ? Number(amountDigits) : 0,
+        amount,
         accountId: selectedAccountId ?? '',
         transactionDate,
         note,
       };
+
       if (type === 'transfer') {
+        let destinationAmountMinor: number | undefined;
+        let exchangeRate: ExchangeRateSnapshotInput | null = null;
+        if (crossCurrency) {
+          const parsedDestination = parseMoney(destinationAmountDigits || '0', destinationCurrency);
+          if (!parsedDestination.ok || parsedDestination.minor <= 0) {
+            setErrors({ destinationAmount: 'Enter both the amount sent and the amount received.' });
+            setSaving(false);
+            return;
+          }
+          destinationAmountMinor = parsedDestination.minor;
+          // The effective rate is derived from the actual amounts (authoritative).
+          const copMinor = sourceCurrency === 'COP' ? amount : destinationAmountMinor;
+          const usdMinor = sourceCurrency === 'USD' ? amount : destinationAmountMinor;
+          const derived = deriveCrossCurrencyRate(copMinor, usdMinor);
+          exchangeRate = {
+            rateScaled: derived.rateScaled,
+            rateScale: derived.rateScale,
+            effectiveDate: transactionDate,
+            source: 'transfer_effective',
+          };
+        }
         await transactionService.create({
           ...common,
           type: 'transfer',
           destinationAccountId: destinationAccountId ?? '',
           categoryId: null,
+          destinationAmountMinor,
+          exchangeRate,
         });
       } else {
+        let exchangeRate: ExchangeRateSnapshotInput | null = null;
+        if (sourceCurrency !== 'COP') {
+          if (!rateStatus?.rate) {
+            setErrors({ exchangeRate: 'Add an exchange rate before saving this USD transaction.' });
+            setSaving(false);
+            return;
+          }
+          exchangeRate = {
+            rateScaled: rateStatus.rate.rateScaled,
+            rateScale: rateStatus.rate.rateScale,
+            effectiveDate: rateStatus.rate.effectiveDate,
+            source: rateStatus.rate.source,
+          };
+        }
         await transactionService.create({
           ...common,
           type,
           categoryId: effectiveCategoryId ?? '',
+          exchangeRate,
         });
       }
       setShowSuccess(true);
@@ -125,6 +189,20 @@ export default function AddTransactionModal() {
       }
       setSaving(false);
     }
+  }
+
+  function prefillDestination() {
+    if (!valuationRate) return;
+    const parsedSource = parseMoney(amountDigits || '0', sourceCurrency);
+    if (!parsedSource.ok || parsedSource.minor <= 0) return;
+    const destMinor = destinationCurrency === 'USD'
+      ? convertCopMinorToUsdMinor(parsedSource.minor, valuationRate)
+      : convertUsdMinorToCopMinor(parsedSource.minor, valuationRate);
+    const text = destinationCurrency === 'USD'
+      ? `${Math.trunc(destMinor / 100)}.${String(destMinor % 100).padStart(2, '0')}`
+      : String(destMinor);
+    setDestinationAmountDigits(text);
+    setErrors((current) => ({ ...current, destinationAmount: undefined }));
   }
 
   const transferHelper = destinationAccount?.type === 'credit_card'
@@ -165,12 +243,28 @@ export default function AddTransactionModal() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardArea}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <AmountInput
+            currency={entryCurrency}
             digits={amountDigits}
             error={errors.amount}
             onDigitsChange={setAmountDigits}
             type={type}
           />
           <TransactionTypeSelector onChange={changeType} value={type} />
+
+          {needsForeignRate ? (
+            rateStatus?.rate ? (
+              <Text style={[styles.rateNote, { color: rateStatus.freshness === 'stale' ? theme.warning : theme.secondaryText }]}>
+                USD/COP reference rate COP {formatExchangeRate({ rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale })} · {rateStatus.freshness === 'stale' ? 'may be out of date' : `rate date ${rateStatus.rate.effectiveDate}`}. Your bank may use a different rate.
+              </Text>
+            ) : (
+              <Text accessibilityLiveRegion="polite" style={[styles.rateWarning, { color: theme.destructive }]}>
+                No exchange rate is available. Add a USD/COP rate in More → Currency & Rates before saving.
+              </Text>
+            )
+          ) : null}
+          {errors.exchangeRate ? (
+            <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{errors.exchangeRate}</Text>
+          ) : null}
 
           {generalError ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>
@@ -179,15 +273,53 @@ export default function AddTransactionModal() {
           ) : null}
 
           {type === 'transfer' ? (
-            <TransferAccountFields
-              destination={destinationAccount?.name ?? 'Select account'}
-              destinationError={errors.destinationAccountId}
-              helperText={transferHelper}
-              onSelectDestination={() => setAccountPickerField('destination')}
-              onSelectSource={() => setAccountPickerField('source')}
-              source={selectedAccount?.name ?? 'Select account'}
-              sourceError={errors.accountId}
-            />
+            <>
+              <TransferAccountFields
+                destination={destinationAccount?.name ?? 'Select account'}
+                destinationError={errors.destinationAccountId}
+                helperText={transferHelper}
+                onSelectDestination={() => setAccountPickerField('destination')}
+                onSelectSource={() => setAccountPickerField('source')}
+                source={selectedAccount?.name ?? 'Select account'}
+                sourceError={errors.accountId}
+              />
+              {crossCurrency ? (
+                <View style={styles.field}>
+                  <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>
+                    Amount received ({destinationCurrency})
+                  </Text>
+                  <TextInput
+                    accessibilityLabel={`Amount received in ${destinationCurrency}`}
+                    keyboardType={destinationCurrency === 'COP' ? 'number-pad' : 'decimal-pad'}
+                    onChangeText={(value) => {
+                      setDestinationAmountDigits(sanitizeAmountEntry(value, destinationCurrency));
+                      setErrors((current) => ({ ...current, destinationAmount: undefined }));
+                    }}
+                    placeholder={destinationCurrency === 'COP' ? '0' : '0.00'}
+                    placeholderTextColor={theme.mutedText}
+                    value={destinationAmountDigits}
+                    style={[
+                      styles.textInput,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: errors.destinationAmount ? theme.destructive : theme.hairline,
+                        color: theme.primaryText,
+                      },
+                    ]}
+                  />
+                  {valuationRate ? (
+                    <Pressable accessibilityRole="button" onPress={prefillDestination}>
+                      <Text style={[styles.rateNote, { color: theme.primaryAction }]}>Estimate from reference rate</Text>
+                    </Pressable>
+                  ) : null}
+                  {errors.destinationAmount ? (
+                    <Text style={[styles.error, { color: theme.destructive }]}>{errors.destinationAmount}</Text>
+                  ) : (
+                    <Text style={[styles.rateNote, { color: theme.mutedText }]}>Enter the actual amount your bank credited. Both amounts are saved.</Text>
+                  )}
+                </View>
+              ) : null}
+            </>
           ) : (
             <>
               <CategoryGrid
@@ -309,5 +441,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   error: { ...typography.caption },
+  rateNote: { ...typography.caption },
+  rateWarning: { ...typography.caption },
   limit: { ...typography.label, textAlign: 'right' },
 });

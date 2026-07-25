@@ -7,6 +7,20 @@ import type {
 } from './account.types';
 import { accountTypes } from './account.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import {
+  convertUsdMinorToCopMinor,
+  isSupportedCurrency,
+  type ScaledRate,
+} from '@/features/currency/currency';
+
+export type EstimatedNetWorth = {
+  /** Consolidated COP total, or null when it cannot be computed. */
+  totalCopMinor: number | null;
+  /** True when USD accounts exist but no valid rate excludes them from the total. */
+  incomplete: boolean;
+  /** True when at least one non-COP account contributes (or would contribute). */
+  includesForeign: boolean;
+};
 
 export class AccountValidationError extends Error {
   constructor(public readonly fields: AccountValidationErrors) {
@@ -39,12 +53,13 @@ export function validateAccountInput(input: AccountInput): AccountValidationErro
   if (!input.name.trim()) errors.name = 'Enter an account name.';
   // `other` is a legacy/backup value only; new accounts must use a creatable type.
   if (!(accountTypes as readonly string[]).includes(input.type)) errors.type = 'Select a supported account type.';
+  if (!isSupportedCurrency(input.currency)) errors.currency = 'Select a supported currency.';
   if (!Number.isSafeInteger(input.openingBalance)) {
-    errors.openingBalance = 'Opening balance must be a whole, safe COP amount.';
+    errors.openingBalance = 'Opening balance must be a whole, safe amount.';
   }
   if (input.type === 'credit_card') {
     if (!Number.isSafeInteger(input.creditLimit) || (input.creditLimit ?? 0) <= 0) {
-      errors.creditLimit = 'Credit limit must be a positive whole, safe COP amount.';
+      errors.creditLimit = 'Credit limit must be a positive whole, safe amount.';
     }
     if (!Number.isInteger(input.statementClosingDay) || (input.statementClosingDay ?? 0) < 1 || (input.statementClosingDay ?? 0) > 31) {
       errors.statementClosingDay = 'Closing day must be a whole number from 1 to 31.';
@@ -95,13 +110,22 @@ export class AccountService {
     return !(await this.repository.hasPostedTransactions(id));
   }
 
+  /** Currency may change only while the account has no financial history. */
+  async canChangeCurrency(id: string): Promise<boolean> {
+    const eligibility = await this.repository.getDeletionEligibility(id);
+    return Boolean(
+      eligibility.account &&
+        !eligibility.hasFinancialReferences &&
+        eligibility.account.openingBalance === 0,
+    );
+  }
+
   async create(input: AccountInput): Promise<Account> {
     const normalized = await this.validate(input);
     const timestamp = this.now();
     const account: Account = {
       id: this.createId(),
       ...normalized,
-      currency: 'COP',
       isArchived: false,
       archivedAt: null,
       createdAt: timestamp,
@@ -116,6 +140,17 @@ export class AccountService {
     const current = await this.repository.findById(id);
     if (!current) throw new Error('Account not found.');
     const normalized = await this.validate(input, id, current.isArchived);
+
+    if (normalized.currency !== current.currency) {
+      const eligibility = await this.repository.getDeletionEligibility(id);
+      const hasFinancialHistory =
+        eligibility.hasFinancialReferences || current.openingBalance !== 0;
+      if (hasFinancialHistory) {
+        throw new AccountValidationError({
+          currency: 'The currency cannot be changed after this account has financial activity.',
+        });
+      }
+    }
 
     if (
       current.type === 'credit_card'
@@ -207,10 +242,35 @@ export class AccountService {
     notifyFinancialDataChanged({ kind: 'account', operation: 'delete', accountId: id });
   }
 
-  calculateNetWorth(accountsWithBalances: AccountWithBalance[]): number {
-    const total = accountsWithBalances.reduce((sum, account) => sum + account.balance, 0);
-    if (!Number.isSafeInteger(total)) throw new Error('Net worth exceeds the supported safe integer range.');
-    return total;
+  /**
+   * Estimated consolidated net worth in COP. COP balances contribute exactly; USD
+   * balances are converted at the given valuation rate. When USD accounts exist but
+   * no rate is available they are excluded and the result is marked incomplete
+   * (never treated as COP 0). See docs/decisions/0005-multi-currency-cop-usd.md.
+   */
+  estimateNetWorth(
+    accountsWithBalances: AccountWithBalance[],
+    rate: ScaledRate | null,
+  ): EstimatedNetWorth {
+    let total = 0;
+    let incomplete = false;
+    let includesForeign = false;
+    for (const account of accountsWithBalances) {
+      if (account.currency === 'COP') {
+        total += account.balance;
+        continue;
+      }
+      includesForeign = true;
+      if (!rate) {
+        incomplete = true;
+        continue;
+      }
+      total += convertUsdMinorToCopMinor(account.balance, rate);
+    }
+    if (!Number.isSafeInteger(total)) {
+      throw new Error('Net worth exceeds the supported safe integer range.');
+    }
+    return { totalCopMinor: incomplete && includesForeign ? null : total, incomplete, includesForeign };
   }
 
   private async validate(

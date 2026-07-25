@@ -4,7 +4,7 @@ export type NewAccountRecord = Account;
 
 export type AccountUpdateRecord = Pick<
   Account,
-  'name' | 'type' | 'openingBalance' | 'creditLimit' | 'statementClosingDay' | 'paymentDueDay' | 'updatedAt'
+  'name' | 'type' | 'currency' | 'openingBalance' | 'creditLimit' | 'statementClosingDay' | 'paymentDueDay' | 'updatedAt'
 >;
 
 export type AccountDeletionEligibility = {

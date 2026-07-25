@@ -4,7 +4,11 @@ import test from 'node:test';
 import { AccountActionError, AccountService, AccountValidationError } from '../src/features/accounts/account.service.ts';
 
 const NOW = '2026-07-12T12:00:00.000Z';
-const validInput = { name: 'Main Checking', type: 'checking', openingBalance: 100000, creditLimit: null, statementClosingDay: null, paymentDueDay: null };
+const validInput = { name: 'Main Checking', type: 'checking', currency: 'COP', openingBalance: 100000, creditLimit: null, statementClosingDay: null, paymentDueDay: null };
+
+// COP-only net worth: estimateNetWorth with no rate; fixtures default to COP.
+const copNetWorth = (service, accounts) =>
+  service.estimateNetWorth(accounts.map((account) => ({ currency: 'COP', ...account })), null).totalCopMinor;
 const validCardInput = { ...validInput, name: 'Visa', type: 'credit_card', creditLimit: 2_000_000, statementClosingDay: 15, paymentDueDay: 5 };
 
 class MemoryAccountRepository {
@@ -214,7 +218,7 @@ test('sums signed balances for assets, debt, and archived accounts', async () =>
     { balance: -1000000, isArchived: false, type: 'credit_card' },
     { balance: 1500000, isArchived: true, type: 'savings' },
   ];
-  assert.equal(service.calculateNetWorth(accounts), 1100000);
+  assert.equal(copNetWorth(service, accounts), 1100000);
 });
 
 test('calculates reported post-expense balances and net worth', () => {
@@ -223,12 +227,12 @@ test('calculates reported post-expense balances and net worth', () => {
     { balance: 9850000, isArchived: false, type: 'checking' },
     { balance: 5000000, isArchived: false, type: 'checking' },
   ];
-  assert.equal(service.calculateNetWorth(accounts), 14850000);
+  assert.equal(copNetWorth(service, accounts), 14850000);
 });
 
 test('a credit card with zero debt has no net-worth effect', () => {
   const { service } = setup();
-  assert.equal(service.calculateNetWorth([{ balance: 0, isArchived: false, type: 'credit_card' }]), 0);
+  assert.equal(copNetWorth(service, [{ balance: 0, isArchived: false, type: 'credit_card' }]), 0);
 });
 
 test('multiple credit-card debts are each subtracted once', () => {
@@ -238,7 +242,7 @@ test('multiple credit-card debts are each subtracted once', () => {
     { balance: -400000, isArchived: false, type: 'credit_card' },
     { balance: -600000, isArchived: false, type: 'credit_card' },
   ];
-  assert.equal(service.calculateNetWorth(accounts), 1500000);
+  assert.equal(copNetWorth(service, accounts), 1500000);
 });
 
 test('an archived credit card with debt still reduces net worth', () => {
@@ -247,7 +251,7 @@ test('an archived credit card with debt still reduces net worth', () => {
     { balance: 1000000, isArchived: false, type: 'savings' },
     { balance: -300000, isArchived: true, type: 'credit_card' },
   ];
-  assert.equal(service.calculateNetWorth(accounts), 700000);
+  assert.equal(copNetWorth(service, accounts), 700000);
 });
 
 test('stores credit-card opening debt as negative without double-negating it', async () => {
@@ -275,6 +279,61 @@ test('credit-card payment transfer preserves net worth with equal and opposite e
     { balance: 2500000, type: 'checking' },
     { balance: -550000, type: 'credit_card' },
   ];
-  assert.equal(service.calculateNetWorth(before), 1950000);
-  assert.equal(service.calculateNetWorth(after), 1950000);
+  assert.equal(copNetWorth(service, before), 1950000);
+  assert.equal(copNetWorth(service, after), 1950000);
+});
+
+const USD_COP = { rateScaled: 41000000, rateScale: 10000 }; // 4100 COP/USD
+
+test('estimateNetWorth converts USD balances at the valuation rate and marks it estimated', () => {
+  const { service } = setup();
+  const accounts = [
+    { balance: 3000000, isArchived: false, type: 'checking', currency: 'COP' },
+    { balance: 100000, isArchived: false, type: 'savings', currency: 'USD' }, // USD 1,000.00
+  ];
+  const result = service.estimateNetWorth(accounts, USD_COP);
+  assert.equal(result.totalCopMinor, 3000000 + 4100000);
+  assert.equal(result.includesForeign, true);
+  assert.equal(result.incomplete, false);
+});
+
+test('estimateNetWorth excludes USD and reports incomplete when no rate exists', () => {
+  const { service } = setup();
+  const accounts = [
+    { balance: 3000000, isArchived: false, type: 'checking', currency: 'COP' },
+    { balance: 100000, isArchived: false, type: 'savings', currency: 'USD' },
+  ];
+  const result = service.estimateNetWorth(accounts, null);
+  assert.equal(result.totalCopMinor, null);
+  assert.equal(result.incomplete, true);
+  assert.equal(result.includesForeign, true);
+});
+
+test('estimateNetWorth converts negative USD card debt at the rate', () => {
+  const { service } = setup();
+  const accounts = [{ balance: -50000, isArchived: false, type: 'credit_card', currency: 'USD' }]; // USD -500.00
+  const result = service.estimateNetWorth(accounts, USD_COP);
+  assert.equal(result.totalCopMinor, -2050000);
+});
+
+test('currency may be changed before the account has financial history', async () => {
+  const { service } = setup();
+  const account = await service.create({ ...validInput, openingBalance: 0 });
+  await service.update(account.id, { ...validInput, openingBalance: 0, currency: 'USD' });
+  assert.equal((await service.get(account.id)).currency, 'USD');
+});
+
+test('currency cannot be changed after the account has financial history', async () => {
+  const { repository, service } = setup();
+  const account = await service.create({ ...validInput, openingBalance: 0 });
+  repository.postedActivity.add(account.id);
+  const fields = await validationFields(() => service.update(account.id, { ...validInput, openingBalance: 0, currency: 'USD' }));
+  assert.match(fields.currency, /cannot be changed/i);
+});
+
+test('currency cannot be changed when the account has a nonzero opening balance', async () => {
+  const { service } = setup();
+  const account = await service.create(validInput); // openingBalance 100000
+  const fields = await validationFields(() => service.update(account.id, { ...validInput, currency: 'USD' }));
+  assert.match(fields.currency, /cannot be changed/i);
 });

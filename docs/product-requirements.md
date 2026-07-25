@@ -184,7 +184,7 @@ Unless later promoted into scope:
 - Bank integrations and automatic transaction import.
 - Remote push notifications and automatic recurring transaction posting.
 - Savings goals, debt schedules, and forecasting.
-- Multiple currencies, conversion, and exchange rates.
+- Currencies beyond COP and USD, a user-configurable base currency, multi-currency budgets, recurring cross-currency transfers, FX gain/loss, and historical daily FX valuation. COP (base) and USD accounts with a Frankfurter reference rate are supported as of Multi-Currency v1 — see [currency-and-rates.md](currency-and-rates.md).
 - Receipt scanning or attachments.
 - Web and iOS release commitments.
 - Encrypted/password-protected backup, automatic/scheduled backup, cloud sync, merge import, and partial restore.

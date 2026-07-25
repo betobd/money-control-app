@@ -59,6 +59,14 @@ const menuItems: MenuItem[] = [
     href: '/reports' as Href,
   },
   {
+    accessibilityLabel: 'Open currency and rates',
+    accessibilityHint: 'Review the base currency and the USD/COP reference rate',
+    icon: { ios: 'coloncurrencysign.circle.fill', android: 'currency_exchange', web: 'currency_exchange' },
+    label: 'Currency & Rates',
+    description: 'Base currency and USD/COP reference rate',
+    href: '/currency-rates' as Href,
+  },
+  {
     accessibilityLabel: 'Manage categories',
     accessibilityHint: 'Create, edit, archive, and restore categories',
     icon: { ios: 'square.grid.2x2.fill', android: 'category', web: 'category' },

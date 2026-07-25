@@ -7,7 +7,9 @@ Two complementary layers, both runnable from a dev machine without a device.
 `node --import tsx --test tests/*.test.mjs` runs pure TypeScript service/domain logic against in-memory fakes. These assert **product behavior**, not implementation detail:
 
 - Accounts, Categories, Transactions, Transfers, Refunds, Budgets, Reports, Recurring, Credit cards, Notifications, Backup, Data Export, App Lock.
-- Date utilities (Bogotá-local, no UTC drift) and COP safe-integer utilities.
+- Currency & rates (`tests/currency.test.mjs`, `tests/exchange-rate.test.mjs`): money parsing/formatting, scaled-integer conversion and deterministic rounding, the Frankfurter provider (validation, HTTP/timeout/network mapping, no financial data sent), and the exchange-rate service (freshness, cached fallback, manual rate, duplicate-refresh prevention, last-valid-rate preservation).
+- USD income/expense/refund, same- and cross-currency transfers, and rate-snapshot behavior are covered in the transactions/refunds suites.
+- Date utilities (Bogotá-local, no UTC drift) and safe-integer money utilities.
 - Financial invalidation events.
 - User-safe error mapping (`tests/user-error.test.mjs`): curated domain messages pass through; raw SQLite/constraint/safe-integer/undefined-field text is replaced with a neutral fallback.
 - Write serialization (`tests/transactions.test.mjs`): two concurrent transfers from one source cannot both commit and overdraw it.
@@ -18,6 +20,7 @@ Two complementary layers, both runnable from a dev machine without a device.
 
 Key coverage:
 - Migration chain from empty database; data preservation and `PRAGMA foreign_key_check`/`integrity_check`.
+- `multi_currency_migration_database_test.py`: migration `0009` preserves all COP data and totals, backfills `base_amount_minor`/transfer legs, creates `exchange_rates`, allows USD while rejecting EUR and rateless USD, and confirms Reports/Budgets aggregate the COP snapshot.
 - `backup_restore_database_test.py`: atomic restore, rollback on simulated failure, and restore **over an existing database that already contains a linked refund** (guards the self-referential `ON DELETE RESTRICT` delete-order fix).
 - Refund migration, credit-card, budget schema, notifications, and data-export projections.
 
