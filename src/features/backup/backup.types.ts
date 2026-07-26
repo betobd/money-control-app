@@ -2,18 +2,21 @@ import type { BudgetColorKey } from '@/constants/theme';
 import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
-export const CURRENT_BACKUP_FORMAT_VERSION = 4 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0011' as const;
+export const CURRENT_BACKUP_FORMAT_VERSION = 5 as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0012' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
 export const BACKUP_CHECKSUM_ALGORITHM = 'SHA-256' as const;
 
-/** Account currency is COP or USD as of format v4. Accounts gained no other fields. */
+/**
+ * Account currency is COP or USD as of format v4. Format v5 adds the `investment`
+ * type (an investment account always has an `investmentAccounts` metadata row).
+ */
 export type BackupAccount = {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit_card' | 'cash' | 'other';
+  type: 'checking' | 'savings' | 'credit_card' | 'cash' | 'investment' | 'other';
   currency: CurrencyCode;
   openingBalance: number;
   creditLimit: number | null;
@@ -158,6 +161,33 @@ export type BackupRecurringTransaction = {
   updatedAt: string;
 };
 
+/** Investment-account metadata (format v5+); one row per `investment` account. */
+export type BackupInvestmentAccount = {
+  accountId: string;
+  investmentType: 'brokerage' | 'fixed_term_deposit' | 'voluntary_pension' | 'investment_fund' | 'private_investment' | 'other';
+  trackingMode: 'balance';
+  liquidity: 'liquid' | 'restricted' | 'locked';
+  providerName: string | null;
+  startDate: string | null;
+  maturityDate: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** One manual investment valuation (format v5+), in the account's native currency. */
+export type BackupInvestmentValuation = {
+  id: string;
+  investmentAccountId: string;
+  valueMinor: number;
+  basisMinor: number;
+  currencyCode: CurrencyCode;
+  valuationDate: string;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type BackupRecurringOccurrence = {
   id: string;
   recurringTransactionId: string;
@@ -200,13 +230,19 @@ export type BackupDataV3 = Omit<BackupDataV2, 'transactions'> & {
   transactions: BackupTransactionV3[];
 };
 
-/** Canonical current data shape (format v4). */
+/** Format-v4 data shape (multi-currency; no investments). */
 export type BackupDataV4 = Omit<BackupDataV3, 'transactions'> & {
   transactions: BackupTransaction[];
   /** Portable latest USD/COP valuation rate, or null. */
   exchangeRate: BackupExchangeRate | null;
   /** Recurring-budget templates (schema 0011+). Absent in older backups. */
   budgetRules?: BackupBudgetRule[];
+};
+
+/** Canonical current data shape (format v5): adds investment accounts + valuations. */
+export type BackupDataV5 = BackupDataV4 & {
+  investmentAccounts: BackupInvestmentAccount[];
+  investmentValuations: BackupInvestmentValuation[];
 };
 
 export type BackupSummary = {
@@ -220,6 +256,12 @@ export type BackupSummary = {
   creditCardStatements: number;
 };
 
+/** Format-v5 summary: adds investment collection counts. */
+export type BackupSummaryV5 = BackupSummary & {
+  investmentAccounts: number;
+  investmentValuations: number;
+};
+
 export type BackupSummaryV1 = Omit<BackupSummary, 'creditCardStatements'>;
 
 export type BackupTransactionDateRange = {
@@ -228,7 +270,7 @@ export type BackupTransactionDateRange = {
 };
 
 export type BackupOverview = {
-  summary: BackupSummary;
+  summary: BackupSummaryV5;
   transactionDateRange: BackupTransactionDateRange;
 };
 
@@ -261,11 +303,17 @@ export type BackupFileV3 = Omit<BackupFileV2, 'formatVersion' | 'data'> & {
 };
 
 export type BackupFileV4 = Omit<BackupFileV3, 'formatVersion' | 'data'> & {
-  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  formatVersion: 4;
   data: BackupDataV4;
 };
 
-export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3 | BackupFileV4;
+export type BackupFileV5 = Omit<BackupFileV4, 'formatVersion' | 'data' | 'summary'> & {
+  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  summary: BackupSummaryV5;
+  data: BackupDataV5;
+};
+
+export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3 | BackupFileV4 | BackupFileV5;
 
 export type BackupPreview = {
   fileName: string;
@@ -275,7 +323,7 @@ export type BackupPreview = {
   appVersion: string;
   currency: string;
   schemaVersion: string;
-  summary: BackupSummary;
+  summary: BackupSummaryV5;
   transactionDateRange: BackupTransactionDateRange;
   compatible: true;
   warnings: string[];
@@ -283,14 +331,14 @@ export type BackupPreview = {
 
 export type RestoreCandidate = {
   file: BackupFile;
-  data: BackupDataV4;
+  data: BackupDataV5;
   preview: BackupPreview;
 };
 
 export type BackupExportResult = {
   fileName: string;
   fileSize: number;
-  summary: BackupSummary;
+  summary: BackupSummaryV5;
   transactionDateRange: BackupTransactionDateRange;
   nativeShareOpened: true;
 };

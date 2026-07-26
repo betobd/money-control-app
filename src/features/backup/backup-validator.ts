@@ -10,6 +10,7 @@ import {
   type BackupFileV2,
   type BackupFileV3,
   type BackupFileV4,
+  type BackupFileV5,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -278,14 +279,17 @@ function validateTransactionShape(
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5): void {
+  const accountTypes = version >= 5
+    ? ['checking', 'savings', 'credit_card', 'cash', 'investment', 'other']
+    : ['checking', 'savings', 'credit_card', 'cash', 'other'];
   rows.forEach((value, index) => {
     const path = `data.accounts[${index}]`;
     const row = requireRecord(value, path, issues);
     if (!row) return;
     validateId(row.id, `${path}.id`, issues);
     validateString(row.name, `${path}.name`, issues, { nonBlank: true });
-    validateEnum(row.type, ['checking', 'savings', 'credit_card', 'cash', 'other'], `${path}.type`, issues);
+    validateEnum(row.type, accountTypes, `${path}.type`, issues);
     validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
     validateSafeInteger(row.openingBalance, `${path}.openingBalance`, issues);
     if (row.creditLimit !== null) {
@@ -359,6 +363,42 @@ function validateCategoryRows(rows: unknown[], issues: ValidationIssues): void {
   });
 }
 
+function validateInvestmentAccountRows(rows: unknown[], issues: ValidationIssues): void {
+  rows.forEach((value, index) => {
+    const path = `data.investmentAccounts[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.accountId, `${path}.accountId`, issues);
+    validateEnum(row.investmentType, ['brokerage', 'fixed_term_deposit', 'voluntary_pension', 'investment_fund', 'private_investment', 'other'], `${path}.investmentType`, issues);
+    validateEnum(row.trackingMode, ['balance'], `${path}.trackingMode`, issues);
+    validateEnum(row.liquidity, ['liquid', 'restricted', 'locked'], `${path}.liquidity`, issues);
+    validateNullableString(row.providerName, `${path}.providerName`, issues);
+    validateNullableCalendarDate(row.startDate, `${path}.startDate`, issues);
+    validateNullableCalendarDate(row.maturityDate, `${path}.maturityDate`, issues);
+    if (typeof row.startDate === 'string' && typeof row.maturityDate === 'string' && row.maturityDate < row.startDate) {
+      issue(issues, 'domain_mismatch', path, 'Investment maturity date is before its start date.');
+    }
+    validateNullableString(row.note, `${path}.note`, issues);
+    validateAuditFields(row, path, issues);
+  });
+}
+
+function validateInvestmentValuationRows(rows: unknown[], issues: ValidationIssues): void {
+  rows.forEach((value, index) => {
+    const path = `data.investmentValuations[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.id, `${path}.id`, issues);
+    validateId(row.investmentAccountId, `${path}.investmentAccountId`, issues);
+    validateSafeInteger(row.valueMinor, `${path}.valueMinor`, issues, { nonNegative: true });
+    validateSafeInteger(row.basisMinor, `${path}.basisMinor`, issues);
+    validateCurrency(row.currencyCode, `${path}.currencyCode`, issues, true);
+    validateCalendarDate(row.valuationDate, `${path}.valuationDate`, issues);
+    validateNullableString(row.note, `${path}.note`, issues);
+    validateAuditFields(row, path, issues);
+  });
+}
+
 const EXCHANGE_RATE_SOURCES = ['frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill'];
 
 /** Format-v4 transaction currency snapshot: base COP amount, rate, and transfer legs. */
@@ -409,7 +449,7 @@ function validateTransactionCurrencyV4(row: Record<string, unknown>, path: strin
 function validateTransactionRows(
   rows: unknown[],
   issues: ValidationIssues,
-  version: 1 | 2 | 3 | 4,
+  version: 1 | 2 | 3 | 4 | 5,
 ): void {
   rows.forEach((value, index) => {
     const path = `data.transactions[${index}]`;
@@ -507,7 +547,7 @@ function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void
   });
 }
 
-function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 = 1): void {
+function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringTransactions[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -538,7 +578,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
   });
 }
 
-function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 = 1): void {
+function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringOccurrences[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -618,7 +658,14 @@ function validateSummaryAndRange(file: BackupFile, issues: ValidationIssues): vo
   const expectedWithCards = 'creditCardStatements' in file.data
     ? { ...expected, creditCardStatements: file.data.creditCardStatements.length }
     : expected;
-  for (const [key, count] of Object.entries(expectedWithCards)) {
+  const expectedWithInvestments = 'investmentAccounts' in file.data
+    ? {
+        ...expectedWithCards,
+        investmentAccounts: file.data.investmentAccounts.length,
+        investmentValuations: file.data.investmentValuations.length,
+      }
+    : expectedWithCards;
+  for (const [key, count] of Object.entries(expectedWithInvestments)) {
     if ((file.summary as Record<string, number>)[key] !== count) {
       issue(issues, 'domain_mismatch', `summary.${key}`, `Backup summary count for ${key} does not match its data.`);
     }
@@ -684,7 +731,11 @@ export class BackupValidator {
     return this.validateVersion(raw, 4) as BackupFileV4;
   }
 
-  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4): BackupFile {
+  validateV5(raw: Record<string, unknown>): BackupFileV5 {
+    return this.validateVersion(raw, 5) as BackupFileV5;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
       issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
@@ -701,6 +752,7 @@ export class BackupValidator {
     if (summary) {
       const keys = ['accounts', 'categories', 'transactions', 'transactionSplits', 'budgets', 'recurringRules', 'recurringOccurrences'];
       if (version >= 2) keys.push('creditCardStatements');
+      if (version >= 5) keys.push('investmentAccounts', 'investmentValuations');
       for (const key of keys) {
         validateSafeInteger(summary[key], `summary.${key}`, issues, { nonNegative: true });
       }
@@ -747,6 +799,12 @@ export class BackupValidator {
       validateRecurringRows(recurring, issues, version);
       validateOccurrenceRows(occurrences, issues, version);
       if (version >= 2) validateCreditCardStatementRows(cardStatements, issues);
+      if (version >= 5) {
+        const investmentAccounts = requireArray(data, 'investmentAccounts', 'data.investmentAccounts', backupLimits.collections.investmentAccounts, issues);
+        const investmentValuations = requireArray(data, 'investmentValuations', 'data.investmentValuations', backupLimits.collections.investmentValuations, issues);
+        validateInvestmentAccountRows(investmentAccounts, issues);
+        validateInvestmentValuationRows(investmentValuations, issues);
+      }
     }
     if (issues.length) throw new BackupValidationError(issues);
     return raw as unknown as BackupFile;
@@ -820,7 +878,7 @@ export class BackupValidator {
       }
     }
 
-    if (file.formatVersion === 3 || file.formatVersion === 4) {
+    if (file.formatVersion === 3 || file.formatVersion === 4 || file.formatVersion === 5) {
       const transactionsById = new Map(file.data.transactions.map((row) => [row.id, row]));
       const postedRefundTotals = new Map<string, number>();
       for (const transaction of file.data.transactions) {
@@ -947,6 +1005,47 @@ export class BackupValidator {
         issue(issues, 'duplicate_constraint', 'data.recurringOccurrences', 'Two occurrences use the same recurring rule and scheduled date.');
       }
       occurrenceKeys.add(key);
+    }
+
+    if ('investmentAccounts' in file.data) {
+      const { investmentAccounts, investmentValuations, accounts } = file.data;
+      validateUniqueIds(investmentValuations, 'investmentValuations', issues);
+      const accountsById = new Map(accounts.map((account) => [account.id, account]));
+      const metadataAccountIds = new Set<string>();
+      for (const meta of investmentAccounts) {
+        if (metadataAccountIds.has(meta.accountId)) {
+          issue(issues, 'duplicate_constraint', 'data.investmentAccounts', 'Two investment metadata rows reference the same account.');
+        }
+        metadataAccountIds.add(meta.accountId);
+        const account = accountsById.get(meta.accountId);
+        if (!account) {
+          issue(issues, 'missing_reference', 'data.investmentAccounts', `Investment metadata ${meta.accountId} references a missing account.`);
+        } else if (account.type !== 'investment') {
+          issue(issues, 'domain_mismatch', 'data.investmentAccounts', `Investment metadata ${meta.accountId} must reference an investment account.`);
+        }
+      }
+      // Every investment account must have exactly one metadata row (no orphans).
+      for (const account of accounts) {
+        if (account.type === 'investment' && !metadataAccountIds.has(account.id)) {
+          issue(issues, 'missing_reference', 'data.investmentAccounts', `Investment account ${account.id} has no investment metadata.`);
+        }
+      }
+      const valuationKeys = new Set<string>();
+      for (const valuation of investmentValuations) {
+        const account = accountsById.get(valuation.investmentAccountId);
+        if (!account) {
+          issue(issues, 'missing_reference', 'data.investmentValuations', `Valuation ${valuation.id} references a missing account.`);
+        } else if (account.type !== 'investment') {
+          issue(issues, 'domain_mismatch', 'data.investmentValuations', `Valuation ${valuation.id} must reference an investment account.`);
+        } else if (valuation.currencyCode !== account.currency) {
+          issue(issues, 'domain_mismatch', 'data.investmentValuations', `Valuation ${valuation.id} currency must match its account currency.`);
+        }
+        const key = `${valuation.investmentAccountId}:${valuation.valuationDate}`;
+        if (valuationKeys.has(key)) {
+          issue(issues, 'duplicate_constraint', 'data.investmentValuations', 'Two valuations use the same account and date.');
+        }
+        valuationKeys.add(key);
+      }
     }
 
     validateSummaryAndRange(file, issues);

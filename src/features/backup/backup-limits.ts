@@ -14,6 +14,8 @@ export const backupLimits = {
     recurringTransactions: 10_000,
     recurringOccurrences: 50_000,
     creditCardStatements: 50_000,
+    investmentAccounts: 10_000,
+    investmentValuations: 50_000,
   },
 } as const;
 

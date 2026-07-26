@@ -12,8 +12,10 @@ import type {
   BackupBudget,
   BackupBudgetRule,
   BackupCategory,
-  BackupDataV4,
+  BackupDataV5,
   BackupExchangeRate,
+  BackupInvestmentAccount,
+  BackupInvestmentValuation,
   BackupOverview,
   BackupRecurringOccurrence,
   BackupRecurringTransaction,
@@ -34,6 +36,8 @@ type OverviewRow = {
   recurringRules: number;
   recurringOccurrences: number;
   creditCardStatements: number;
+  investmentAccounts: number;
+  investmentValuations: number;
   oldest: string | null;
   newest: string | null;
 };
@@ -63,6 +67,8 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
       (SELECT count(*) FROM recurring_transactions) AS recurringRules,
       (SELECT count(*) FROM recurring_occurrences) AS recurringOccurrences,
       (SELECT count(*) FROM credit_card_statements) AS creditCardStatements,
+      (SELECT count(*) FROM investment_accounts) AS investmentAccounts,
+      (SELECT count(*) FROM investment_valuations) AS investmentValuations,
       (SELECT min(transaction_date) FROM transactions) AS oldest,
       (SELECT max(transaction_date) FROM transactions) AS newest
   `);
@@ -76,6 +82,8 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
       recurringRules: Number(row?.recurringRules ?? 0),
       recurringOccurrences: Number(row?.recurringOccurrences ?? 0),
       creditCardStatements: Number(row?.creditCardStatements ?? 0),
+      investmentAccounts: Number(row?.investmentAccounts ?? 0),
+      investmentValuations: Number(row?.investmentValuations ?? 0),
     },
     transactionDateRange: {
       oldest: row?.oldest ?? null,
@@ -84,7 +92,7 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
   };
 }
 
-async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
+async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
   const accounts = await database.getAllAsync<SqlAccount>(`
     SELECT id, name, type, currency, opening_balance AS openingBalance,
       credit_limit AS creditLimit, statement_closing_day AS statementClosingDay,
@@ -156,6 +164,19 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
       fetched_at AS fetchedAt, provider, source, created_at AS createdAt, updated_at AS updatedAt
     FROM exchange_rates ORDER BY id LIMIT 1
   `);
+  const investmentAccounts = await database.getAllAsync<BackupInvestmentAccount>(`
+    SELECT account_id AS accountId, investment_type AS investmentType,
+      tracking_mode AS trackingMode, liquidity, provider_name AS providerName,
+      start_date AS startDate, maturity_date AS maturityDate, note,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM investment_accounts ORDER BY account_id
+  `);
+  const investmentValuations = await database.getAllAsync<BackupInvestmentValuation>(`
+    SELECT id, investment_account_id AS investmentAccountId, value_minor AS valueMinor,
+      basis_minor AS basisMinor, currency_code AS currencyCode,
+      valuation_date AS valuationDate, note, created_at AS createdAt, updated_at AS updatedAt
+    FROM investment_valuations ORDER BY id
+  `);
 
   return {
     accounts: accounts.map((row) => ({ ...row, isArchived: row.isArchived === 1 })),
@@ -170,11 +191,13 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
     })),
     recurringOccurrences,
     creditCardStatements,
+    investmentAccounts,
+    investmentValuations,
     exchangeRate: exchangeRate ?? null,
   };
 }
 
-async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV4): Promise<void> {
+async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Promise<void> {
   await insertRows(database, `
     INSERT INTO accounts (
       id, name, type, currency, opening_balance, credit_limit,
@@ -275,6 +298,26 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV4): Pro
     row.categoryId, row.note, row.transactionId, row.createdAt, row.updatedAt,
   ]));
 
+  await insertRows(database, `
+    INSERT INTO investment_accounts (
+      account_id, investment_type, tracking_mode, liquidity, provider_name,
+      start_date, maturity_date, note, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, data.investmentAccounts.map((row) => [
+    row.accountId, row.investmentType, row.trackingMode, row.liquidity, row.providerName,
+    row.startDate, row.maturityDate, row.note, row.createdAt, row.updatedAt,
+  ]));
+
+  await insertRows(database, `
+    INSERT INTO investment_valuations (
+      id, investment_account_id, value_minor, basis_minor, currency_code,
+      valuation_date, note, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, data.investmentValuations.map((row) => [
+    row.id, row.investmentAccountId, row.valueMinor, row.basisMinor, row.currencyCode,
+    row.valuationDate, row.note, row.createdAt, row.updatedAt,
+  ]));
+
   if (data.exchangeRate) {
     await insertRows(database, `
       INSERT INTO exchange_rates (
@@ -292,7 +335,7 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV4): Pro
 
 async function runPostRestoreChecks(
   database: SQLiteDatabase,
-  data: BackupDataV4,
+  data: BackupDataV5,
 ): Promise<BackupOverview> {
   const actual = await readOverview(database);
   const expected = createBackupOverview(data);
@@ -353,8 +396,8 @@ export class SQLiteBackupRepository implements BackupRepository {
     return readOverview(sqlite);
   }
 
-  async readSnapshot(): Promise<BackupDataV4> {
-    let snapshot: BackupDataV4 | undefined;
+  async readSnapshot(): Promise<BackupDataV5> {
+    let snapshot: BackupDataV5 | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       snapshot = await readSnapshot(transaction);
     });
@@ -362,10 +405,12 @@ export class SQLiteBackupRepository implements BackupRepository {
     return snapshot;
   }
 
-  async replaceAll(data: BackupDataV4): Promise<BackupOverview> {
+  async replaceAll(data: BackupDataV5): Promise<BackupOverview> {
     let overview: BackupOverview | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       await transaction.execAsync(`
+        DELETE FROM investment_valuations;
+        DELETE FROM investment_accounts;
         DELETE FROM exchange_rates;
         DELETE FROM credit_card_statements;
         DELETE FROM recurring_occurrences;

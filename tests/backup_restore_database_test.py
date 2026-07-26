@@ -18,8 +18,12 @@ tables = (
     'recurring_transactions',
     'recurring_occurrences',
     'credit_card_statements',
+    'investment_accounts',
+    'investment_valuations',
 )
 delete_order = (
+    'investment_valuations',
+    'investment_accounts',
     'credit_card_statements',
     'recurring_occurrences',
     'transaction_splits',
@@ -30,6 +34,8 @@ delete_order = (
     'categories',
     'accounts',
 )
+# investment_accounts uses account_id as its primary key (no id column).
+order_keys = {'investment_accounts': 'account_id'}
 
 
 def open_database():
@@ -47,7 +53,7 @@ def apply_migrations(database):
 
 def snapshot(database):
     return {
-        table: database.execute(f'SELECT * FROM {table} ORDER BY id').fetchall()
+        table: database.execute(f'SELECT * FROM {table} ORDER BY {order_keys.get(table, "id")}').fetchall()
         for table in tables
     }
 
@@ -206,6 +212,20 @@ connection.executemany(
         ('occurrence-pending', 'rule-internet', '2026-08-16', 'pending', 'expense', 50_000, 'COP', 'checking', None, 'food', 'Internet', None, utc, utc),
     ],
 )
+# An investment account with metadata and a valuation exercises the format-v5
+# investment tables through the same snapshot/restore/rollback machinery.
+connection.execute(
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    ('trii', 'Trii', 'investment', 'COP', 1_000_000, None, 0, None, utc, utc),
+)
+connection.execute(
+    'INSERT INTO investment_accounts (account_id,investment_type,tracking_mode,liquidity,provider_name,start_date,maturity_date,note,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    ('trii', 'brokerage', 'balance', 'liquid', 'Trii', None, None, None, utc, utc),
+)
+connection.execute(
+    'INSERT INTO investment_valuations (id,investment_account_id,value_minor,basis_minor,currency_code,valuation_date,note,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    ('val-trii', 'trii', 1_100_000, 1_000_000, 'COP', '2026-07-16', None, utc, utc),
+)
 connection.commit()
 
 backup = snapshot(connection)
@@ -216,6 +236,7 @@ assert baseline_derived == {
         'card': -380_000,
         'checking': 2_170_000,
         'savings': 700_000,
+        'trii': 1_000_000,
     },
     'income': 500_000,
     'expense': 250_000,

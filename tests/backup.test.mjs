@@ -80,6 +80,7 @@ function representativeData() {
       account('checking', { name: 'Checking' }),
       account('card', { name: 'Card', type: 'credit_card', openingBalance: -200_000, creditLimit: 2_000_000, statementClosingDay: 15, paymentDueDay: 5 }),
       account('archived-account', { name: 'Old cash', type: 'cash', isArchived: true, archivedAt: NOW }),
+      account('trii', { name: 'Trii', type: 'investment', openingBalance: 1_000_000 }),
     ],
     categories: [
       category('salary', 'income', { name: 'Salary' }),
@@ -125,6 +126,12 @@ function representativeData() {
       id: 'USD-COP', baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', rateScaled: 41_000_000, rateScale: 10_000,
       effectiveDate: '2026-07-16', fetchedAt: NOW, provider: 'frankfurter', source: 'frankfurter', createdAt: NOW, updatedAt: NOW,
     },
+    investmentAccounts: [
+      { accountId: 'trii', investmentType: 'brokerage', trackingMode: 'balance', liquidity: 'liquid', providerName: 'Trii', startDate: null, maturityDate: null, note: null, createdAt: NOW, updatedAt: NOW },
+    ],
+    investmentValuations: [
+      { id: 'valuation', investmentAccountId: 'trii', valueMinor: 1_100_000, basisMinor: 1_000_000, currencyCode: 'COP', valuationDate: '2026-07-16', note: 'Q3 statement', createdAt: NOW, updatedAt: NOW },
+    ],
   };
 }
 
@@ -132,6 +139,7 @@ const emptyData = () => ({
   accounts: [], categories: [], transactions: [], transactionSplits: [], budgets: [],
   recurringTransactions: [], recurringOccurrences: [],
   creditCardStatements: [],
+  investmentAccounts: [], investmentValuations: [],
   exchangeRate: null,
 });
 
@@ -154,7 +162,9 @@ async function validate(file, declaredSize = 0) {
       ? validator.validateV2(envelope.raw)
       : envelope.formatVersion === 3
         ? validator.validateV3(envelope.raw)
-        : validator.validateV4(envelope.raw);
+        : envelope.formatVersion === 4
+          ? validator.validateV4(envelope.raw)
+          : validator.validateV5(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -174,14 +184,15 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 4);
+  assert.equal(file.formatVersion, 5);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
   assert.equal(file.schemaVersion, '0005');
   assert.deepEqual(file.summary, {
-    accounts: 4, categories: 3, transactions: 4, transactionSplits: 1,
+    accounts: 5, categories: 3, transactions: 4, transactionSplits: 1,
     budgets: 1, recurringRules: 1, recurringOccurrences: 2, creditCardStatements: 1,
+    investmentAccounts: 1, investmentValuations: 1,
   });
   assert.equal(file.data.accounts.some((row) => row.id === 'archived-account' && row.isArchived), true);
   assert.equal(file.data.categories.some((row) => row.id === 'archived-category' && row.isArchived), true);
@@ -251,7 +262,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 5;
+  future.formatVersion = 6;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');
@@ -353,6 +364,13 @@ test('migrates format v1 in memory with setup-incomplete cards and no invented s
   legacy.formatVersion = 1;
   delete legacy.summary.creditCardStatements;
   delete legacy.data.creditCardStatements;
+  // Investments did not exist before format v5.
+  legacy.data.accounts = legacy.data.accounts.filter((account) => account.type !== 'investment');
+  legacy.summary.accounts = legacy.data.accounts.length;
+  delete legacy.summary.investmentAccounts;
+  delete legacy.summary.investmentValuations;
+  delete legacy.data.investmentAccounts;
+  delete legacy.data.investmentValuations;
   legacy.data.accounts = legacy.data.accounts.map(({ statementClosingDay: _closing, paymentDueDay: _due, ...account }) => account);
   legacy.data.transactions = legacy.data.transactions.map(({ originalTransactionId: _original, ...transaction }) => transaction);
   legacy.integrity.checksum = await checksum.calculate(legacy);
@@ -372,6 +390,13 @@ test('migrates format v2 transactions in memory without inventing refund links',
   const current = await createFile();
   const legacy = structuredClone(current);
   legacy.formatVersion = 2;
+  // Investments did not exist before format v5.
+  legacy.data.accounts = legacy.data.accounts.filter((account) => account.type !== 'investment');
+  legacy.summary.accounts = legacy.data.accounts.length;
+  delete legacy.summary.investmentAccounts;
+  delete legacy.summary.investmentValuations;
+  delete legacy.data.investmentAccounts;
+  delete legacy.data.investmentValuations;
   legacy.data.transactions = legacy.data.transactions.map(({ originalTransactionId: _original, ...transaction }) => transaction);
   legacy.integrity.checksum = await checksum.calculate(legacy);
   const envelope = validator.parseEnvelope(JSON.stringify(legacy), 0);

@@ -1,6 +1,6 @@
 import {
   CURRENT_BACKUP_FORMAT_VERSION,
-  type BackupDataV4,
+  type BackupDataV5,
   type BackupFile,
   type BackupTransaction,
   type BackupTransactionV2,
@@ -40,14 +40,19 @@ function toV4Transaction(
   };
 }
 
+/** Legacy backups (v1–v4) carried no investments; add the empty collections. */
+function noInvestments(): Pick<BackupDataV5, 'investmentAccounts' | 'investmentValuations'> {
+  return { investmentAccounts: [], investmentValuations: [] };
+}
+
 export class BackupFormatMigrator {
   assertSupported(version: number): void {
-    if (version !== 1 && version !== 2 && version !== 3 && version !== CURRENT_BACKUP_FORMAT_VERSION) {
+    if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== CURRENT_BACKUP_FORMAT_VERSION) {
       throw new UnsupportedBackupVersionError(version);
     }
   }
 
-  migrate(file: BackupFile): BackupDataV4 {
+  migrate(file: BackupFile): BackupDataV5 {
     switch (file.formatVersion) {
       case 1:
         return {
@@ -60,20 +65,25 @@ export class BackupFormatMigrator {
           transactions: file.data.transactions.map(toV4Transaction),
           creditCardStatements: [],
           exchangeRate: null,
+          ...noInvestments(),
         };
       case 2:
         return {
           ...file.data,
           transactions: file.data.transactions.map(toV4Transaction),
           exchangeRate: null,
+          ...noInvestments(),
         };
       case 3:
         return {
           ...file.data,
           transactions: file.data.transactions.map(toV4Transaction),
           exchangeRate: null,
+          ...noInvestments(),
         };
       case 4:
+        return { ...file.data, ...noInvestments() };
+      case 5:
         return file.data;
     }
   }

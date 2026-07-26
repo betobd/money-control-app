@@ -1,4 +1,4 @@
-import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV4, type BackupFileV4, type BackupOverview } from './backup.types';
+import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV5, type BackupFileV5, type BackupOverview } from './backup.types';
 import type { BackupChecksumService } from './backup-checksum.service';
 
 type BackupMetadata = {
@@ -11,7 +11,14 @@ function compareIds(left: { id: string }, right: { id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
-export function sortBackupData(data: BackupDataV4): BackupDataV4 {
+function compareInvestmentAccounts(
+  left: { accountId: string },
+  right: { accountId: string },
+): number {
+  return left.accountId < right.accountId ? -1 : left.accountId > right.accountId ? 1 : 0;
+}
+
+export function sortBackupData(data: BackupDataV5): BackupDataV5 {
   return {
     accounts: [...data.accounts].sort(compareIds),
     categories: [...data.categories].sort(compareIds),
@@ -22,11 +29,13 @@ export function sortBackupData(data: BackupDataV4): BackupDataV4 {
     recurringTransactions: [...data.recurringTransactions].sort(compareIds),
     recurringOccurrences: [...data.recurringOccurrences].sort(compareIds),
     creditCardStatements: [...data.creditCardStatements].sort(compareIds),
+    investmentAccounts: [...data.investmentAccounts].sort(compareInvestmentAccounts),
+    investmentValuations: [...data.investmentValuations].sort(compareIds),
     exchangeRate: data.exchangeRate,
   };
 }
 
-export function createBackupOverview(data: BackupDataV4): BackupOverview {
+export function createBackupOverview(data: BackupDataV5): BackupOverview {
   let oldest: string | null = null;
   let newest: string | null = null;
   for (const transaction of data.transactions) {
@@ -43,6 +52,8 @@ export function createBackupOverview(data: BackupDataV4): BackupOverview {
       recurringRules: data.recurringTransactions.length,
       recurringOccurrences: data.recurringOccurrences.length,
       creditCardStatements: data.creditCardStatements.length,
+      investmentAccounts: data.investmentAccounts.length,
+      investmentValuations: data.investmentValuations.length,
     },
     transactionDateRange: { oldest, newest },
   };
@@ -51,10 +62,10 @@ export function createBackupOverview(data: BackupDataV4): BackupOverview {
 export class BackupSerializer {
   constructor(private readonly checksum: BackupChecksumService) {}
 
-  async create(data: BackupDataV4, metadata: BackupMetadata): Promise<BackupFileV4> {
+  async create(data: BackupDataV5, metadata: BackupMetadata): Promise<BackupFileV5> {
     const orderedData = sortBackupData(data);
     const overview = createBackupOverview(orderedData);
-    const draft: BackupFileV4 = {
+    const draft: BackupFileV5 = {
       format: BACKUP_FORMAT,
       formatVersion: CURRENT_BACKUP_FORMAT_VERSION,
       appVersion: metadata.appVersion,
@@ -78,7 +89,7 @@ export class BackupSerializer {
     };
   }
 
-  stringify(file: BackupFileV4): string {
+  stringify(file: BackupFileV5): string {
     return `${JSON.stringify(file, null, 2)}\n`;
   }
 }
