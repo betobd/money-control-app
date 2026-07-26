@@ -17,7 +17,10 @@ from pathlib import Path
 
 MIGRATION_DIR = Path(__file__).parents[1] / 'src' / 'database' / 'migrations'
 MIGRATIONS = sorted(MIGRATION_DIR.glob('*.sql'))
-PRE = [m for m in MIGRATIONS if m.name != '0009_multi_currency.sql']
+# Migrations 0000-0008 build the pre-multi-currency database. Selecting by "before
+# 0009" (rather than "all except 0009") keeps later migrations that depend on 0009's
+# columns from being applied ahead of it as the chain grows.
+PRE = [m for m in MIGRATIONS if m.name < '0009']
 V0009 = MIGRATION_DIR / '0009_multi_currency.sql'
 UTC = '2026-07-12T12:00:00.000Z'
 

@@ -1,12 +1,14 @@
 import type { CurrencyCode } from '@/features/currency/currency';
 
-// Types offered in the account form. `other` is intentionally excluded: it is a
-// schema/backup-permitted legacy value the UI can display but never creates.
+// Types offered in the generic account form. `other` and `investment` are
+// intentionally excluded: `other` is a schema/backup-permitted legacy value the UI
+// can display but never creates, and `investment` accounts are created through the
+// dedicated Investments flow (with their required metadata), never this form.
 export const accountTypes = ['checking', 'savings', 'cash', 'credit_card'] as const;
 
 export type CreatableAccountType = (typeof accountTypes)[number];
 
-export type AccountType = CreatableAccountType | 'other';
+export type AccountType = CreatableAccountType | 'investment' | 'other';
 
 export type Account = {
   id: string;

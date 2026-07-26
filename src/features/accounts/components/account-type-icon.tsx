@@ -9,6 +9,7 @@ const accountIcons: Record<AccountType, SymbolViewProps['name']> = {
   savings: { ios: 'banknote.fill', android: 'savings', web: 'savings' },
   credit_card: { ios: 'creditcard.fill', android: 'credit_card', web: 'credit_card' },
   cash: { ios: 'wallet.bifold.fill', android: 'payments', web: 'payments' },
+  investment: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
   other: { ios: 'square.stack.3d.up.fill', android: 'category', web: 'category' },
 };
 
@@ -21,6 +22,7 @@ export function AccountTypeIcon({ kind, size = 40 }: { kind: AccountType; size?:
 
 function tintFor(kind: AccountType, theme: ReturnType<typeof useAppTheme>) {
   if (kind === 'savings') return { color: theme.income, background: theme.tintIncome };
+  if (kind === 'investment') return { color: theme.income, background: theme.tintIncome };
   if (kind === 'credit_card') return { color: theme.expense, background: theme.tintExpense };
   if (kind === 'checking') return { color: theme.primaryAction, background: theme.tintPrimary };
   return { color: theme.transfer, background: theme.tintTransfer };

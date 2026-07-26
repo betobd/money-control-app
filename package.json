@@ -58,6 +58,7 @@
     "test:currency": "node --import tsx --test tests/currency.test.mjs",
     "test:exchange-rates": "node --import tsx --test tests/exchange-rate.test.mjs",
     "test:multi-currency-migration": "python tests/multi_currency_migration_database_test.py",
+    "test:investments-migration": "python tests/investments_migration_database_test.py",
     "test:backup": "node --import tsx --test tests/backup.test.mjs && python tests/backup_restore_database_test.py",
     "test:accounts": "node --import tsx --test tests/accounts.test.mjs && python tests/accounts_database_test.py",
     "test:categories": "node --import tsx --test tests/categories.test.mjs && python tests/categories_database_test.py",

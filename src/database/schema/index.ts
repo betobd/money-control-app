@@ -26,6 +26,15 @@ const EXCHANGE_RATE_SOURCES_SQL = sql.raw(
   `('frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill')`,
 );
 const VALUATION_RATE_SOURCES_SQL = sql.raw(`('frankfurter', 'manual')`);
+
+// Investments v1 (balance tracking). Enums for the investment-account metadata.
+const INVESTMENT_TYPES_SQL = sql.raw(
+  `('brokerage', 'fixed_term_deposit', 'voluntary_pension', 'investment_fund', 'private_investment', 'other')`,
+);
+// Only `balance` in v1; the enum reserves room for `holdings` in Investments v2.
+const INVESTMENT_TRACKING_MODES_SQL = sql.raw(`('balance')`);
+const INVESTMENT_LIQUIDITY_SQL = sql.raw(`('liquid', 'restricted', 'locked')`);
+
 const auditColumns = {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -36,7 +45,7 @@ export const accounts = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    type: text('type', { enum: ['checking', 'savings', 'credit_card', 'cash', 'other'] }).notNull(),
+    type: text('type', { enum: ['checking', 'savings', 'credit_card', 'cash', 'investment', 'other'] }).notNull(),
     currency: text('currency').notNull().default('COP'),
     openingBalance: integer('opening_balance').notNull().default(0),
     creditLimit: integer('credit_limit'),
@@ -49,7 +58,7 @@ export const accounts = sqliteTable(
   (table) => [
     check('accounts_name_not_empty', sql`length(trim(${table.name})) > 0`),
     check('accounts_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
-    check('accounts_type_valid', sql`${table.type} IN ('checking', 'savings', 'credit_card', 'cash', 'other')`),
+    check('accounts_type_valid', sql`${table.type} IN ('checking', 'savings', 'credit_card', 'cash', 'investment', 'other')`),
     check('accounts_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('accounts_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
     check('accounts_archived_at_utc', sql`${table.archivedAt} IS NULL OR ${table.archivedAt} GLOB '????-??-??T??:??:??*Z'`),
@@ -529,6 +538,90 @@ export const exchangeRates = sqliteTable(
     check('exchange_rates_source_valid', sql`${table.source} IN ${VALUATION_RATE_SOURCES_SQL}`),
     check('exchange_rates_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('exchange_rates_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+  ],
+);
+
+// Investments v1: 1:1 metadata for accounts whose type is 'investment'.
+export const investmentAccounts = sqliteTable(
+  'investment_accounts',
+  {
+    // Primary key AND foreign key to the owning account (1:1).
+    accountId: text('account_id')
+      .primaryKey()
+      .references(() => accounts.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    investmentType: text('investment_type', {
+      enum: ['brokerage', 'fixed_term_deposit', 'voluntary_pension', 'investment_fund', 'private_investment', 'other'],
+    }).notNull(),
+    // v1 supports only 'balance' tracking; 'holdings' is reserved for v2.
+    trackingMode: text('tracking_mode', { enum: ['balance'] }).notNull().default('balance'),
+    liquidity: text('liquidity', { enum: ['liquid', 'restricted', 'locked'] }).notNull(),
+    providerName: text('provider_name'),
+    startDate: text('start_date'),
+    maturityDate: text('maturity_date'),
+    note: text('note'),
+    ...auditColumns,
+  },
+  (table) => [
+    check('investment_accounts_type_valid', sql`${table.investmentType} IN ${INVESTMENT_TYPES_SQL}`),
+    check('investment_accounts_tracking_mode_valid', sql`${table.trackingMode} IN ${INVESTMENT_TRACKING_MODES_SQL}`),
+    check('investment_accounts_liquidity_valid', sql`${table.liquidity} IN ${INVESTMENT_LIQUIDITY_SQL}`),
+    check(
+      'investment_accounts_start_date_valid',
+      sql`${table.startDate} IS NULL OR (${table.startDate} GLOB '????-??-??' AND date(${table.startDate}) = ${table.startDate})`,
+    ),
+    check(
+      'investment_accounts_maturity_date_valid',
+      sql`${table.maturityDate} IS NULL OR (${table.maturityDate} GLOB '????-??-??' AND date(${table.maturityDate}) = ${table.maturityDate})`,
+    ),
+    // When both dates are present, maturity must not precede start.
+    check(
+      'investment_accounts_maturity_after_start',
+      sql`${table.startDate} IS NULL OR ${table.maturityDate} IS NULL OR ${table.maturityDate} >= ${table.startDate}`,
+    ),
+    check('investment_accounts_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('investment_accounts_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+  ],
+);
+
+// Investments v1: manual market-value history per investment account.
+export const investmentValuations = sqliteTable(
+  'investment_valuations',
+  {
+    id: text('id').primaryKey(),
+    investmentAccountId: text('investment_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    // Total market value the user reads from their statement, in the account's
+    // native currency minor units.
+    valueMinor: integer('value_minor').notNull(),
+    // Snapshot of the account's net contributions (derived ledger balance) at
+    // record time. currentValue = netContributions(now) + (value - basis).
+    basisMinor: integer('basis_minor').notNull(),
+    currencyCode: text('currency_code').notNull(),
+    valuationDate: text('valuation_date').notNull(),
+    note: text('note'),
+    ...auditColumns,
+  },
+  (table) => [
+    check(
+      'investment_valuations_value_safe',
+      sql`typeof(${table.valueMinor}) = 'integer' AND ${table.valueMinor} >= 0 AND ${table.valueMinor} <= ${MAX_SAFE_MONEY_SQL}`,
+    ),
+    // Net contributions may be negative when withdrawals exceed contributions.
+    check(
+      'investment_valuations_basis_safe',
+      sql`typeof(${table.basisMinor}) = 'integer' AND ${table.basisMinor} BETWEEN ${MIN_SAFE_MONEY_SQL} AND ${MAX_SAFE_MONEY_SQL}`,
+    ),
+    check('investment_valuations_currency_supported', sql`${table.currencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check(
+      'investment_valuations_date_valid',
+      sql`${table.valuationDate} GLOB '????-??-??' AND date(${table.valuationDate}) = ${table.valuationDate}`,
+    ),
+    check('investment_valuations_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('investment_valuations_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    // One valuation per account per date; also serves latest-valuation lookups
+    // (WHERE investment_account_id = ? ORDER BY valuation_date DESC).
+    uniqueIndex('investment_valuations_account_date_uidx').on(table.investmentAccountId, table.valuationDate),
   ],
 );
 
