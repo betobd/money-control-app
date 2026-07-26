@@ -5,6 +5,9 @@ import type { EstimatedNetWorth } from '@/features/accounts/account.service';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
 import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
+import { investmentPortfolioService } from '@/features/investments/investments';
+import type { InvestmentPortfolioSummary } from '@/features/investments/investment.types';
 import { bogotaToday, monthFromDate } from '@/features/transactions/transaction-date';
 import { transactionService } from '@/features/transactions/transactions';
 import type { MonthlyTransactionSummary, TransactionListItem } from '@/features/transactions/transaction.types';
@@ -17,6 +20,20 @@ type State = {
   recent: TransactionListItem[];
   budget: BudgetSummary;
   budgets: BudgetView[];
+  investments: InvestmentPortfolioSummary;
+};
+
+const emptyInvestments: InvestmentPortfolioSummary = {
+  accounts: [],
+  investmentAccountCount: 0,
+  totalCurrentValueCopMinor: 0,
+  netContributionsCopMinor: 0,
+  estimatedGainLossCopMinor: 0,
+  estimatedReturn: { available: false },
+  lockedOrRestrictedValueCopMinor: 0,
+  incomplete: false,
+  allocationByType: [],
+  allocationByCurrency: [],
 };
 
 const emptyBudget: BudgetSummary = {
@@ -40,6 +57,7 @@ export function useHomeDashboard() {
     recent: [],
     budget: emptyBudget,
     budgets: [],
+    investments: emptyInvestments,
   });
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -62,12 +80,19 @@ export function useHomeDashboard() {
       if (accounts.some((account) => account.currency !== 'COP')) {
         void exchangeRateService.ensureFreshRate();
       }
+      const investments = await investmentPortfolioService.getPortfolio(valuationRate);
       setData({
-        netWorth: accountService.estimateNetWorth(accounts, valuationRate),
+        // Net worth counts investment accounts at their current valuation, not their
+        // transaction-derived balance (one source per account, no double counting).
+        netWorth: accountService.estimateNetWorth(
+          withInvestmentCurrentValues(accounts, investments.accounts),
+          valuationRate,
+        ),
         summary,
         recent,
         budget: budget.summary,
         budgets: budget.budgets,
+        investments,
       });
       setHasLoaded(true);
     } catch (cause) {

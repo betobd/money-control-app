@@ -15,6 +15,9 @@ import { AccountsErrorState, EmptyAccountsState, LoadingAccountCard } from '@/fe
 import { AddAccountButton } from '@/features/accounts/components/add-account-button';
 import { NetWorthSummary } from '@/features/accounts/components/net-worth-summary';
 import { useAccounts } from '@/features/accounts/use-accounts';
+import { InvestmentCard } from '@/features/investments/components/investment-card';
+import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
+import { useInvestments } from '@/features/investments/use-investments';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export default function AccountsScreen() {
@@ -23,15 +26,30 @@ export default function AccountsScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const { accounts, rateStatus, error, loading, reload } = useAccounts();
-  const activeAccounts = useMemo(() => accounts.filter((account) => !account.isArchived), [accounts]);
-  const archivedAccounts = useMemo(() => accounts.filter((account) => account.isArchived), [accounts]);
+  const { portfolio } = useInvestments();
+  // Investment accounts live in their own section (and screen); exclude them from the
+  // cash/credit lists so their misleading ledger balance is never shown as spendable.
+  const activeAccounts = useMemo(
+    () => accounts.filter((account) => !account.isArchived && account.type !== 'investment'),
+    [accounts],
+  );
+  const archivedAccounts = useMemo(
+    () => accounts.filter((account) => account.isArchived && account.type !== 'investment'),
+    [accounts],
+  );
+  const activeInvestments = useMemo(
+    () => portfolio.accounts.filter((view) => !view.account.isArchived),
+    [portfolio],
+  );
   const valuationRate: ScaledRate | null = useMemo(
     () => (rateStatus?.rate ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale } : null),
     [rateStatus],
   );
+  // Net worth counts investment accounts at their current valuation, not their
+  // transaction-derived balance (one source per account, no double counting).
   const netWorth = useMemo(
-    () => accountService.estimateNetWorth(accounts, valuationRate),
-    [accounts, valuationRate],
+    () => accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, portfolio.accounts), valuationRate),
+    [accounts, portfolio, valuationRate],
   );
 
   async function openActions(account: AccountWithBalance) {
@@ -148,6 +166,30 @@ export default function AccountsScreen() {
       {!loading && !error && activeAccounts.length > 0 ? (
         <View accessibilityLabel="Active accounts" style={styles.accounts}>
           {activeAccounts.map((account) => <AccountCard account={account} key={account.id} valuationRate={valuationRate} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+        </View>
+      ) : null}
+
+      {!loading && !error && activeInvestments.length > 0 ? (
+        <View style={styles.archivedSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Investments</Text>
+            <Pressable
+              accessibilityLabel="View all investments"
+              accessibilityRole="button"
+              onPress={() => router.push('/investments')}
+              style={[styles.filter, { backgroundColor: theme.elevatedSurface }]}>
+              <Text style={[styles.filterText, { color: theme.primaryAction }]}>View all</Text>
+            </Pressable>
+          </View>
+          <View accessibilityLabel="Investments" style={styles.accounts}>
+            {activeInvestments.map((view) => (
+              <InvestmentCard
+                key={view.account.id}
+                view={view}
+                onPress={() => router.push({ pathname: '/investments/[id]', params: { id: view.account.id } })}
+              />
+            ))}
+          </View>
         </View>
       ) : null}
 

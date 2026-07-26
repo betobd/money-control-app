@@ -51,6 +51,14 @@ const menuItems: MenuItem[] = [
     href: '/data-export' as Href,
   },
   {
+    accessibilityLabel: 'Open investments',
+    accessibilityHint: 'Review investment accounts, valuations, and estimated gain or loss',
+    icon: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
+    label: 'Investments',
+    description: 'Track balances, valuations, and estimated returns',
+    href: '/investments' as Href,
+  },
+  {
     accessibilityLabel: 'Open reports',
     accessibilityHint: 'Review income, expenses, categories, net worth, and period comparisons',
     icon: { ios: 'chart.xyaxis.line', android: 'query_stats', web: 'query_stats' },

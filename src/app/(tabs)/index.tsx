@@ -47,6 +47,14 @@ export default function HomeScreen() {
   const netColor = netUp ? theme.income : theme.expense;
   const netLabel = `${netUp ? '+' : '-'}${formatCop(Math.abs(net))}`;
 
+  const investments = dashboard.investments;
+  const investmentGain = investments.estimatedGainLossCopMinor;
+  const investmentGainColor = investmentGain === null || investmentGain === 0 ? theme.mutedText : investmentGain > 0 ? theme.income : theme.expense;
+  const latestValuationDate = investments.accounts.reduce<string | undefined>((latest, view) => {
+    const date = view.latestValuation?.valuationDate;
+    return date && date > (latest ?? '') ? date : latest;
+  }, undefined);
+
   if (!dashboard.hasLoaded && dashboard.loading) {
     return (
       <ScreenContainer contentStyle={styles.content}>
@@ -121,6 +129,37 @@ export default function HomeScreen() {
         netBalance={`${net < 0 ? '-' : '+'}${formatCop(Math.abs(net))}`}
       />
 
+      {investments.investmentAccountCount > 0 ? (
+        <Pressable
+          accessibilityHint="Open the investments screen"
+          accessibilityLabel={`Investments, current value ${investments.totalCurrentValueCopMinor === null ? 'estimated, incomplete' : `${formatCop(investments.totalCurrentValueCopMinor)} Colombian pesos`}`}
+          accessibilityRole="button"
+          onPress={() => router.push('/investments')}>
+          <Card variant="raised">
+            <View style={styles.investmentHeader}>
+              <Overline color={theme.mutedText}>Investments · COP</Overline>
+              <View style={styles.viewAll}>
+                <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View investments</Text>
+                <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />
+              </View>
+            </View>
+            {investments.totalCurrentValueCopMinor === null ? (
+              <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.warning }]}>Estimated — incomplete</Text>
+            ) : (
+              <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.primaryText }]}>
+                {formatCop(investments.totalCurrentValueCopMinor)}
+              </Text>
+            )}
+            <Text style={[styles.investmentMeta, { color: investmentGainColor }]}>
+              {investmentGain === null
+                ? 'Estimated gain/loss unavailable'
+                : `${investmentGain > 0 ? '+' : investmentGain < 0 ? '-' : ''}${formatCop(Math.abs(investmentGain))} estimated gain/loss`}
+              {latestValuationDate ? ` · as of ${formatTransactionDate(latestValuationDate)}` : ''}
+            </Text>
+          </Card>
+        </Pressable>
+      ) : null}
+
       <BudgetProgressCard budgets={dashboard.budgets} summary={dashboard.budget} />
 
       <SectionHeader
@@ -194,6 +233,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 18,
+  },
+  investmentHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  investmentValue: {
+    ...typography.moneyHero,
+    marginTop: spacing.xs,
+  },
+  investmentMeta: {
+    ...typography.caption,
+    marginTop: spacing.xs,
   },
   viewAll: {
     alignItems: 'center',
