@@ -1,3 +1,4 @@
+import { budgetColorKeys, type BudgetColorKey } from '@/constants/theme';
 import { backupLimits, utf8ByteLength } from './backup-limits';
 import {
   BACKUP_CHECKSUM_ALGORITHM,
@@ -466,6 +467,13 @@ function validateBudgetRows(rows: unknown[], issues: ValidationIssues): void {
       issue(issues, 'invalid_value', `${path}.month`, 'Budget month must use YYYY-MM.');
     }
     validateSafeInteger(row.limitAmount, `${path}.limitAmount`, issues, { positive: true });
+    if (
+      row.color !== undefined &&
+      row.color !== null &&
+      (typeof row.color !== 'string' || !budgetColorKeys.includes(row.color as BudgetColorKey))
+    ) {
+      issue(issues, 'invalid_value', `${path}.color`, 'Budget color is not recognized.');
+    }
     validateAuditFields(row, path, issues);
   });
 }

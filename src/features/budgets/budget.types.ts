@@ -1,16 +1,20 @@
+import type { BudgetColorKey } from '@/constants/theme';
+
 export type BudgetStatus = 'on-track' | 'near-limit' | 'fully-used' | 'over-budget';
 export type ProgressWidth = `${number}%`;
+export type BudgetColor = BudgetColorKey | null;
 
 export type Budget = {
   id: string;
   categoryId: string;
   month: string;
   limitAmount: number;
+  color: BudgetColor;
   createdAt: string;
   updatedAt: string;
 };
 
-export type BudgetInput = Pick<Budget, 'categoryId' | 'month' | 'limitAmount'>;
+export type BudgetInput = Pick<Budget, 'categoryId' | 'month' | 'limitAmount' | 'color'>;
 export type BudgetField = keyof BudgetInput;
 export type BudgetValidationErrors = Partial<Record<BudgetField, string>>;
 

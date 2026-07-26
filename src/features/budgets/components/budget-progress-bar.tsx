@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
-import { borderRadii } from '@/constants/theme';
+import { borderRadii, type BudgetColorKey } from '@/constants/theme';
+import { useBudgetColor } from '@/features/budgets/budget-color';
 import { getStatusPresentation } from '@/features/budgets/components/budget-status-badge';
 import type { BudgetStatus, ProgressWidth } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -9,15 +10,18 @@ type BudgetProgressBarProps = {
   percentage: number;
   progressWidth: ProgressWidth;
   status: BudgetStatus;
+  color?: BudgetColorKey | null;
 };
 
-export function BudgetProgressBar({ percentage, progressWidth, status }: BudgetProgressBarProps) {
+export function BudgetProgressBar({ percentage, progressWidth, status, color = null }: BudgetProgressBarProps) {
   const theme = useAppTheme();
+  const resolveColor = useBudgetColor();
   const presentation = getStatusPresentation(status, theme);
+  // Red only when over budget; otherwise the budget keeps its assigned color.
   const fillColor =
-    status === 'on-track' || status === 'fully-used'
-      ? theme.progressFill
-      : presentation.foreground;
+    status === 'over-budget'
+      ? theme.destructive
+      : resolveColor(color, theme.progressFill);
 
   return (
     <View

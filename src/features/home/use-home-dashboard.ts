@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { accountService } from '@/features/accounts/accounts';
 import type { EstimatedNetWorth } from '@/features/accounts/account.service';
-import type { BudgetSummary } from '@/features/budgets/budget.types';
+import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
 import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
 import { bogotaToday, monthFromDate } from '@/features/transactions/transaction-date';
@@ -16,6 +16,7 @@ type State = {
   summary: MonthlyTransactionSummary;
   recent: TransactionListItem[];
   budget: BudgetSummary;
+  budgets: BudgetView[];
 };
 
 const emptyBudget: BudgetSummary = {
@@ -38,6 +39,7 @@ export function useHomeDashboard() {
     },
     recent: [],
     budget: emptyBudget,
+    budgets: [],
   });
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -65,6 +67,7 @@ export function useHomeDashboard() {
         summary,
         recent,
         budget: budget.summary,
+        budgets: budget.budgets,
       });
       setHasLoaded(true);
     } catch (cause) {

@@ -180,8 +180,8 @@ connection.execute(
     ('split-expense', 'expense', 'checking', -120_000, 0),
 )
 connection.execute(
-    'INSERT INTO budgets VALUES (?,?,?,?,?,?)',
-    ('budget-food', 'food', '2026-07', 400_000, utc, utc),
+    'INSERT INTO budgets VALUES (?,?,?,?,?,?,?)',
+    ('budget-food', 'food', '2026-07', 400_000, utc, utc, 'blue'),
 )
 connection.execute(
     'INSERT INTO recurring_transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',

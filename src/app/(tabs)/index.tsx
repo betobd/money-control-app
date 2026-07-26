@@ -121,7 +121,7 @@ export default function HomeScreen() {
         netBalance={`${net < 0 ? '-' : '+'}${formatCop(Math.abs(net))}`}
       />
 
-      <BudgetProgressCard summary={dashboard.budget} />
+      <BudgetProgressCard budgets={dashboard.budgets} summary={dashboard.budget} />
 
       <SectionHeader
         action={

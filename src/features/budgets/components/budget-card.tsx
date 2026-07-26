@@ -5,6 +5,7 @@ import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { budgetMonthLabel } from '@/features/budgets/budget-month';
+import { useBudgetColor } from '@/features/budgets/budget-color';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import { BudgetStatusBadge, getStatusPresentation } from '@/features/budgets/components/budget-status-badge';
 import type { BudgetView } from '@/features/budgets/budget.types';
@@ -12,7 +13,9 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: () => void }) {
   const theme = useAppTheme();
+  const resolveColor = useBudgetColor();
   const presentation = getStatusPresentation(budget.status, theme);
+  const accentColor = resolveColor(budget.color, presentation.accent);
   const overBudget = budget.remaining < 0;
   const remainingLabel = overBudget ? 'Over by' : 'Remaining';
   const remainingValue = overBudget ? formatCop(Math.abs(budget.remaining)) : formatCop(budget.remaining);
@@ -25,7 +28,7 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: (
       onPress={onPress}
       style={[styles.card, { backgroundColor: theme.surface }]}>
       <View style={styles.header}>
-        <IconChip background={theme.elevatedSurface} color={presentation.accent} icon={getCategoryIcon(budget.categoryIcon)} iconSize={19} size={36} />
+        <IconChip background={theme.elevatedSurface} color={accentColor} icon={getCategoryIcon(budget.categoryIcon)} iconSize={19} size={36} />
         <View style={styles.heading}>
           <Text numberOfLines={1} style={[styles.category, { color: theme.primaryText }]}>{budget.categoryName}</Text>
           <Text style={[styles.month, { color: theme.mutedText }]}>
@@ -51,7 +54,7 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: (
       </View>
 
       <Text style={[styles.percentage, { color: theme.secondaryText }]}>{budget.percentageUsed}% used</Text>
-      <BudgetProgressBar percentage={budget.percentageUsed} progressWidth={budget.progressWidth} status={budget.status} />
+      <BudgetProgressBar color={budget.color} percentage={budget.percentageUsed} progressWidth={budget.progressWidth} status={budget.status} />
     </Pressable>
   );
 }

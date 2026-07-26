@@ -1,8 +1,9 @@
+import type { BudgetColorKey } from '@/constants/theme';
 import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
 export const CURRENT_BACKUP_FORMAT_VERSION = 4 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0009' as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0010' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
@@ -117,6 +118,8 @@ export type BackupBudget = {
   categoryId: string;
   month: string;
   limitAmount: number;
+  /** Optional swatch key. Absent in backups created before schema 0010. */
+  color?: BudgetColorKey | null;
   createdAt: string;
   updatedAt: string;
 };

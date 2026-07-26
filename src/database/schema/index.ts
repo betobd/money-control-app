@@ -10,9 +10,15 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+import { budgetColorKeys, type BudgetColorKey } from '@/constants/theme';
+
 const MAX_SAFE_MONEY = 9_007_199_254_740_991;
 const MAX_SAFE_MONEY_SQL = sql.raw(String(MAX_SAFE_MONEY));
 const MIN_SAFE_MONEY_SQL = sql.raw(String(-MAX_SAFE_MONEY));
+
+// Allowed per-budget color keys (see budgetSwatches in constants/theme).
+const BUDGET_COLORS_ENUM = budgetColorKeys as [BudgetColorKey, ...BudgetColorKey[]];
+const BUDGET_COLORS_SQL = sql.raw(`(${budgetColorKeys.map((key) => `'${key}'`).join(', ')})`);
 
 // Multi-Currency v1 supports COP (base) and USD only.
 const SUPPORTED_CURRENCIES_SQL = sql.raw(`('COP', 'USD')`);
@@ -278,10 +284,13 @@ export const budgets = sqliteTable(
     month: text('month').notNull(),
     limitAmount: integer('limit_amount').notNull(),
     ...auditColumns,
+    // Appended by migration 0010 (SQLite ADD COLUMN adds it as the last column).
+    color: text('color', { enum: BUDGET_COLORS_ENUM }),
   },
   (table) => [
     check('budgets_limit_amount_positive', sql`typeof(${table.limitAmount}) = 'integer' AND ${table.limitAmount} > 0 AND ${table.limitAmount} <= ${MAX_SAFE_MONEY_SQL}`),
     check('budgets_month_format', sql`${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`),
+    check('budgets_color_valid', sql`${table.color} IS NULL OR ${table.color} IN ${BUDGET_COLORS_SQL}`),
     check('budgets_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('budgets_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
     uniqueIndex('budgets_category_month_uidx').on(table.categoryId, table.month),

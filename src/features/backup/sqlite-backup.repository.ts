@@ -116,7 +116,7 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
   `);
   const budgets = await database.getAllAsync<BackupBudget>(`
     SELECT id, category_id AS categoryId, month, limit_amount AS limitAmount,
-      created_at AS createdAt, updated_at AS updatedAt
+      color, created_at AS createdAt, updated_at AS updatedAt
     FROM budgets ORDER BY id
   `);
   const recurringTransactions = await database.getAllAsync<SqlRecurring>(`
@@ -228,10 +228,10 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV4): Pro
 
   await insertRows(database, `
     INSERT INTO budgets (
-      id, category_id, month, limit_amount, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      id, category_id, month, limit_amount, color, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
   `, data.budgets.map((row) => [
-    row.id, row.categoryId, row.month, row.limitAmount, row.createdAt, row.updatedAt,
+    row.id, row.categoryId, row.month, row.limitAmount, row.color ?? null, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `

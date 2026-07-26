@@ -17,12 +17,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Overline } from '@/components/overline';
-import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
+import { borderRadii, borderWidths, budgetColorKeys, fonts, spacing, typography, type BudgetColorKey } from '@/constants/theme';
 import { AmountInput } from '@/features/add-transaction/components/amount-input';
 import { BudgetValidationError } from '@/features/budgets/budget.service';
 import type { BudgetValidationErrors } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
 import { BudgetCategorySelector, type BudgetCategoryOption } from '@/features/budgets/components/budget-category-selector';
+import { BudgetColorPicker } from '@/features/budgets/components/budget-color-picker';
 import { categoryService } from '@/features/categories/categories';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -33,6 +34,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
   const [categoryId, setCategoryId] = useState('');
   const [month, setMonth] = useState(initialMonth);
   const [digits, setDigits] = useState('');
+  const [color, setColor] = useState<BudgetColorKey>(budgetColorKeys[0]);
   const [categories, setCategories] = useState<BudgetCategoryOption[]>([]);
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<BudgetValidationErrors>({});
@@ -66,6 +68,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           setCategoryId(budget.categoryId);
           setMonth(budget.month);
           setDigits(String(budget.limitAmount));
+          if (budget.color) setColor(budget.color);
         }
         setCategories(options);
       })
@@ -82,7 +85,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
     setErrors({});
     setGeneralError(undefined);
     try {
-      const input = { categoryId, month, limitAmount: digits ? Number(digits) : 0 };
+      const input = { categoryId, month, limitAmount: digits ? Number(digits) : 0, color };
       if (budgetId) await budgetService.update(budgetId, input);
       else await budgetService.create(input);
       router.back();
@@ -163,6 +166,9 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           onDigitsChange={(value) => { setDigits(value); clear('limitAmount'); }}
           type="expense"
         />
+
+        <BudgetColorPicker onChange={(value) => { setColor(value); clear('color'); }} value={color} />
+        {errors.color ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{errors.color}</Text> : null}
 
         {editing ? (
           <Pressable accessibilityLabel="Remove budget" accessibilityRole="button" onPress={confirmRemove} style={[styles.remove, { backgroundColor: theme.tintDestructive }]}>

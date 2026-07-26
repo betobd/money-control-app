@@ -73,6 +73,26 @@ export const colors = {
   },
 } as const;
 
+/**
+ * Named swatches available for per-budget coloring. Each swatch carries a light
+ * and dark variant so budgets stay legible in both themes. Store the key (not a
+ * raw hex) on the budget row and resolve it through resolveBudgetColor.
+ */
+export const budgetSwatches = {
+  blue: { light: '#135BC7', dark: '#79A9FF' },
+  teal: { light: '#0E8C8C', dark: '#4FD1C5' },
+  green: { light: '#0B7A4B', dark: '#45DDB0' },
+  amber: { light: '#A87400', dark: '#F1C66D' },
+  coral: { light: '#C85248', dark: '#FF9A8F' },
+  pink: { light: '#C43D7A', dark: '#FF8FBF' },
+  purple: { light: '#6D4AC0', dark: '#B79BFF' },
+  indigo: { light: '#3559B7', dark: '#9CB7FF' },
+} as const;
+
+export type BudgetColorKey = keyof typeof budgetSwatches;
+
+export const budgetColorKeys = Object.keys(budgetSwatches) as BudgetColorKey[];
+
 export const spacing = {
   xs: 4,
   sm: 8,

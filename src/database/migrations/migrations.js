@@ -11,6 +11,7 @@ import m0006 from './0006_local_notifications.sql';
 import m0007 from './0007_credit_card_management.sql';
 import m0008 from './0008_linked_refunds.sql';
 import m0009 from './0009_multi_currency.sql';
+import m0010 from './0010_budget_colors.sql';
 
 export default {
   journal,
@@ -25,5 +26,6 @@ export default {
     m0007,
     m0008,
     m0009,
+    m0010,
   },
 };

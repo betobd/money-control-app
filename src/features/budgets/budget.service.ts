@@ -1,3 +1,4 @@
+import { budgetColorKeys } from '@/constants/theme';
 import type { CategoryRepository } from '@/features/categories/category.repository';
 import type { Category } from '@/features/categories/category.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
@@ -49,6 +50,9 @@ export function validateBudgetInput(input: BudgetInput): BudgetValidationErrors 
   if (!isValidBudgetMonth(input.month)) errors.month = 'Enter a valid month in YYYY-MM format.';
   if (!Number.isSafeInteger(input.limitAmount) || input.limitAmount <= 0) {
     errors.limitAmount = 'Enter a positive whole, safe COP limit.';
+  }
+  if (input.color != null && !budgetColorKeys.includes(input.color)) {
+    errors.color = 'Select a valid budget color.';
   }
   return errors;
 }
@@ -167,6 +171,7 @@ export class BudgetService {
       categoryId: input.categoryId.trim(),
       month: input.month.trim(),
       limitAmount: input.limitAmount,
+      color: input.color ?? null,
     };
     const errors = validateBudgetInput(normalized);
     let category: Category | null = null;
