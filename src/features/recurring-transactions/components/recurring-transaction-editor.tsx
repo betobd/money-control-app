@@ -65,6 +65,21 @@ type OccurrenceProps = {
 
 type PickerField = 'account' | 'source' | 'destination' | null;
 
+// Validation-error fields this editor renders inline. Errors on any other field
+// (e.g. currency/exchangeRate) have no input to attach to and would otherwise
+// fail silently, so they are surfaced as a general error instead.
+const RENDERED_ERROR_FIELDS = new Set<string>([
+  'amount',
+  'accountId',
+  'destinationAccountId',
+  'categoryId',
+  'frequency',
+  'interval',
+  'startDate',
+  'endDate',
+  'note',
+]);
+
 const frequencyOptions: {
   label: string;
   frequency: RecurringFrequency;
@@ -163,8 +178,19 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
       }
       router.back();
     } catch (cause) {
-      if (cause instanceof RecurringRuleValidationError) setErrors(cause.fields);
-      else setGeneralError(toUserMessage(cause, 'Unable to save recurring transaction.'));
+      if (cause instanceof RecurringRuleValidationError) {
+        setErrors(cause.fields);
+        // Guard against a validation error on a field this form does not render
+        // (e.g. currency/exchangeRate): surface it as a general error instead of
+        // failing silently with no visible feedback.
+        const visible = Object.keys(cause.fields).some((field) => RENDERED_ERROR_FIELDS.has(field));
+        if (!visible) {
+          const first = Object.values(cause.fields).find(Boolean);
+          setGeneralError(first ?? 'Unable to save recurring transaction.');
+        }
+      } else {
+        setGeneralError(toUserMessage(cause, 'Unable to save recurring transaction.'));
+      }
     } finally {
       setSaving(false);
     }

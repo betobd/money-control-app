@@ -252,7 +252,9 @@ export class TransactionService {
 
   async validateTemplate(input: TransactionInput): Promise<ResolvedTransactionInput> {
     const normalized = this.normalize(input);
-    return this.validate(normalized, undefined, {}, false);
+    // Templates are not postable transactions: skip the transfer-funds check and
+    // the posting-time exchange-rate requirement (both are enforced at post time).
+    return this.validate(normalized, undefined, {}, false, false);
   }
 
   async update(id: string, input: TransactionInput): Promise<TransactionListItem> {
@@ -345,6 +347,7 @@ export class TransactionService {
     original?: TransactionListItem,
     errors: TransactionValidationErrors = {},
     validateTransferFunds = true,
+    requireExchangeRate = true,
   ): Promise<ResolvedTransactionInput> {
     if (!supportedTransactionTypes.includes(input.type)) {
       errors.type = 'Select a supported transaction type.';
@@ -364,7 +367,7 @@ export class TransactionService {
 
     const resolved = input.type === 'transfer'
       ? await this.validateTransfer(input, errors, original, validateTransferFunds)
-      : await this.validateCategorizedTransaction(input, errors, original);
+      : await this.validateCategorizedTransaction(input, errors, original, requireExchangeRate);
     if (Object.keys(errors).length > 0) throw new TransactionValidationError(errors);
     return resolved;
   }
@@ -373,6 +376,7 @@ export class TransactionService {
     input: Extract<TransactionInput, { type: 'expense' | 'income' }>,
     errors: TransactionValidationErrors,
     original?: TransactionListItem,
+    requireExchangeRate = true,
   ): Promise<ResolvedTransactionInput> {
     const account = input.accountId ? await this.accounts.findById(input.accountId) : null;
     if (!input.accountId) {
@@ -395,8 +399,10 @@ export class TransactionService {
     // The account is the source of truth for currency.
     const currency: CurrencyCode = account?.currency ?? input.currency ?? 'COP';
 
-    // A foreign-currency income/expense must carry a valid COP rate snapshot.
-    if (currency !== 'COP' && !isValidRateInput(input.exchangeRate)) {
+    // A foreign-currency income/expense must carry a valid COP rate snapshot at
+    // posting time. Recurring templates skip this: they capture the rate later,
+    // when each occurrence is posted (see confirmOccurrence).
+    if (requireExchangeRate && currency !== 'COP' && !isValidRateInput(input.exchangeRate)) {
       errors.exchangeRate = MISSING_RATE_MESSAGE;
     }
 

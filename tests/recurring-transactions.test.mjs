@@ -24,6 +24,7 @@ class Accounts {
     ['checking', { id: 'checking', type: 'checking', balance: 1_000_000, isArchived: false }],
     ['savings', { id: 'savings', type: 'savings', balance: 500_000, isArchived: false }],
     ['archived', { id: 'archived', type: 'cash', balance: 0, isArchived: true }],
+    ['usd', { id: 'usd', type: 'checking', currency: 'USD', balance: 0, isArchived: false }],
   ]);
   async findById(id) { return this.values.get(id) ?? null; }
   async list(includeArchived) {
@@ -250,6 +251,22 @@ test('creates valid expense and income rules', async () => {
     categoryId: 'salary',
     note: 'Salary',
   }))).type, 'income');
+});
+
+test('creates USD income and expense rules without an upfront exchange rate', async () => {
+  const { service, recurring } = setup();
+  // A USD income rule captures its rate at posting time, not at rule creation,
+  // so it must save without an exchange rate rather than failing silently.
+  const income = await service.createRule(expenseRule({
+    type: 'income',
+    accountId: 'usd',
+    categoryId: 'salary',
+    note: 'USD salary',
+  }));
+  assert.equal(income.type, 'income');
+  const expense = await service.createRule(expenseRule({ accountId: 'usd' }));
+  assert.equal(expense.type, 'expense');
+  assert.deepEqual(recurring.rules.map((rule) => rule.currency), ['USD', 'USD']);
 });
 
 test('rejects archived references and category type mismatches in rules', async () => {
