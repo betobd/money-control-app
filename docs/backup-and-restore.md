@@ -10,6 +10,23 @@ Creating a backup reads one consistent SQLite snapshot, builds and self-validate
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.
 
+## Version 5 (Investments)
+
+Investments v1 advances the logical format to **v5** ([investments.md](investments.md)).
+Accounts may now be `type = 'investment'`, and two collections are added:
+`investmentAccounts` (1:1 metadata) and `investmentValuations` (manual valuation
+history, native currency). The summary gains `investmentAccounts` and
+`investmentValuations` counts. The importer accepts v1–v5 and rejects future
+versions; legacy v1–v4 backups migrate in memory by adding empty investment
+collections (older backups have no investments). Restore validation enforces the
+investment enums, safe-integer money, valid dates, and the relationships: every
+`investment`-type account has exactly one metadata row (no orphan account, no
+duplicate metadata), each valuation references an investment account with a
+matching currency, and there is one valuation per account/date. Restore deletes
+`investment_valuations` and `investment_accounts` before `accounts` and inserts
+them after; the post-restore count and `foreign_key_check`/`integrity_check`
+gates cover both tables.
+
 ## Version 4 (Multi-Currency)
 
 Multi-Currency v1 advances the logical format to **v4**. Accounts carry `currency`

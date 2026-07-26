@@ -26,6 +26,15 @@ The app uses one term per concept in all user-facing text. Use these consistentl
 | Budget limit | The monthly limit for a category budget | "Limit amount" |
 | Spent | Posted expenses (minus refunds) in a budget's category/month | — |
 | Remaining | Budget limit − spent | — |
+| Investment account | An account (`type = investment`) tracking a platform/product by total balance | "Portfolio" (for one account) |
+| Current value | An investment's latest manual valuation (or net contributions if none) | "Investment balance" |
+| Net contributions | An investment's derived ledger balance (contributions − withdrawals) | "Cost basis" |
+| Contribution | A transfer into an investment account | "Deposit", "Buy" |
+| Withdrawal | A transfer out of an investment account | "Sell" |
+| Valuation | A dated manual current-value entry for an investment | "Price", "Quote" |
+| Estimated investment gain/loss | Current value − net contributions (unrealized) | "Profit", "Realized gain" |
+| Simple estimated return | Estimated gain/loss ÷ net contributions (basis points) | "Annual return", "APY", "IRR", "TWR" |
+| Investment Income | Realized investment return recorded as Income | "Dividend" (as a type) |
 | Backup | The versioned JSON restore document | "Save" (as a synonym) |
 | Restore | Replacing local data from a backup | — |
 | Data Export | Human-readable CSV projection (not restorable) | "Backup" |

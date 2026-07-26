@@ -71,6 +71,19 @@ Reports uses the existing focus/event financial-data refresh hook. It reloads wh
 
 The screen uses the existing theme tokens and React Native primitives. No chart dependency was added. Cash flow uses labeled grouped bars, category spending uses a complete ranked horizontal-bar list, and net worth uses a dependency-free line plot plus a scrollable textual point summary. Accessible summaries expose totals, start/end values, and extrema without relying only on color.
 
+## Investments
+
+When investment accounts exist, Reports adds an opt-in **Investments** section
+(see [investments.md](investments.md)): the current portfolio position (total
+value, net contributions, estimated gain/loss, simple estimated return) plus
+**realized investment income for the period** — posted income into an investment
+account or tagged the seeded Investment Income category. Unrealized valuation
+changes raise net worth but are never counted as ordinary Income, and never enter
+cash flow, category totals, or Budgets. The net-worth timeline overlays each
+investment's valuation adjustment (value − basis of the latest valuation on or
+before each point), so the final point matches Home's estimated net worth; the
+base net-worth query is unchanged.
+
 ## Performance and known MVP limitations
 
 The existing transaction-date, type/date, category, source-account, and destination-account indexes support the current bounded aggregate queries. No migration or speculative status index was added without production query-plan evidence. Expected MVP performance is suitable for a personal ledger with tens of thousands of transactions; query plans should be measured on representative device data before adding indexes or downsampling.

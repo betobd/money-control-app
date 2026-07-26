@@ -185,7 +185,37 @@ Full reporting behavior and limitations are in [reports.md](reports.md).
 - Threshold comparison uses integer/`BigInt` intermediates: 80% and 100% crossings do not introduce floating-point monetary arithmetic.
 - Notification failure is outside financial transactions and cannot roll back a persisted transaction, occurrence transition, budget, or restore.
 
-## 15. Decisions still unresolved
+## 15. Investments
+
+Full behavior is in [investments.md](investments.md); [ADR 0006](decisions/0006-investments-v1.md).
+
+- An investment account is a normal `Account` (`type = 'investment'`) plus 1:1
+  `investment_accounts` metadata and 0..N `investment_valuations`. It tracks value
+  by total balance (`trackingMode = balance`); individual holdings are v2.
+- Contributions and withdrawals are **normal transfers**, never Income/Expense.
+  They do not change net worth, do not affect Budgets, and are excluded from
+  Reports cash-flow. Per-account **net contributions = the derived ledger balance**
+  (opening balance + posted transfers/income in − out). Internal
+  investment-to-investment transfers cancel in the portfolio sum.
+- A valuation stores `value_minor` and `basis_minor` (net contributions snapshot
+  at record time), both native currency. **Current value = net contributions(now)
+  + (latest.value − latest.basis)**; with no valuation it equals net contributions.
+  A valuation update changes net worth (via current value) and creates **no
+  transaction** — never Income, Expense, transfer, or a fake row.
+- **Net worth uses current value for investment accounts and the derived balance
+  for every other account** (one source per account, no double counting). USD
+  investments convert at the saved valuation rate; incomplete when no rate exists.
+- Estimated gain/loss = current value − net contributions. Simple estimated return
+  is integer basis points, **unavailable when net contributions ≤ 0** (never
+  NaN/Infinity, never called annual/APY/IRR/TWR).
+- Realized investment income received in cash is a normal Income transaction with
+  the seeded "Investment Income" category; reinvested income may be Income into the
+  investment account (treated as realized basis). Valuations are never Income.
+- One valuation per account per date (recording an existing date replaces it);
+  backdated dates allowed, future dates rejected; a valuation's currency must match
+  its account; archived investments cannot be revalued.
+
+## 16. Decisions still unresolved
 
 - Adjustment transaction representation and category treatment.
 - Whether voiding records a separate `voidedAt` timestamp or reason in a future migration.

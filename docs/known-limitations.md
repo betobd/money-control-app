@@ -35,6 +35,27 @@ Money Control v1 is a personal, local-first Android finance app. These limitatio
 
 - Released migrations are immutable and hand-authored (they include triggers/guards Drizzle Kit does not model). `drizzle-kit generate` is **not** the source of truth and must not be used to author new migrations; add new ordered `.sql` migrations by hand following the existing pattern. The `meta/` snapshots are only complete for the earliest migrations; do not rely on `drizzle-kit generate` diffs.
 
+## Investments
+
+Investments v1 tracks value by total balance per account/product; see
+[investments.md](investments.md).
+
+- No individual holdings, securities, symbols, quantities, prices, buys/sells,
+  dividends/fees per holding, cost basis, realized gains from sales, IRR/TWR/APY,
+  taxes, or market-data feeds (deferred to v2).
+- Contributions/withdrawals are transfers; a valuation update changes net worth
+  but is never Income/Expense. Current value comes from the latest manual
+  valuation; with none it equals net contributions.
+- `basis_minor` is snapshotted when a valuation is recorded; backdating a
+  contribution after a valuation shifts the estimated gain — re-record the
+  valuation to correct it.
+- The net-worth timeline overlays the valuation in effect at each point
+  (estimated); no historical daily FX and no interpolation between valuations.
+  Consolidated USD uses the current saved rate (Option A); incomplete when no rate.
+- No CDT-maturity or stale-valuation reminders in v1. Withdrawing realized gains
+  requires recording the gain as Income first (a transfer withdrawal is limited to
+  net contributions by the funds check).
+
 ## Deferred recommendations (v2)
 
 - Consolidate the signed account-effect balance formula into a single shared definition.

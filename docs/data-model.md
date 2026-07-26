@@ -113,6 +113,26 @@ valid USD/COP valuation rate: scaled integer `rate_scaled` / `rate_scale`,
 It holds no personal or financial data and is portable application data (included in
 backup v4). See [currency-and-rates.md](currency-and-rates.md).
 
+### `investment_accounts` and `investment_valuations`
+
+Migration `0012` ([investments.md](investments.md), [ADR 0006](decisions/0006-investments-v1.md))
+adds the `investment` account type and two tables. `investment_accounts` is 1:1
+metadata for an `investment`-type account: `account_id` (primary key and foreign
+key to `accounts`), `investment_type`, `tracking_mode` (`balance` only in v1),
+`liquidity`, optional `provider_name` / `start_date` / `maturity_date` / `note`,
+and audit timestamps (CHECKs enforce the enums, valid dates, and
+`maturity_date >= start_date`). `investment_valuations` is the manual market-value
+history: `id`, `investment_account_id` (FK to `accounts`), non-negative
+`value_minor`, `basis_minor` (a net-contributions snapshot, may be negative),
+`currency_code` (COP/USD, validated to match the account), `valuation_date`,
+optional `note`, audit timestamps, and a unique index on
+`(investment_account_id, valuation_date)`. `0012` relaxes the `accounts` type
+CHECK to include `investment` via the create-copy-swap pattern (rebuilding
+`accounts` and its FK-dependent tables unchanged). Investment accounts still
+derive a transaction ledger balance (= net contributions); their **current value**
+comes from the latest valuation and is used for net worth (see
+[financial-rules.md](financial-rules.md) §16).
+
 ### Device-local notification tables
 
 Migration 0006 adds `notification_settings`, `scheduled_notifications`, and `budget_notification_state`. They contain versioned device preferences, Expo schedule identifiers/idempotency metadata, and threshold delivery state. They contain no transaction notes, notification bodies, PIN/security records, or portable financial data and have no financial foreign keys. Logical backup deliberately excludes all three tables; restore preserves preferences and rebuilds device metadata.

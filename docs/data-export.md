@@ -229,6 +229,29 @@ Columns are `metric`, `value`, `period_start`, and `period_end`. The 15 metric r
 
 No chart image or detailed timeline file is generated. A single-month filename is `money-control-report-YYYY-MM.csv`; other ranges use `money-control-report-YYYY-MM-DD-to-YYYY-MM-DD.csv`.
 
+## Investment exports
+
+Two read-only CSV files (Investments v1, see [investments.md](investments.md)),
+derived from the portfolio and valuation services — no SQL and no float money.
+
+`money-control-investments-YYYY-MM-DD.csv` — one row per investment account
+(active and archived): `investment_account_id`, `account_name`, `provider_name`,
+`investment_type`, `tracking_mode`, `liquidity`, `currency_code`,
+`current_value_minor`, `current_value_display`, `estimated_value_cop` (blank when
+USD and no valuation rate), `total_contributions_minor`, `total_withdrawals_minor`,
+`net_contributions_minor`, `estimated_gain_loss_minor`, `estimated_return_percentage`
+(blank when net contributions ≤ 0), `latest_valuation_date`, `start_date`,
+`maturity_date`, `status`.
+
+`money-control-investment-valuations-YYYY-MM-DD.csv` — full manual valuation
+history across all investment accounts: `valuation_id`, `investment_account_id`,
+`account_name`, `valuation_date`, `currency_code`, `value_minor`, `value_display`,
+`note`, `created_at`, `updated_at`.
+
+Account/provider names and notes get formula-injection protection; numeric columns
+stay numeric. Both refuse to create a file when there are no investments (or no
+valuations). Estimated COP uses the current saved USD/COP rate.
+
 ## Limits, privacy, and application interactions
 
 Transactions are counted before generation, warned at 25,000 rows, capped at 50,000, queried in 1,000-row ascending keyset batches, and serialized/written incrementally. A concurrent change that crosses the limit also aborts rather than truncating. Other list exports are capped at 10,000 rows. These safety limits support personal-ledger datasets with tens of thousands of transactions while bounding JavaScript object and native-write pressure.
