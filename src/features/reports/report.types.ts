@@ -96,6 +96,12 @@ export type PreviousPeriodComparison = {
   expenseCount: ComparisonMetric;
 };
 
+/** Realized investment income posted within the report period (COP base snapshot). */
+export type ReportInvestments = {
+  incomeCopMinor: number;
+  incomeCount: number;
+};
+
 export type ReportData = {
   period: ReportPeriod;
   summary: PeriodSummary;
@@ -103,6 +109,7 @@ export type ReportData = {
   categoryExpenses: CategoryExpenseSummary[];
   netWorth: NetWorthPoint[];
   comparison: PreviousPeriodComparison;
+  investments: ReportInvestments;
 };
 
 export type ReportSummaryAggregate = Omit<
@@ -122,4 +129,15 @@ export type CategoryExpenseAggregate = Omit<CategoryExpenseSummary, 'percentageB
 export type NetWorthAggregate = {
   startingNetWorth: number;
   changes: { key: string; amount: number }[];
+};
+
+/**
+ * One valuation's unrealized adjustment (value − basis) in the account's native
+ * currency, used to overlay investment valuations onto the net-worth timeline.
+ */
+export type InvestmentValuationSeriesRow = {
+  accountId: string;
+  currency: 'COP' | 'USD';
+  valuationDate: string;
+  unrealizedNativeMinor: number;
 };

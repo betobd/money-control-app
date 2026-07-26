@@ -1,18 +1,23 @@
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { database } from '@/database/client';
-import { accounts, categories, transactions } from '@/database/schema';
+import { accounts, categories, investmentValuations, transactions } from '@/database/schema';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
 import type { ReportRepository } from './report.repository';
 import type {
   CategoryExpenseAggregate,
+  InvestmentValuationSeriesRow,
   NetWorthAggregate,
   ReportBucketAggregate,
   ReportGrouping,
   ReportPeriod,
   ReportSummaryAggregate,
 } from './report.types';
+
+// The seeded "Investment Income" income category (fresh installs). Realized
+// investment income is income into an investment account OR tagged this category.
+const INVESTMENT_INCOME_CATEGORY_ID = 'default-income-investment';
 
 const UNKNOWN_CATEGORY_ID = 'unknown-category';
 const UNKNOWN_CATEGORY_NAME = 'Unknown category';
@@ -222,6 +227,47 @@ export class SQLiteReportRepository implements ReportRepository {
           'Net-worth change',
         ),
       })),
+    };
+  }
+
+  async investmentValuationSeries(): Promise<InvestmentValuationSeriesRow[]> {
+    const rows = await database
+      .select({
+        accountId: investmentValuations.investmentAccountId,
+        currency: investmentValuations.currencyCode,
+        valuationDate: investmentValuations.valuationDate,
+        unrealized: sql<number>`${investmentValuations.valueMinor} - ${investmentValuations.basisMinor}`,
+      })
+      .from(investmentValuations)
+      .innerJoin(accounts, eq(investmentValuations.investmentAccountId, accounts.id))
+      .where(eq(accounts.type, 'investment'))
+      .orderBy(asc(investmentValuations.investmentAccountId), asc(investmentValuations.valuationDate));
+    return rows.map((row) => ({
+      accountId: row.accountId,
+      currency: row.currency === 'USD' ? 'USD' : 'COP',
+      valuationDate: row.valuationDate,
+      unrealizedNativeMinor: safeInteger(row.unrealized, 'Investment unrealized adjustment'),
+    }));
+  }
+
+  async investmentIncome(period: ReportPeriod): Promise<{ copMinor: number; count: number }> {
+    const [row] = await database
+      .select({
+        total: sql<number>`coalesce(sum(coalesce(${transactions.baseAmountMinor}, ${transactions.amount})), 0)`,
+        count: sql<number>`count(*)`,
+      })
+      .from(transactions)
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      .where(and(
+        eq(transactions.status, 'posted'),
+        eq(transactions.type, 'income'),
+        gte(transactions.transactionDate, period.dateFrom),
+        lte(transactions.transactionDate, period.dateTo),
+        or(eq(accounts.type, 'investment'), eq(transactions.categoryId, INVESTMENT_INCOME_CATEGORY_ID)),
+      ));
+    return {
+      copMinor: safeInteger(row?.total ?? 0, 'Investment income'),
+      count: safeInteger(row?.count ?? 0, 'Investment income count'),
     };
   }
 }

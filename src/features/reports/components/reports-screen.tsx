@@ -14,6 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
+import { formatEstimatedReturn } from '@/features/investments/investment-format';
+import { useInvestments } from '@/features/investments/use-investments';
 import { formatReportDate } from '../report-period';
 import type { ComparisonMetric, ReportPeriodSelection } from '../report.types';
 import { useReports } from '../use-reports';
@@ -27,6 +29,7 @@ export function ReportsScreen() {
   const theme = useAppTheme();
   const [selection, setSelection] = useState<ReportPeriodSelection>({ preset: 'current-month' });
   const reports = useReports(selection);
+  const { portfolio } = useInvestments();
   const data = reports.data;
 
   if (reports.loading && !data) {
@@ -143,6 +146,31 @@ export function ReportsScreen() {
             title="Net worth evolution">
             <NetWorthLineChart points={data.netWorth} />
           </ReportSection>
+
+          {portfolio.investmentAccountCount > 0 ? (
+            <ReportSection
+              description="Current investment position (estimated) plus realized investment income for the period. Unrealized valuation changes raise net worth but are never counted as ordinary income."
+              title="Investments">
+              <View style={styles.summaryGrid}>
+                <SummaryMetric
+                  label="Current value"
+                  value={portfolio.totalCurrentValueCopMinor === null ? 'Estimated — incomplete' : formatCop(portfolio.totalCurrentValueCopMinor)}
+                />
+                <SummaryMetric
+                  label="Net contributions"
+                  value={portfolio.netContributionsCopMinor === null ? '—' : formatCop(portfolio.netContributionsCopMinor)}
+                />
+                <SummaryMetric
+                  label="Estimated gain/loss"
+                  tone={portfolio.estimatedGainLossCopMinor === null ? undefined : portfolio.estimatedGainLossCopMinor >= 0 ? 'income' : 'expense'}
+                  value={portfolio.estimatedGainLossCopMinor === null ? '—' : formatCop(portfolio.estimatedGainLossCopMinor)}
+                />
+                <SummaryMetric label="Simple estimated return" value={formatEstimatedReturn(portfolio.estimatedReturn)} />
+                <SummaryMetric label="Investment income (period)" tone="income" value={formatCop(data.investments.incomeCopMinor)} />
+                <SummaryMetric label="Income transactions" value={String(data.investments.incomeCount)} />
+              </View>
+            </ReportSection>
+          ) : null}
 
           <ReportSection
             description={`Compared with ${data.comparison.previousPeriod.label}. Expense increases use a negative semantic indicator.`}

@@ -11,6 +11,8 @@ import {
 import {
   buildComparisonMetric,
   calculateBasisPoints,
+  groupInvestmentSeries,
+  investmentAdjustmentAsOf,
   normalizeSummary,
   ReportService,
 } from '../src/features/reports/report.service.ts';
@@ -162,6 +164,8 @@ class FakeReportRepository {
   cashFlowRows = [];
   categories = [];
   netWorthResult = { startingNetWorth: 0, changes: [] };
+  valuationSeries = [];
+  investmentIncomeResult = { copMinor: 0, count: 0 };
 
   async summarize(period) {
     return this.summaries.get(period.dateFrom) ?? {
@@ -177,6 +181,8 @@ class FakeReportRepository {
   async cashFlow() { return this.cashFlowRows; }
   async categoryExpenses() { return this.categories; }
   async netWorth() { return this.netWorthResult; }
+  async investmentValuationSeries() { return this.valuationSeries; }
+  async investmentIncome() { return this.investmentIncomeResult; }
 }
 
 test('fills missing cash-flow buckets chronologically and excludes absent data', async () => {
@@ -287,4 +293,50 @@ test('compares income, expenses, net, average, and count with metric-aware seman
   assert.equal(comparison.averageExpense.previous, 60);
   assert.equal(comparison.averageExpense.tone, 'negative');
   assert.equal(comparison.expenseCount.tone, 'negative');
+});
+
+test('investmentAdjustmentAsOf uses the latest valuation on or before the date', () => {
+  const series = groupInvestmentSeries([
+    { accountId: 'trii', currency: 'COP', valuationDate: '2026-02-28', unrealizedNativeMinor: 100_000 },
+    { accountId: 'trii', currency: 'COP', valuationDate: '2026-03-31', unrealizedNativeMinor: 500_000 },
+    { accountId: 'ibkr', currency: 'USD', valuationDate: '2026-03-31', unrealizedNativeMinor: 250_000 },
+  ]);
+  // Before any valuation.
+  assert.equal(investmentAdjustmentAsOf(series, '2026-01-31', null), 0);
+  // Between the two Trii valuations; IBKR not yet valued.
+  assert.equal(investmentAdjustmentAsOf(series, '2026-03-01', null), 100_000);
+  // COP-only when no rate: USD IBKR contributes 0.
+  assert.equal(investmentAdjustmentAsOf(series, '2026-03-31', null), 500_000);
+  // With a rate, USD 2,500.00 unrealized converts at 4,100 -> COP 10,250,000.
+  assert.equal(
+    investmentAdjustmentAsOf(series, '2026-03-31', { rateScaled: 41_000_000, rateScale: 10_000 }),
+    500_000 + 10_250_000,
+  );
+});
+
+test('net-worth timeline overlays the investment valuation adjustment per point', async () => {
+  const repository = new FakeReportRepository();
+  repository.netWorthResult = {
+    startingNetWorth: 1_000_000,
+    changes: [{ key: '2026-07-01', amount: 200_000 }],
+  };
+  // A COP investment valued mid-period: +300,000 unrealized from 2026-07-01 on.
+  repository.valuationSeries = [
+    { accountId: 'trii', currency: 'COP', valuationDate: '2026-07-01', unrealizedNativeMinor: 300_000 },
+  ];
+  const data = await new ReportService(repository).load(
+    { preset: 'custom', customDateFrom: '2026-07-01', customDateTo: '2026-07-01' },
+    TODAY,
+  );
+  // Start (2026-06-30): base 1,000,000, no valuation yet -> 1,000,000.
+  assert.equal(data.netWorth[0].netWorth, 1_000_000);
+  // End (2026-07-01): base 1,200,000 + 300,000 valuation overlay -> 1,500,000.
+  assert.equal(data.netWorth[1].netWorth, 1_500_000);
+});
+
+test('report exposes realized investment income for the period', async () => {
+  const repository = new FakeReportRepository();
+  repository.investmentIncomeResult = { copMinor: 1_050_000, count: 2 };
+  const data = await new ReportService(repository).load({ preset: 'current-month' }, TODAY);
+  assert.deepEqual(data.investments, { incomeCopMinor: 1_050_000, incomeCount: 2 });
 });
