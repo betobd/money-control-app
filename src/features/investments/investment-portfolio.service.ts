@@ -161,6 +161,28 @@ export function summarizePortfolio(
   };
 }
 
+/**
+ * Return the accounts with each investment account's derived ledger balance
+ * replaced by its estimated current value (native minor units). Non-investment
+ * accounts are returned unchanged. Feed the result to
+ * `AccountService.estimateNetWorth` so net worth counts investment accounts at
+ * their valuation while every other account keeps its ledger balance — one source
+ * per account, so there is no double counting. Investment contributions/withdrawals
+ * stay net-worth neutral (they move the ledger balance, which currentValue tracks),
+ * while a valuation moves currentValue and therefore net worth.
+ */
+export function withInvestmentCurrentValues(
+  accounts: AccountWithBalance[],
+  views: InvestmentAccountView[],
+): AccountWithBalance[] {
+  const currentValueById = new Map(views.map((view) => [view.account.id, view.currentValueMinor]));
+  return accounts.map((account) => {
+    if (account.type !== 'investment') return account;
+    const currentValue = currentValueById.get(account.id);
+    return currentValue === undefined ? account : { ...account, balance: currentValue };
+  });
+}
+
 export class InvestmentPortfolioService {
   constructor(
     private readonly accountRepository: AccountRepository,

@@ -14,7 +14,8 @@ defaults = [
     ('default-expense-entertainment', 'Entertainment', 'expense', 'entertainment'), ('default-expense-health', 'Health', 'expense', 'health'),
     ('default-expense-education', 'Education', 'expense', 'education'), ('default-expense-other', 'Other', 'expense', 'other'),
     ('default-income-salary', 'Salary', 'income', 'salary'), ('default-income-freelance', 'Freelance', 'income', 'freelance'),
-    ('default-income-gift', 'Gift', 'income', 'gift'), ('default-income-refund', 'Refund', 'income', 'refund'), ('default-income-other', 'Other', 'income', 'other'),
+    ('default-income-gift', 'Gift', 'income', 'gift'), ('default-income-refund', 'Refund', 'income', 'refund'),
+    ('default-income-investment', 'Investment Income', 'income', 'investment'), ('default-income-other', 'Other', 'income', 'other'),
 ]
 def seed_if_empty():
     with connection:
@@ -24,7 +25,7 @@ def seed_if_empty():
 
 assert seed_if_empty() is True
 assert seed_if_empty() is False
-assert connection.execute('SELECT count(*) FROM categories').fetchone()[0] == 13
+assert connection.execute('SELECT count(*) FROM categories').fetchone()[0] == 14
 connection.execute("UPDATE categories SET name = 'Meals' WHERE id = 'default-expense-food-dining'")
 connection.execute("UPDATE categories SET is_archived = 1, archived_at = ? WHERE id = 'default-expense-bills'", (utc,))
 assert seed_if_empty() is False

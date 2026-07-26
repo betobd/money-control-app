@@ -25,6 +25,7 @@ const defaults: { id: string; name: string; type: CategoryType; icon: CategoryIc
   { id: 'default-income-freelance', name: 'Freelance', type: 'income', icon: 'freelance' },
   { id: 'default-income-gift', name: 'Gift', type: 'income', icon: 'gift' },
   { id: 'default-income-refund', name: 'Refund', type: 'income', icon: 'refund' },
+  { id: 'default-income-investment', name: 'Investment Income', type: 'income', icon: 'investment' },
   { id: 'default-income-other', name: 'Other', type: 'income', icon: 'other' },
 ];
 
