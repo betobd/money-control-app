@@ -10,6 +10,7 @@ import type {
   BackupAccount,
   BackupCreditCardStatement,
   BackupBudget,
+  BackupBudgetRule,
   BackupCategory,
   BackupDataV4,
   BackupExchangeRate,
@@ -116,8 +117,14 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
   `);
   const budgets = await database.getAllAsync<BackupBudget>(`
     SELECT id, category_id AS categoryId, month, limit_amount AS limitAmount,
-      color, created_at AS createdAt, updated_at AS updatedAt
+      color, rule_id AS ruleId, created_at AS createdAt, updated_at AS updatedAt
     FROM budgets ORDER BY id
+  `);
+  const budgetRules = await database.getAllAsync<Omit<BackupBudgetRule, 'isActive'> & { isActive: number }>(`
+    SELECT id, category_id AS categoryId, limit_amount AS limitAmount, color,
+      start_month AS startMonth, is_active AS isActive,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM budget_rules ORDER BY id
   `);
   const recurringTransactions = await database.getAllAsync<SqlRecurring>(`
     SELECT id, type, amount, currency, account_id AS accountId,
@@ -156,6 +163,7 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV4> {
     transactions,
     transactionSplits,
     budgets,
+    budgetRules: budgetRules.map((row) => ({ ...row, isActive: row.isActive === 1 })),
     recurringTransactions: recurringTransactions.map((row) => ({
       ...row,
       isActive: row.isActive === 1,
@@ -227,11 +235,19 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV4): Pro
   ]));
 
   await insertRows(database, `
+    INSERT INTO budget_rules (
+      id, category_id, limit_amount, color, start_month, is_active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, (data.budgetRules ?? []).map((row) => [
+    row.id, row.categoryId, row.limitAmount, row.color ?? null, row.startMonth, row.isActive ? 1 : 0, row.createdAt, row.updatedAt,
+  ]));
+
+  await insertRows(database, `
     INSERT INTO budgets (
-      id, category_id, month, limit_amount, color, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      id, category_id, month, limit_amount, color, rule_id, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, data.budgets.map((row) => [
-    row.id, row.categoryId, row.month, row.limitAmount, row.color ?? null, row.createdAt, row.updatedAt,
+    row.id, row.categoryId, row.month, row.limitAmount, row.color ?? null, row.ruleId ?? null, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `
@@ -355,6 +371,7 @@ export class SQLiteBackupRepository implements BackupRepository {
         DELETE FROM recurring_occurrences;
         DELETE FROM transaction_splits;
         DELETE FROM budgets;
+        DELETE FROM budget_rules;
         DELETE FROM recurring_transactions;
         -- Refunds self-reference their original expense via
         -- transactions.original_transaction_id (ON DELETE RESTRICT), which is

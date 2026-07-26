@@ -1,9 +1,9 @@
-import { and, asc, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, ne, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
 import { budgets, categories } from '@/database/schema';
 import { nextBudgetMonth } from './budget-month';
-import type { BudgetRepository, BudgetUpdateRecord } from './budget.repository';
+import type { BudgetInstancePatch, BudgetRepository, BudgetUpdateRecord } from './budget.repository';
 import type { Budget, BudgetRecord, BudgetSpendingRecord } from './budget.types';
 
 const recordSelection = {
@@ -32,6 +32,10 @@ function mapRecord(row: RecordRow): BudgetRecord {
 export class SQLiteBudgetRepository implements BudgetRepository {
   async create(budget: Budget): Promise<void> {
     await database.insert(budgets).values(budget);
+  }
+
+  async materialize(budget: Budget): Promise<void> {
+    await database.insert(budgets).values(budget).onConflictDoNothing();
   }
 
   async findById(id: string): Promise<BudgetRecord | null> {
@@ -116,6 +120,17 @@ export class SQLiteBudgetRepository implements BudgetRepository {
 
   async update(id: string, budget: BudgetUpdateRecord): Promise<void> {
     await database.update(budgets).set(budget).where(eq(budgets.id, id));
+  }
+
+  async updateForRuleFromMonth(ruleId: string, month: string, patch: BudgetInstancePatch): Promise<void> {
+    await database
+      .update(budgets)
+      .set({ limitAmount: patch.limitAmount, color: patch.color, updatedAt: patch.updatedAt })
+      .where(and(eq(budgets.ruleId, ruleId), gte(budgets.month, month)));
+  }
+
+  async deleteForRuleFromMonth(ruleId: string, month: string): Promise<void> {
+    await database.delete(budgets).where(and(eq(budgets.ruleId, ruleId), gte(budgets.month, month)));
   }
 
   async remove(id: string): Promise<void> {

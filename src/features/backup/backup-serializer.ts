@@ -18,6 +18,7 @@ export function sortBackupData(data: BackupDataV4): BackupDataV4 {
     transactions: [...data.transactions].sort(compareIds),
     transactionSplits: [...data.transactionSplits].sort(compareIds),
     budgets: [...data.budgets].sort(compareIds),
+    budgetRules: [...(data.budgetRules ?? [])].sort(compareIds),
     recurringTransactions: [...data.recurringTransactions].sort(compareIds),
     recurringOccurrences: [...data.recurringOccurrences].sort(compareIds),
     creditCardStatements: [...data.creditCardStatements].sort(compareIds),

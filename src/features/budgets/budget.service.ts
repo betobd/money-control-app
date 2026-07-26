@@ -5,6 +5,8 @@ import { notifyFinancialDataChanged } from '@/features/transactions/financial-da
 import type { FinancialDataChange } from '@/features/transactions/financial-data-events';
 import { isValidBudgetMonth } from './budget-month';
 import type { BudgetRepository } from './budget.repository';
+import type { BudgetRuleRepository } from './budget-rule.repository';
+import type { BudgetRule } from './budget-rule.types';
 import type {
   Budget,
   BudgetInput,
@@ -16,6 +18,8 @@ import type {
   BudgetView,
   ProgressWidth,
 } from './budget.types';
+
+export type BudgetEditModel = BudgetRecord & { isRecurring: boolean };
 
 export class BudgetValidationError extends Error {
   constructor(public readonly fields: BudgetValidationErrors) {
@@ -66,7 +70,7 @@ function progressWidth(percentageUsed: number): ProgressWidth {
   return `${Math.max(0, Math.min(percentageUsed, 100))}%`;
 }
 
-export function calculateBudget(record: BudgetSpendingRecord): BudgetView {
+export function calculateBudget(record: BudgetSpendingRecord, isRecurring = false): BudgetView {
   const limitAmount = ensureSafeMoney(record.limitAmount, 'Budget limit');
   const spent = ensureSafeMoney(record.spent, 'Budget spending');
   const remaining = ensureSafeMoney(limitAmount - spent, 'Budget remaining amount');
@@ -85,6 +89,7 @@ export function calculateBudget(record: BudgetSpendingRecord): BudgetView {
     percentageUsed,
     progressWidth: progressWidth(percentageUsed),
     status,
+    isRecurring,
   };
 }
 
@@ -116,6 +121,7 @@ export class BudgetService {
   constructor(
     private readonly repository: BudgetRepository,
     private readonly categories: CategoryRepository,
+    private readonly rules: BudgetRuleRepository,
     options: BudgetServiceOptions = {},
   ) {
     this.createId = options.createId ?? createFallbackId;
@@ -127,24 +133,49 @@ export class BudgetService {
     if (!isValidBudgetMonth(month)) {
       throw new BudgetValidationError({ month: 'Enter a valid month in YYYY-MM format.' });
     }
-    const budgets = (await this.repository.listMonth(month)).map(calculateBudget);
+    const rules = await this.rules.listActiveForMonth(month);
+    await this.materialize(month, rules);
+    const recurringCategories = new Set(rules.map((rule) => rule.categoryId));
+    const budgets = (await this.repository.listMonth(month)).map((record) =>
+      calculateBudget(record, recurringCategories.has(record.categoryId)),
+    );
     return { budgets, summary: calculateBudgetSummary(budgets) };
   }
 
   async listAll(): Promise<BudgetView[]> {
-    return (await this.repository.listAll()).map(calculateBudget);
+    return (await this.repository.listAll()).map((record) => calculateBudget(record, record.ruleId !== null));
   }
 
   get(id: string): Promise<BudgetRecord | null> {
     return this.repository.findById(id);
   }
 
-  async create(input: BudgetInput): Promise<Budget> {
+  async getEditModel(id: string): Promise<BudgetEditModel | null> {
+    const budget = await this.repository.findById(id);
+    if (!budget) return null;
+    let isRecurring = false;
+    if (budget.ruleId) {
+      const rule = await this.rules.findById(budget.ruleId);
+      isRecurring = rule?.isActive ?? false;
+    }
+    return { ...budget, isRecurring };
+  }
+
+  async create(input: BudgetInput, options: { recurring?: boolean } = {}): Promise<Budget> {
     const normalized = await this.validate(input);
     const timestamp = this.now();
+    let ruleId: string | null = null;
+    if (options.recurring) {
+      const existing = await this.rules.findActiveByCategory(normalized.categoryId);
+      if (existing) throw new BudgetValidationError({ categoryId: 'This category already has a recurring budget.' });
+      const rule = this.buildRule(normalized, normalized.month, timestamp);
+      await this.rules.create(rule);
+      ruleId = rule.id;
+    }
     const budget: Budget = {
       id: this.createId(),
       ...normalized,
+      ruleId,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -153,17 +184,84 @@ export class BudgetService {
     return budget;
   }
 
-  async update(id: string, input: BudgetInput): Promise<void> {
+  async update(id: string, input: BudgetInput, options: { recurring?: boolean } = {}): Promise<void> {
     const current = await this.requireBudget(id);
     const normalized = await this.validate(input, current);
-    await this.repository.update(id, { ...normalized, updatedAt: this.now() });
+    const timestamp = this.now();
+    const activeRule = await this.resolveActiveRule(current);
+    const recurring = options.recurring ?? activeRule !== null;
+
+    if (!recurring) {
+      // One-off going forward: stop any recurrence and unlink this instance.
+      if (activeRule) await this.rules.deactivate(activeRule.id, timestamp);
+      await this.repository.update(id, { ...normalized, updatedAt: timestamp, ruleId: null });
+    } else if (activeRule) {
+      // Stays recurring — apply the new limit/color to this month and every future month.
+      await this.rules.update(activeRule.id, { limitAmount: normalized.limitAmount, color: normalized.color, updatedAt: timestamp });
+      await this.repository.update(id, { ...normalized, updatedAt: timestamp, ruleId: activeRule.id });
+      await this.repository.updateForRuleFromMonth(activeRule.id, current.month, {
+        limitAmount: normalized.limitAmount,
+        color: normalized.color,
+        updatedAt: timestamp,
+      });
+    } else {
+      // Turning a one-off into a recurring budget from this month onward.
+      const rule = this.buildRule(normalized, current.month, timestamp);
+      await this.rules.create(rule);
+      await this.repository.update(id, { ...normalized, updatedAt: timestamp, ruleId: rule.id });
+    }
     this.notifyChanged({ kind: 'budget', operation: 'update', budgetId: id });
   }
 
   async remove(id: string): Promise<void> {
-    await this.requireBudget(id);
-    await this.repository.remove(id);
+    const current = await this.requireBudget(id);
+    const activeRule = await this.resolveActiveRule(current);
+    if (activeRule) {
+      // Removing a recurring budget stops the plan and drops this month + future months.
+      await this.rules.deactivate(activeRule.id, this.now());
+      await this.repository.deleteForRuleFromMonth(activeRule.id, current.month);
+    } else {
+      await this.repository.remove(id);
+    }
     this.notifyChanged({ kind: 'budget', operation: 'remove', budgetId: id });
+  }
+
+  private async materialize(month: string, rules: BudgetRule[]): Promise<void> {
+    for (const rule of rules) {
+      const timestamp = this.now();
+      await this.repository.materialize({
+        id: this.createId(),
+        categoryId: rule.categoryId,
+        month,
+        limitAmount: rule.limitAmount,
+        color: rule.color,
+        ruleId: rule.id,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+    }
+  }
+
+  private async resolveActiveRule(current: BudgetRecord): Promise<BudgetRule | null> {
+    if (current.ruleId) {
+      const rule = await this.rules.findById(current.ruleId);
+      if (rule?.isActive) return rule;
+    }
+    const active = await this.rules.findActiveByCategory(current.categoryId);
+    return active && active.startMonth <= current.month ? active : null;
+  }
+
+  private buildRule(input: BudgetInput, startMonth: string, timestamp: string): BudgetRule {
+    return {
+      id: this.createId(),
+      categoryId: input.categoryId,
+      limitAmount: input.limitAmount,
+      color: input.color,
+      startMonth,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
   }
 
   private async validate(input: BudgetInput, current?: BudgetRecord): Promise<BudgetInput> {

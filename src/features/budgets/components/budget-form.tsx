@@ -10,21 +10,25 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { IconChip } from '@/components/icon-chip';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, budgetColorKeys, fonts, spacing, typography, type BudgetColorKey } from '@/constants/theme';
 import { AmountInput } from '@/features/add-transaction/components/amount-input';
+import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import { BudgetValidationError } from '@/features/budgets/budget.service';
 import type { BudgetValidationErrors } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
 import { BudgetCategorySelector, type BudgetCategoryOption } from '@/features/budgets/components/budget-category-selector';
 import { BudgetColorPicker } from '@/features/budgets/components/budget-color-picker';
 import { categoryService } from '@/features/categories/categories';
+import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; initialMonth: string }) {
@@ -35,6 +39,9 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
   const [month, setMonth] = useState(initialMonth);
   const [digits, setDigits] = useState('');
   const [color, setColor] = useState<BudgetColorKey>(budgetColorKeys[0]);
+  const [recurring, setRecurring] = useState(false);
+  const [wasRecurring, setWasRecurring] = useState(false);
+  const [lockedCategory, setLockedCategory] = useState<{ name: string; icon: string } | null>(null);
   const [categories, setCategories] = useState<BudgetCategoryOption[]>([]);
   const [search, setSearch] = useState('');
   const [errors, setErrors] = useState<BudgetValidationErrors>({});
@@ -42,11 +49,13 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const editing = Boolean(budgetId);
+  // An already-recurring budget locks its category and month: the rule owns them.
+  const lockCategoryAndMonth = editing && wasRecurring;
 
   useEffect(() => {
     Promise.all([
       categoryService.listSelectable('expense'),
-      budgetId ? budgetService.get(budgetId) : Promise.resolve(null),
+      budgetId ? budgetService.getEditModel(budgetId) : Promise.resolve(null),
     ])
       .then(([activeCategories, budget]) => {
         if (budgetId && !budget) throw new Error('Budget not found.');
@@ -69,6 +78,9 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           setMonth(budget.month);
           setDigits(String(budget.limitAmount));
           if (budget.color) setColor(budget.color);
+          setRecurring(budget.isRecurring);
+          setWasRecurring(budget.isRecurring);
+          setLockedCategory({ name: budget.categoryName, icon: budget.categoryIcon });
         }
         setCategories(options);
       })
@@ -86,8 +98,8 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
     setGeneralError(undefined);
     try {
       const input = { categoryId, month, limitAmount: digits ? Number(digits) : 0, color };
-      if (budgetId) await budgetService.update(budgetId, input);
-      else await budgetService.create(input);
+      if (budgetId) await budgetService.update(budgetId, input, { recurring });
+      else await budgetService.create(input, { recurring });
       router.back();
     } catch (cause) {
       if (cause instanceof BudgetValidationError) setErrors(cause.fields);
@@ -101,7 +113,9 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
     if (!budgetId) return;
     Alert.alert(
       'Remove budget?',
-      'This removes only this monthly plan. Categories and transactions are not deleted.',
+      wasRecurring
+        ? 'This stops the recurring budget and removes this month and future months. Past months stay. Categories and transactions are not deleted.'
+        : 'This removes only this monthly plan. Categories and transactions are not deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -133,29 +147,47 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
-        <BudgetCategorySelector
-          categories={categories}
-          error={errors.categoryId}
-          onChange={(value) => { setCategoryId(value); clear('categoryId'); }}
-          onSearchChange={setSearch}
-          search={search}
-          selectedId={categoryId}
-        />
+        {lockCategoryAndMonth ? (
+          <View style={styles.field}>
+            <Overline color={theme.mutedText}>Category</Overline>
+            <View style={[styles.readonlyRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+              <IconChip background={theme.elevatedSurface} color={theme.secondaryText} icon={getCategoryIcon(lockedCategory?.icon ?? 'other')} iconSize={19} size={36} />
+              <Text style={[styles.readonlyText, { color: theme.primaryText }]}>{lockedCategory?.name ?? ''}</Text>
+            </View>
+          </View>
+        ) : (
+          <BudgetCategorySelector
+            categories={categories}
+            error={errors.categoryId}
+            onChange={(value) => { setCategoryId(value); clear('categoryId'); }}
+            onSearchChange={setSearch}
+            search={search}
+            selectedId={categoryId}
+          />
+        )}
 
         <View style={styles.field}>
           <Overline color={theme.mutedText}>Budget month</Overline>
-          <TextInput
-            accessibilityLabel="Budget month in YYYY-MM format"
-            autoCapitalize="none"
-            keyboardType="number-pad"
-            maxLength={7}
-            onChangeText={(value) => { setMonth(value.replace(/[^\d-]/g, '').slice(0, 7)); clear('month'); }}
-            placeholder="YYYY-MM"
-            placeholderTextColor={theme.mutedText}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.month ? theme.destructive : theme.hairline, color: theme.primaryText }]}
-            value={month}
-          />
-          {errors.month ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{errors.month}</Text> : null}
+          {lockCategoryAndMonth ? (
+            <View style={[styles.readonlyRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+              <Text style={[styles.readonlyText, { color: theme.primaryText }]}>{budgetMonthLabel(month)}</Text>
+            </View>
+          ) : (
+            <>
+              <TextInput
+                accessibilityLabel="Budget month in YYYY-MM format"
+                autoCapitalize="none"
+                keyboardType="number-pad"
+                maxLength={7}
+                onChangeText={(value) => { setMonth(value.replace(/[^\d-]/g, '').slice(0, 7)); clear('month'); }}
+                placeholder="YYYY-MM"
+                placeholderTextColor={theme.mutedText}
+                style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.month ? theme.destructive : theme.hairline, color: theme.primaryText }]}
+                value={month}
+              />
+              {errors.month ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{errors.month}</Text> : null}
+            </>
+          )}
         </View>
 
         <AmountInput
@@ -169,6 +201,20 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
         <BudgetColorPicker onChange={(value) => { setColor(value); clear('color'); }} value={color} />
         {errors.color ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{errors.color}</Text> : null}
+
+        <View style={[styles.recurringRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
+          <View style={styles.recurringText}>
+            <Text style={[styles.recurringTitle, { color: theme.primaryText }]}>Repeat every month</Text>
+            <Text style={[styles.recurringHint, { color: theme.mutedText }]}>
+              Reappears automatically each month. Editing the amount applies from this month onward.
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel="Repeat this budget every month"
+            onValueChange={setRecurring}
+            value={recurring}
+          />
+        </View>
 
         {editing ? (
           <Pressable accessibilityLabel="Remove budget" accessibilityRole="button" onPress={confirmRemove} style={[styles.remove, { backgroundColor: theme.tintDestructive }]}>
@@ -201,6 +247,12 @@ const styles = StyleSheet.create({
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xxl },
   field: { gap: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
+  readonlyRow: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.sm + 2, minHeight: 56, paddingHorizontal: spacing.md },
+  readonlyText: { ...typography.body, flex: 1 },
+  recurringRow: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 56, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  recurringText: { flex: 1, gap: 2 },
+  recurringTitle: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600' },
+  recurringHint: { ...typography.caption, fontSize: 12, lineHeight: 16 },
   error: { ...typography.caption },
   remove: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
   removeText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },

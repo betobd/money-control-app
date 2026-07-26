@@ -32,7 +32,7 @@ export function BudgetCard({ budget, onPress }: { budget: BudgetView; onPress: (
         <View style={styles.heading}>
           <Text numberOfLines={1} style={[styles.category, { color: theme.primaryText }]}>{budget.categoryName}</Text>
           <Text style={[styles.month, { color: theme.mutedText }]}>
-            {budgetMonthLabel(budget.month)}{budget.categoryIsArchived ? ' · Archived category' : ''}
+            {budgetMonthLabel(budget.month)}{budget.isRecurring ? ' · Monthly' : ''}{budget.categoryIsArchived ? ' · Archived category' : ''}
           </Text>
         </View>
         <BudgetStatusBadge status={budget.status} />

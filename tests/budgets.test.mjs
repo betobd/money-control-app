@@ -38,6 +38,10 @@ class MemoryBudgetRepository {
     } : null;
   }
   async create(value) { this.records.push({ ...value }); }
+  async materialize(value) {
+    if (this.records.some((record) => record.categoryId === value.categoryId && record.month === value.month)) return;
+    this.records.push({ ...value });
+  }
   async findById(id) { const value = this.records.find((record) => record.id === id); return value ? this.record(value) : null; }
   async findDuplicate(categoryId, month, excludingId) {
     const value = this.records.find((record) => record.categoryId === categoryId && record.month === month && record.id !== excludingId);
@@ -48,20 +52,40 @@ class MemoryBudgetRepository {
       .filter((record) => record.month === month)
       .map((record) => ({ ...this.record(record), spent: this.spending.get(record.id) ?? 0 }));
   }
+  async listAll() {
+    return this.records.map((record) => ({ ...this.record(record), spent: this.spending.get(record.id) ?? 0 }));
+  }
   async update(id, update) { Object.assign(this.records.find((record) => record.id === id), update); }
+  async updateForRuleFromMonth(ruleId, month, patch) {
+    for (const record of this.records) if (record.ruleId === ruleId && record.month >= month) Object.assign(record, patch);
+  }
+  async deleteForRuleFromMonth(ruleId, month) {
+    this.records = this.records.filter((record) => !(record.ruleId === ruleId && record.month >= month));
+  }
   async remove(id) { this.records = this.records.filter((record) => record.id !== id); }
+}
+
+class MemoryBudgetRuleRepository {
+  rules = [];
+  async create(rule) { this.rules.push({ ...rule }); }
+  async findById(id) { return this.rules.find((rule) => rule.id === id) ?? null; }
+  async findActiveByCategory(categoryId) { return this.rules.find((rule) => rule.categoryId === categoryId && rule.isActive) ?? null; }
+  async listActiveForMonth(month) { return this.rules.filter((rule) => rule.isActive && rule.startMonth <= month); }
+  async update(id, patch) { Object.assign(this.rules.find((rule) => rule.id === id), patch); }
+  async deactivate(id, updatedAt) { const rule = this.rules.find((candidate) => candidate.id === id); rule.isActive = false; rule.updatedAt = updatedAt; }
 }
 
 function setup() {
   const repository = new MemoryBudgetRepository();
+  const rules = new MemoryBudgetRuleRepository();
   let changed = 0;
   let id = 0;
-  const service = new BudgetService(repository, new MemoryCategoryRepository(), {
+  const service = new BudgetService(repository, new MemoryCategoryRepository(), rules, {
     createId: () => `budget-${++id}`,
     now: () => NOW,
     notifyChanged: () => { changed += 1; },
   });
-  return { repository, service, changed: () => changed };
+  return { repository, rules, service, changed: () => changed };
 }
 
 async function validationFields(action) {
@@ -191,6 +215,59 @@ test('listMonth exposes the same summary used by Budgets and Home', async () => 
   assert.equal(view.budgets.length, 2);
   assert.equal(view.summary.totalBudget, 1000000);
   assert.equal(view.summary.totalSpent, 350000);
+});
+
+test('recurring budget materializes future months automatically', async () => {
+  const { repository, rules, service } = setup();
+  await service.create(valid, { recurring: true });
+  assert.equal(rules.rules.length, 1);
+  assert.equal(rules.rules[0].isActive, true);
+  const august = await service.listMonth('2026-08');
+  assert.equal(august.budgets.length, 1);
+  assert.equal(august.budgets[0].limitAmount, 600000);
+  assert.equal(august.budgets[0].isRecurring, true);
+  assert.equal(repository.records.filter((record) => record.month === '2026-08').length, 1);
+});
+
+test('editing a recurring budget applies from this month onward, leaving the past intact', async () => {
+  const { repository, rules, service } = setup();
+  await service.create(valid, { recurring: true });
+  await service.listMonth('2026-08');
+  await service.listMonth('2026-09');
+  const augustId = repository.records.find((record) => record.month === '2026-08').id;
+  await service.update(augustId, { categoryId: 'food', month: '2026-08', limitAmount: 800000 }, { recurring: true });
+  assert.equal(rules.rules[0].limitAmount, 800000);
+  assert.equal(repository.records.find((record) => record.month === '2026-07').limitAmount, 600000);
+  assert.equal(repository.records.find((record) => record.month === '2026-08').limitAmount, 800000);
+  assert.equal(repository.records.find((record) => record.month === '2026-09').limitAmount, 800000);
+  const october = await service.listMonth('2026-10');
+  assert.equal(october.budgets[0].limitAmount, 800000);
+});
+
+test('turning off recurrence stops future materialization', async () => {
+  const { rules, service } = setup();
+  const july = await service.create(valid, { recurring: true });
+  await service.update(july.id, { ...valid, limitAmount: 600000 }, { recurring: false });
+  assert.equal(rules.rules[0].isActive, false);
+  const august = await service.listMonth('2026-08');
+  assert.equal(august.budgets.length, 0);
+});
+
+test('removing a recurring budget stops the plan and drops this and future months', async () => {
+  const { repository, rules, service } = setup();
+  const july = await service.create(valid, { recurring: true });
+  await service.listMonth('2026-08');
+  await service.remove(july.id);
+  assert.equal(rules.rules[0].isActive, false);
+  assert.equal(repository.records.some((record) => record.month === '2026-07'), false);
+  assert.equal(repository.records.some((record) => record.month === '2026-08'), false);
+});
+
+test('rejects a second recurring budget for the same category', async () => {
+  const { service } = setup();
+  await service.create(valid, { recurring: true });
+  const fields = await validationFields(() => service.create({ ...valid, month: '2026-09' }, { recurring: true }));
+  assert.match(fields.categoryId, /already has a recurring budget/i);
 });
 
 test('supports deterministic budget month navigation', () => {

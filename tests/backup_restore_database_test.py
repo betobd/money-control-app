@@ -6,11 +6,14 @@ root = Path(__file__).parents[1]
 db_file = root / 'tests' / 'backup_restore_test.sqlite'
 migrations = root / 'src' / 'database' / 'migrations'
 
+# budget_rules precedes budgets here so the dynamic re-insert satisfies the
+# budgets.rule_id -> budget_rules foreign key (parent inserted before child).
 tables = (
     'accounts',
     'categories',
     'transactions',
     'transaction_splits',
+    'budget_rules',
     'budgets',
     'recurring_transactions',
     'recurring_occurrences',
@@ -21,6 +24,7 @@ delete_order = (
     'recurring_occurrences',
     'transaction_splits',
     'budgets',
+    'budget_rules',
     'recurring_transactions',
     'transactions',
     'categories',
@@ -180,8 +184,12 @@ connection.execute(
     ('split-expense', 'expense', 'checking', -120_000, 0),
 )
 connection.execute(
-    'INSERT INTO budgets VALUES (?,?,?,?,?,?,?)',
-    ('budget-food', 'food', '2026-07', 400_000, utc, utc, 'blue'),
+    'INSERT INTO budget_rules VALUES (?,?,?,?,?,?,?,?)',
+    ('rule-food', 'food', 400_000, 'blue', '2026-07', 1, utc, utc),
+)
+connection.execute(
+    'INSERT INTO budgets VALUES (?,?,?,?,?,?,?,?)',
+    ('budget-food', 'food', '2026-07', 400_000, utc, utc, 'blue', 'rule-food'),
 )
 connection.execute(
     'INSERT INTO recurring_transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',

@@ -3,7 +3,7 @@ import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
 export const CURRENT_BACKUP_FORMAT_VERSION = 4 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0010' as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0011' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
@@ -120,6 +120,20 @@ export type BackupBudget = {
   limitAmount: number;
   /** Optional swatch key. Absent in backups created before schema 0010. */
   color?: BudgetColorKey | null;
+  /** Recurring-rule link. Absent in backups created before schema 0011. */
+  ruleId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Recurring-budget template (schema 0011+). */
+export type BackupBudgetRule = {
+  id: string;
+  categoryId: string;
+  limitAmount: number;
+  color?: BudgetColorKey | null;
+  startMonth: string;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -191,6 +205,8 @@ export type BackupDataV4 = Omit<BackupDataV3, 'transactions'> & {
   transactions: BackupTransaction[];
   /** Portable latest USD/COP valuation rate, or null. */
   exchangeRate: BackupExchangeRate | null;
+  /** Recurring-budget templates (schema 0011+). Absent in older backups. */
+  budgetRules?: BackupBudgetRule[];
 };
 
 export type BackupSummary = {

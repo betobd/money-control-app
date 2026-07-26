@@ -4,6 +4,7 @@ import {
   BACKUP_CHECKSUM_ALGORITHM,
   BACKUP_FORMAT,
   BACKUP_TIMEZONE,
+  type BackupBudgetRule,
   type BackupFile,
   type BackupFileV1,
   type BackupFileV2,
@@ -474,6 +475,34 @@ function validateBudgetRows(rows: unknown[], issues: ValidationIssues): void {
     ) {
       issue(issues, 'invalid_value', `${path}.color`, 'Budget color is not recognized.');
     }
+    if (row.ruleId !== undefined && row.ruleId !== null) {
+      validateId(row.ruleId, `${path}.ruleId`, issues);
+    }
+    validateAuditFields(row, path, issues);
+  });
+}
+
+function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void {
+  rows.forEach((value, index) => {
+    const path = `data.budgetRules[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.id, `${path}.id`, issues);
+    validateId(row.categoryId, `${path}.categoryId`, issues);
+    validateSafeInteger(row.limitAmount, `${path}.limitAmount`, issues, { positive: true });
+    if (
+      row.color !== undefined &&
+      row.color !== null &&
+      (typeof row.color !== 'string' || !budgetColorKeys.includes(row.color as BudgetColorKey))
+    ) {
+      issue(issues, 'invalid_value', `${path}.color`, 'Budget color is not recognized.');
+    }
+    if (typeof row.startMonth !== 'string' || !monthPattern.test(row.startMonth)) {
+      issue(issues, 'invalid_value', `${path}.startMonth`, 'Budget rule start month must use YYYY-MM.');
+    }
+    if (typeof row.isActive !== 'boolean') {
+      issue(issues, 'invalid_value', `${path}.isActive`, 'Budget rule isActive must be a boolean.');
+    }
     validateAuditFields(row, path, issues);
   });
 }
@@ -711,6 +740,10 @@ export class BackupValidator {
       validateTransactionRows(transactions, issues, version);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
+      if (data.budgetRules !== undefined) {
+        const budgetRules = requireArray(data, 'budgetRules', 'data.budgetRules', backupLimits.collections.budgetRules, issues);
+        validateBudgetRuleRows(budgetRules, issues);
+      }
       validateRecurringRows(recurring, issues, version);
       validateOccurrenceRows(occurrences, issues, version);
       if (version >= 2) validateCreditCardStatementRows(cardStatements, issues);
@@ -727,6 +760,9 @@ export class BackupValidator {
     validateUniqueIds(data.transactions, 'transactions', issues);
     validateUniqueIds(data.transactionSplits, 'transactionSplits', issues);
     validateUniqueIds(data.budgets, 'budgets', issues);
+    if ('budgetRules' in data && Array.isArray((data as { budgetRules?: unknown[] }).budgetRules)) {
+      validateUniqueIds((data as { budgetRules: { id: string }[] }).budgetRules, 'budgetRules', issues);
+    }
     validateUniqueIds(data.recurringTransactions, 'recurringTransactions', issues);
     validateUniqueIds(data.recurringOccurrences, 'recurringOccurrences', issues);
     if ('creditCardStatements' in file.data) {
@@ -849,6 +885,29 @@ export class BackupValidator {
         issue(issues, 'duplicate_constraint', 'data.budgets', 'Two budgets use the same category and month.');
       }
       budgetKeys.add(key);
+    }
+
+    const budgetRules = (data as { budgetRules?: BackupBudgetRule[] }).budgetRules ?? [];
+    const ruleIds = new Set(budgetRules.map((rule) => rule.id));
+    const activeRuleCategories = new Set<string>();
+    for (const rule of budgetRules) {
+      const category = categories.get(rule.categoryId);
+      if (!category) {
+        issue(issues, 'missing_reference', 'data.budgetRules', `Budget rule ${rule.id} references a missing category.`);
+      } else if (category.type !== 'expense') {
+        issue(issues, 'domain_mismatch', 'data.budgetRules', `Budget rule ${rule.id} must reference an expense category.`);
+      }
+      if (rule.isActive) {
+        if (activeRuleCategories.has(rule.categoryId)) {
+          issue(issues, 'duplicate_constraint', 'data.budgetRules', 'Two active budget rules use the same category.');
+        }
+        activeRuleCategories.add(rule.categoryId);
+      }
+    }
+    for (const budget of data.budgets) {
+      if (budget.ruleId != null && !ruleIds.has(budget.ruleId)) {
+        issue(issues, 'missing_reference', 'data.budgets', `Budget ${budget.id} references a missing budget rule.`);
+      }
     }
 
     for (const recurring of data.recurringTransactions) {

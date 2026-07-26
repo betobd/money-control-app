@@ -10,6 +10,7 @@ export type Budget = {
   month: string;
   limitAmount: number;
   color: BudgetColor;
+  ruleId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,6 +35,7 @@ export type BudgetView = BudgetRecord & {
   percentageUsed: number;
   progressWidth: ProgressWidth;
   status: BudgetStatus;
+  isRecurring: boolean;
 };
 
 export type BudgetSummary = {

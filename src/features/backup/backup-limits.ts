@@ -10,6 +10,7 @@ export const backupLimits = {
     transactions: 50_000,
     transactionSplits: 50_000,
     budgets: 10_000,
+    budgetRules: 10_000,
     recurringTransactions: 10_000,
     recurringOccurrences: 50_000,
     creditCardStatements: 50_000,

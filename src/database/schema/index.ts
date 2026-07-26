@@ -286,6 +286,8 @@ export const budgets = sqliteTable(
     ...auditColumns,
     // Appended by migration 0010 (SQLite ADD COLUMN adds it as the last column).
     color: text('color', { enum: BUDGET_COLORS_ENUM }),
+    // Appended by migration 0011. Links a materialized instance to its rule.
+    ruleId: text('rule_id').references((): AnySQLiteColumn => budgetRules.id, { onDelete: 'set null', onUpdate: 'restrict' }),
   },
   (table) => [
     check('budgets_limit_amount_positive', sql`typeof(${table.limitAmount}) = 'integer' AND ${table.limitAmount} > 0 AND ${table.limitAmount} <= ${MAX_SAFE_MONEY_SQL}`),
@@ -295,6 +297,31 @@ export const budgets = sqliteTable(
     check('budgets_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
     uniqueIndex('budgets_category_month_uidx').on(table.categoryId, table.month),
     index('budgets_month_idx').on(table.month),
+  ],
+);
+
+export const budgetRules = sqliteTable(
+  'budget_rules',
+  {
+    id: text('id').primaryKey(),
+    categoryId: text('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    limitAmount: integer('limit_amount').notNull(),
+    color: text('color', { enum: BUDGET_COLORS_ENUM }),
+    startMonth: text('start_month').notNull(),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    ...auditColumns,
+  },
+  (table) => [
+    check('budget_rules_limit_amount_positive', sql`typeof(${table.limitAmount}) = 'integer' AND ${table.limitAmount} > 0 AND ${table.limitAmount} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('budget_rules_color_valid', sql`${table.color} IS NULL OR ${table.color} IN ${BUDGET_COLORS_SQL}`),
+    check('budget_rules_start_month_format', sql`${table.startMonth} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.startMonth}, 6, 2) BETWEEN '01' AND '12'`),
+    check('budget_rules_is_active_valid', sql`${table.isActive} IN (0, 1)`),
+    check('budget_rules_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('budget_rules_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    uniqueIndex('budget_rules_active_category_uidx').on(table.categoryId).where(sql`${table.isActive} = 1`),
+    index('budget_rules_active_start_idx').on(table.isActive, table.startMonth),
   ],
 );
 
