@@ -224,11 +224,22 @@ function setup() {
   };
   const reports = { async load() { return reportData(); } };
   const transactionFilters = { async listFilterOptions() { return { accounts: [], categories: [] }; } };
+  const emptyPortfolio = {
+    accounts: [], investmentAccountCount: 0, totalCurrentValueCopMinor: 0, netContributionsCopMinor: 0,
+    estimatedGainLossCopMinor: 0, estimatedReturn: { available: false }, lockedOrRestrictedValueCopMinor: 0,
+    incomplete: false, allocationByType: [], allocationByCurrency: [],
+  };
+  const investments = {
+    portfolio: emptyPortfolio,
+    valuationsByAccount: {},
+    async getPortfolio() { return this.portfolio; },
+    async listValuations(accountId) { return this.valuationsByAccount[accountId] ?? []; },
+  };
   const service = new DataExportService(
-    repository, accounts, budgets, recurring, reports, transactionFilters,
+    repository, accounts, budgets, recurring, reports, transactionFilters, investments,
     new CsvSerializer(), files, { today: () => TODAY },
   );
-  return { accounts, files, repository, service };
+  return { accounts, files, investments, repository, service };
 }
 
 test('transaction export covers refunds, original references, other types, notes policy, filters, and stable order', async () => {
@@ -372,4 +383,79 @@ test('exported schemas exclude security, notification, backup, and migration int
     'pin', 'saltHex', 'derivedKeyHex', 'biometric', 'SecureStore',
     'scheduled_notifications', '__drizzle_migrations', 'backup_format',
   ]) assert.equal(csv.includes(forbidden), false);
+});
+
+function investmentView(id, overrides) {
+  const base = {
+    account: { id, name: id, currency: 'COP', isArchived: false },
+    metadata: { providerName: null, investmentType: 'brokerage', trackingMode: 'balance', liquidity: 'liquid', startDate: null, maturityDate: null },
+    latestValuation: null,
+    netContributionsMinor: 0, totalContributionsMinor: 0, totalWithdrawalsMinor: 0,
+    currentValueMinor: 0, estimatedGainLossMinor: 0, estimatedReturn: { available: false },
+    estimatedValueCopMinor: null,
+    ...overrides,
+  };
+  return base;
+}
+
+test('investment export protects names, shows estimated COP, unavailable return, and archived status', async () => {
+  const { files, investments, service } = setup();
+  investments.portfolio = {
+    ...investments.portfolio,
+    investmentAccountCount: 2,
+    accounts: [
+      investmentView('trii', {
+        account: { id: 'trii', name: '=Trii', currency: 'COP', isArchived: false },
+        metadata: { providerName: '+Bancolombia', investmentType: 'brokerage', trackingMode: 'balance', liquidity: 'liquid', startDate: null, maturityDate: '2027-01-15' },
+        latestValuation: { valuationDate: '2026-07-16' },
+        netContributionsMinor: 8_000_000, totalContributionsMinor: 8_000_000, totalWithdrawalsMinor: 0,
+        currentValueMinor: 8_500_000, estimatedGainLossMinor: 500_000, estimatedReturn: { available: true, basisPoints: 625 },
+        estimatedValueCopMinor: 8_500_000,
+      }),
+      investmentView('ibkr', {
+        account: { id: 'ibkr', name: 'IBKR', currency: 'USD', isArchived: true },
+        netContributionsMinor: 1_000_000, totalContributionsMinor: 1_000_000, totalWithdrawalsMinor: 0,
+        currentValueMinor: 1_250_000, estimatedGainLossMinor: 250_000, estimatedReturn: { available: false },
+        estimatedValueCopMinor: null,
+      }),
+    ],
+  };
+
+  const result = await service.exportInvestments();
+  assert.match(result.fileName, /^money-control-investments-2026-07-21\.csv$/);
+  const csv = files.calls[0].contents;
+  assert.match(csv, /investment_account_id,account_name,provider_name,investment_type,tracking_mode,liquidity,currency_code,current_value_minor,current_value_display,estimated_value_cop,total_contributions_minor,total_withdrawals_minor,net_contributions_minor,estimated_gain_loss_minor,estimated_return_percentage,latest_valuation_date,start_date,maturity_date,status/);
+  // Sorted by account id: ibkr (USD, archived, no rate) before trii.
+  assert.match(csv, /ibkr,IBKR,,brokerage,balance,liquid,USD,1250000,/);
+  // Empty estimated COP (no rate), empty return/dates, archived status.
+  assert.match(csv, /,,1000000,0,1000000,250000,,,,,archived/);
+  // Trii: formula-protected name and provider, estimated COP present, 6.25% return, active.
+  assert.match(csv, /trii,'=Trii,'\+Bancolombia,brokerage,balance,liquid,COP,8500000,[^,]+,8500000,8000000,0,8000000,500000,6.25,2026-07-16,,2027-01-15,active/);
+});
+
+test('investment valuations export lists history with protected notes and value display', async () => {
+  const { files, investments, service } = setup();
+  investments.portfolio = {
+    ...investments.portfolio,
+    investmentAccountCount: 1,
+    accounts: [investmentView('trii', { account: { id: 'trii', name: '=Trii', currency: 'COP', isArchived: false } })],
+  };
+  investments.valuationsByAccount = {
+    trii: [
+      { id: 'v1', investmentAccountId: 'trii', valueMinor: 8_500_000, basisMinor: 8_000_000, currencyCode: 'COP', valuationDate: '2026-07-16', note: '=formula note', createdAt: NOW, updatedAt: NOW },
+    ],
+  };
+
+  const result = await service.exportInvestmentValuations();
+  assert.match(result.fileName, /^money-control-investment-valuations-2026-07-21\.csv$/);
+  const csv = files.calls[0].contents;
+  assert.match(csv, /valuation_id,investment_account_id,account_name,valuation_date,currency_code,value_minor,value_display,note,created_at,updated_at/);
+  assert.match(csv, /v1,trii,'=Trii,2026-07-16,COP,8500000,[^,]+,'=formula note,/);
+});
+
+test('investment exports refuse to create a file when there are no investments', async () => {
+  const { files, service } = setup();
+  await assert.rejects(() => service.exportInvestments(), (error) => error instanceof DataExportError && error.code === 'no_data');
+  await assert.rejects(() => service.exportInvestmentValuations(), (error) => error instanceof DataExportError && error.code === 'no_data');
+  assert.equal(files.calls.length, 0);
 });

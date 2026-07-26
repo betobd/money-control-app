@@ -1,7 +1,8 @@
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import type { BudgetMonthView } from '@/features/budgets/budget.types';
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
-import { convertUsdMinorToCopMinor } from '@/features/currency/currency';
+import { convertUsdMinorToCopMinor, formatMoneyWithSymbol, type ScaledRate } from '@/features/currency/currency';
+import type { InvestmentAccountView, InvestmentPortfolioSummary, InvestmentValuation } from '@/features/investments/investment.types';
 import { calculateCreditCardStatementView } from '@/features/credit-cards/credit-card-statement.service';
 import type { RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
 import type { ReportData, ReportPeriodSelection } from '@/features/reports/report.types';
@@ -50,6 +51,11 @@ type TransactionFilterService = {
   listFilterOptions(): Promise<TransactionFilterOptions>;
 };
 
+type InvestmentExportService = {
+  getPortfolio(rate: ScaledRate | null): Promise<InvestmentPortfolioSummary>;
+  listValuations(accountId: string): Promise<InvestmentValuation[]>;
+};
+
 type ExportValuationRate = { rateScaled: number; rateScale: number; effectiveDate: string; source: string } | null;
 
 type DataExportServiceOptions = {
@@ -90,6 +96,8 @@ type ReportCsvRow = {
   periodStart: string;
   periodEnd: string;
 };
+
+type InvestmentValuationCsvRow = InvestmentValuation & { accountName: string };
 
 function estimateTransactionBytes(count: number): number {
   return 512 + count * 420;
@@ -156,6 +164,7 @@ export class DataExportService {
     private readonly recurring: RecurringRuleExportService,
     private readonly reports: ReportExportService,
     private readonly transactionFilters: TransactionFilterService,
+    private readonly investments: InvestmentExportService,
     private readonly serializer: CsvSerializer,
     private readonly files: ExportFileAdapter,
     options: DataExportServiceOptions = {},
@@ -181,6 +190,7 @@ export class DataExportService {
       creditCardStatements,
       transactionFilters,
       transactions,
+      portfolio,
     ] = await Promise.all([
       this.accounts.list(true),
       this.budgets.listMonth(budgetMonth),
@@ -188,6 +198,7 @@ export class DataExportService {
       this.repository.countCreditCardStatements(),
       this.transactionFilters.listFilterOptions(),
       this.previewTransactions(transactionOptions),
+      this.investments.getPortfolio(null),
     ]);
     return {
       accounts: accountRows.length,
@@ -195,6 +206,7 @@ export class DataExportService {
       recurringRules: recurringRules.length,
       creditCardStatements,
       reportMetrics: 15,
+      investments: portfolio.investmentAccountCount,
       transactionFilters,
       transactions,
     };
@@ -426,6 +438,72 @@ export class DataExportService {
       columns,
       rows,
     );
+  }
+
+  async exportInvestments(): Promise<ExportResult> {
+    const rate = await this.resolveValuationRate();
+    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
+    const portfolio = await this.investments.getPortfolio(scaledRate);
+    const rows = [...portfolio.accounts].sort((left, right) =>
+      left.account.id < right.account.id ? -1 : left.account.id > right.account.id ? 1 : 0,
+    );
+    this.requireRows('investments', rows.length, exportLimits.otherRows);
+    const columns: CsvColumn<InvestmentAccountView>[] = [
+      { header: 'investment_account_id', value: (row) => row.account.id },
+      { header: 'account_name', value: (row) => row.account.name, protectFormula: true },
+      { header: 'provider_name', value: (row) => row.metadata.providerName, protectFormula: true },
+      { header: 'investment_type', value: (row) => row.metadata.investmentType },
+      { header: 'tracking_mode', value: (row) => row.metadata.trackingMode },
+      { header: 'liquidity', value: (row) => row.metadata.liquidity },
+      { header: 'currency_code', value: (row) => row.account.currency },
+      { header: 'current_value_minor', value: (row) => row.currentValueMinor },
+      { header: 'current_value_display', value: (row) => formatMoneyWithSymbol(row.currentValueMinor, row.account.currency) },
+      { header: 'estimated_value_cop', value: (row) => row.estimatedValueCopMinor },
+      { header: 'total_contributions_minor', value: (row) => row.totalContributionsMinor },
+      { header: 'total_withdrawals_minor', value: (row) => row.totalWithdrawalsMinor },
+      { header: 'net_contributions_minor', value: (row) => row.netContributionsMinor },
+      { header: 'estimated_gain_loss_minor', value: (row) => row.estimatedGainLossMinor },
+      { header: 'estimated_return_percentage', value: (row) => row.estimatedReturn.available ? row.estimatedReturn.basisPoints / 100 : null },
+      { header: 'latest_valuation_date', value: (row) => row.latestValuation?.valuationDate ?? null },
+      { header: 'start_date', value: (row) => row.metadata.startDate },
+      { header: 'maturity_date', value: (row) => row.metadata.maturityDate },
+      { header: 'status', value: (row) => row.account.isArchived ? 'archived' : 'active' },
+    ];
+    return this.write('investments', `money-control-investments-${this.today()}.csv`, rows.length, columns, rows);
+  }
+
+  async exportInvestmentValuations(): Promise<ExportResult> {
+    const rate = await this.resolveValuationRate();
+    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
+    const portfolio = await this.investments.getPortfolio(scaledRate);
+    const nameById = new Map(portfolio.accounts.map((view) => [view.account.id, view.account.name]));
+    const rows: InvestmentValuationCsvRow[] = [];
+    for (const view of portfolio.accounts) {
+      const valuations = await this.investments.listValuations(view.account.id);
+      for (const valuation of valuations) {
+        rows.push({ ...valuation, accountName: nameById.get(valuation.investmentAccountId) ?? view.account.name });
+      }
+    }
+    rows.sort((left, right) => {
+      if (left.investmentAccountId !== right.investmentAccountId) {
+        return left.investmentAccountId < right.investmentAccountId ? -1 : 1;
+      }
+      return left.valuationDate < right.valuationDate ? -1 : left.valuationDate > right.valuationDate ? 1 : 0;
+    });
+    this.requireRows('investment valuations', rows.length, exportLimits.investmentValuationRows);
+    const columns: CsvColumn<InvestmentValuationCsvRow>[] = [
+      { header: 'valuation_id', value: (row) => row.id },
+      { header: 'investment_account_id', value: (row) => row.investmentAccountId },
+      { header: 'account_name', value: (row) => row.accountName, protectFormula: true },
+      { header: 'valuation_date', value: (row) => row.valuationDate },
+      { header: 'currency_code', value: (row) => row.currencyCode },
+      { header: 'value_minor', value: (row) => row.valueMinor },
+      { header: 'value_display', value: (row) => formatMoneyWithSymbol(row.valueMinor, row.currencyCode) },
+      { header: 'note', value: (row) => row.note, protectFormula: true },
+      { header: 'created_at', value: (row) => row.createdAt },
+      { header: 'updated_at', value: (row) => row.updatedAt },
+    ];
+    return this.write('investment-valuations', `money-control-investment-valuations-${this.today()}.csv`, rows.length, columns, rows);
   }
 
   private requireRows(label: string, count: number, maximum: number): void {

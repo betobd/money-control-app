@@ -12,6 +12,7 @@ export const exportLimits = {
   transactionRows: 50_000,
   largeTransactionWarningRows: 25_000,
   otherRows: 10_000,
+  investmentValuationRows: 50_000,
   transactionBatchSize: 1_000,
 } as const;
 
@@ -21,7 +22,9 @@ export type DataExportKind =
   | 'budgets'
   | 'recurring-rules'
   | 'credit-card-statements'
-  | 'report-summary';
+  | 'report-summary'
+  | 'investments'
+  | 'investment-valuations';
 
 export type TransactionExportOptions = {
   filters: TransactionListFilters;
@@ -51,6 +54,7 @@ export type DataExportOverview = {
   recurringRules: number;
   creditCardStatements: number;
   reportMetrics: number;
+  investments: number;
   transactionFilters: TransactionFilterOptions;
   transactions: TransactionExportPreview;
 };

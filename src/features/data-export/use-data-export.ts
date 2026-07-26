@@ -127,6 +127,11 @@ export function useDataExport() {
       'report-summary',
       () => dataExportService.exportReport(reportSelection),
     ),
+    exportInvestments: () => runExport('investments', () => dataExportService.exportInvestments()),
+    exportInvestmentValuations: () => runExport(
+      'investment-valuations',
+      () => dataExportService.exportInvestmentValuations(),
+    ),
     exportTransactions: () => runExport(
       'transactions',
       () => dataExportService.exportTransactions(transactionOptions),

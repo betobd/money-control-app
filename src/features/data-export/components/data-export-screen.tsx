@@ -50,6 +50,8 @@ export function DataExportScreen() {
     exportAccounts,
     exportBudgets,
     exportCreditCardStatements,
+    exportInvestments,
+    exportInvestmentValuations,
     exportRecurringRules,
     exportReport,
     exportTransactions,
@@ -337,6 +339,42 @@ export function DataExportScreen() {
             label="Export report summary CSV"
             operation={operation}
             onPress={() => confirmExport('Export report summary?', exportReport)}
+            theme={theme}
+          />
+        </ExportCard>
+
+        <ExportCard
+          description="Investment accounts with current value, net contributions, estimated gain/loss and simple return, and estimated COP (blank when no USD/COP rate is available). Archived investments are included."
+          kind="investments"
+          operation={operation}
+          recordCount={overview?.investments}
+          theme={theme}
+          title="Investments">
+          <Text style={[styles.caption, { color: theme.mutedText }]}>Values are estimated from the latest manual valuation; unrealized gain/loss is never counted as income.</Text>
+          <ExportButton
+            disabled={busy || loadingOverview || overview?.investments === 0}
+            kind="investments"
+            label="Export investments CSV"
+            operation={operation}
+            onPress={() => confirmExport('Export investments?', exportInvestments)}
+            theme={theme}
+          />
+        </ExportCard>
+
+        <ExportCard
+          description="Full manual valuation history for every investment account: date, currency, value, and optional note."
+          kind="investment-valuations"
+          operation={operation}
+          recordCount={overview?.investments}
+          theme={theme}
+          title="Investment valuations">
+          <Text style={[styles.caption, { color: theme.mutedText }]}>One row per recorded valuation across all investment accounts.</Text>
+          <ExportButton
+            disabled={busy || loadingOverview || overview?.investments === 0}
+            kind="investment-valuations"
+            label="Export investment valuations CSV"
+            operation={operation}
+            onPress={() => confirmExport('Export investment valuations?', exportInvestmentValuations)}
             theme={theme}
           />
         </ExportCard>
