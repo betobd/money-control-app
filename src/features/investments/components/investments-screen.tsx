@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
@@ -179,16 +180,7 @@ function AllocationBlock({
 }
 
 function Action({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
-  const theme = useAppTheme();
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.action, { backgroundColor: primary ? theme.primaryAction : theme.elevatedSurface }]}>
-      <Text style={[styles.actionText, { color: primary ? theme.onPrimaryAction : theme.primaryText }]}>{label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} onPress={onPress} variant={primary ? 'primary' : 'secondary'} />;
 }
 
 const styles = StyleSheet.create({

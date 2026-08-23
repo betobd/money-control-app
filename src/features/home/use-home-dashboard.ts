@@ -42,6 +42,7 @@ const emptyBudget: BudgetSummary = {
   totalRemaining: 0,
   percentageUsed: 0,
   progressWidth: '0%',
+  nestedCount: 0,
 };
 
 export function useHomeDashboard() {
@@ -62,7 +63,9 @@ export function useHomeDashboard() {
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string>();
-  const month = monthFromDate(bogotaToday());
+  // Selected month. Home's month-scoped read models (summary, budgets) follow it;
+  // net worth and recent transactions are point-in-time and deliberately do not.
+  const [month, setMonth] = useState(() => monthFromDate(bogotaToday()));
   const reload = useCallback(async () => {
     setLoading(true);
     setError(undefined);
@@ -102,5 +105,5 @@ export function useHomeDashboard() {
     }
   }, [month]);
   useFinancialDataRefresh(reload);
-  return { ...data, month, loading, hasLoaded, error, reload };
+  return { ...data, month, setMonth, loading, hasLoaded, error, reload };
 }

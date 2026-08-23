@@ -126,6 +126,13 @@ export const categories = sqliteTable(
     isArchived: integer('is_archived', { mode: 'boolean' }).notNull().default(false),
     archivedAt: text('archived_at'),
     ...auditColumns,
+    // Appended by migration 0013 (SQLite ADD COLUMN adds it as the last column).
+    // NULL parent = category, set parent = subcategory. Depth is capped at two by
+    // triggers, because a CHECK cannot run the required subquery.
+    parentCategoryId: text('parent_category_id').references((): AnySQLiteColumn => categories.id, {
+      onDelete: 'restrict',
+      onUpdate: 'restrict',
+    }),
   },
   (table) => [
     check('categories_name_not_empty', sql`length(trim(${table.name})) > 0`),
@@ -135,8 +142,11 @@ export const categories = sqliteTable(
     check('categories_archived_at_utc', sql`${table.archivedAt} IS NULL OR ${table.archivedAt} GLOB '????-??-??T??:??:??*Z'`),
     index('categories_archived_idx').on(table.isArchived),
     index('categories_type_idx').on(table.type),
-    uniqueIndex('categories_active_type_name_uidx')
-      .on(table.type, sql`lower(trim(${table.name}))`)
+    index('categories_parent_idx').on(table.parentCategoryId),
+    // coalesce() is required: a unique index treats NULLs as distinct, so indexing
+    // the raw parent would silently allow two root categories with the same name.
+    uniqueIndex('categories_active_scope_name_uidx')
+      .on(table.type, sql`coalesce(${table.parentCategoryId}, '')`, sql`lower(trim(${table.name}))`)
       .where(sql`${table.isArchived} = 0`),
   ],
 );
@@ -175,6 +185,11 @@ export const transactions = sqliteTable(
     note: text('note'),
     transactionDate: text('transaction_date').notNull(),
     ...auditColumns,
+    // Appended by migration 0013. Optional second classification level; its parent
+    // must equal `category_id` (enforced by trigger). Transfers and refunds have a
+    // NULL category, so the CHECK also keeps them free of a subcategory.
+    subcategoryId: text('subcategory_id')
+      .references((): AnySQLiteColumn => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
   },
   (table) => [
     check('transactions_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer', 'refund')`),
@@ -254,6 +269,8 @@ export const transactions = sqliteTable(
     index('transactions_account_idx').on(table.accountId),
     index('transactions_destination_account_idx').on(table.destinationAccountId),
     index('transactions_category_idx').on(table.categoryId),
+    index('transactions_subcategory_idx').on(table.subcategoryId),
+    check('transactions_subcategory_requires_category', sql`${table.subcategoryId} IS NULL OR ${table.categoryId} IS NOT NULL`),
     index('transactions_original_status_idx').on(table.originalTransactionId, table.status),
   ],
 );
@@ -361,6 +378,11 @@ export const recurringTransactions = sqliteTable(
     isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
     endedAt: text('ended_at'),
     ...auditColumns,
+    // Appended by migration 0013. Optional second classification level; its parent
+    // must equal `category_id` (enforced by trigger). Transfers and refunds have a
+    // NULL category, so the CHECK also keeps them free of a subcategory.
+    subcategoryId: text('subcategory_id')
+      .references((): AnySQLiteColumn => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
   },
   (table) => [
     check('recurring_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
@@ -383,6 +405,8 @@ export const recurringTransactions = sqliteTable(
       )`,
     ),
     index('recurring_next_date_idx').on(table.isActive, table.nextOccurrenceDate),
+    index('recurring_transactions_subcategory_idx').on(table.subcategoryId),
+    check('recurring_subcategory_requires_category', sql`${table.subcategoryId} IS NULL OR ${table.categoryId} IS NOT NULL`),
   ],
 );
 
@@ -415,6 +439,11 @@ export const recurringOccurrences = sqliteTable(
       onUpdate: 'restrict',
     }),
     ...auditColumns,
+    // Appended by migration 0013. Optional second classification level; its parent
+    // must equal `category_id` (enforced by trigger). Transfers and refunds have a
+    // NULL category, so the CHECK also keeps them free of a subcategory.
+    subcategoryId: text('subcategory_id')
+      .references((): AnySQLiteColumn => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
   },
   (table) => [
     check('recurring_occurrence_status_valid', sql`${table.status} IN ('pending', 'posted', 'skipped')`),
@@ -450,6 +479,8 @@ export const recurringOccurrences = sqliteTable(
     index('recurring_occurrences_account_idx').on(table.accountId),
     index('recurring_occurrences_destination_account_idx').on(table.destinationAccountId),
     index('recurring_occurrences_category_idx').on(table.categoryId),
+    index('recurring_occurrences_subcategory_idx').on(table.subcategoryId),
+    check('recurring_occurrences_subcategory_requires_category', sql`${table.subcategoryId} IS NULL OR ${table.categoryId} IS NOT NULL`),
   ],
 );
 

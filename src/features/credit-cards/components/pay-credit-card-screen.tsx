@@ -1,4 +1,6 @@
 import { router } from 'expo-router';
+import { Button } from '@/components/button';
+import { DateField } from '@/components/date-field';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -272,16 +274,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
           </Field>
         ) : null}
 
-        <Field label="3. Payment date">
-          <TextInput
-            accessibilityLabel="Payment date in YYYY-MM-DD"
-            autoCapitalize="none"
-            maxLength={10}
-            onChangeText={setDate}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
-            value={date}
-          />
-        </Field>
+        <DateField label="3. Payment date" onChange={setDate} value={date} />
         <Field label="Optional note">
           <TextInput
             accessibilityLabel="Optional payment note"
@@ -324,18 +317,16 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
           {serviceError ? <Text accessibilityLiveRegion="assertive" style={[styles.help, { color: theme.destructive }]}>{serviceError}</Text> : null}
         </Field>
 
-        <Pressable
+        <Button
           accessibilityLabel="Confirm credit card payment"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving || !preview }}
-          disabled={saving || !preview}
+          busy={saving}
+          disabled={!preview}
+          fullWidth
+          label="Confirm payment"
           onPress={() => void submit()}
-          style={[styles.save, { backgroundColor: saving || !preview ? theme.disabledSurface : theme.primaryAction }]}
-        >
-          {saving
-            ? <ActivityIndicator color={theme.disabledText} />
-            : <Text style={[styles.bodyStrong, { color: preview ? theme.onPrimaryAction : theme.disabledText }]}>Confirm payment</Text>}
-        </Pressable>
+          size="lg"
+          variant="primary"
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -398,7 +389,6 @@ const styles = StyleSheet.create({
   review: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   valueRow: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md, justifyContent: 'space-between' },
   value: { flexShrink: 1, fontFamily: fonts.mono.bold, textAlign: 'right' },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.md },
   retry: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   body: { ...typography.body },
   bodyStrong: { ...typography.body, fontWeight: '700' },

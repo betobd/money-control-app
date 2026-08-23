@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { getCurrency, formatMoneyWithSymbol, parseMoney, type CurrencyCode } from '@/features/currency/currency';
@@ -52,9 +54,14 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
       <View style={[styles.loading, { backgroundColor: theme.appBackground, padding: spacing.lg }]}>
         <Text style={[styles.headerTitle, { color: theme.primaryText }]}>Unable to load investment</Text>
         <Text style={[styles.help, { color: theme.secondaryText }]}>{error ?? 'This account is not an investment.'}</Text>
-        <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={() => router.back()} style={[styles.save, { backgroundColor: theme.primaryAction, marginTop: spacing.md }]}>
-          <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>Go back</Text>
-        </Pressable>
+        <Button
+          fullWidth
+          label="Go back"
+          onPress={() => router.back()}
+          size="lg"
+          style={{ marginTop: spacing.md }}
+          variant="primary"
+        />
       </View>
     );
   }
@@ -139,20 +146,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
           {fieldError ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{fieldError}</Text> : null}
         </View>
 
-        <View style={styles.field}>
-          <Overline color={theme.mutedText}>Valuation date</Overline>
-          <TextInput
-            accessibilityLabel="Valuation date, year month day"
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-            onChangeText={setValuationDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={theme.mutedText}
-            style={inputStyle(false)}
-            value={valuationDate}
-          />
-        </View>
+        <DateField label="Valuation date" onChange={setValuationDate} value={valuationDate} />
 
         <View style={styles.field}>
           <Overline color={theme.mutedText}>Note (optional)</Overline>
@@ -187,15 +181,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
       </ScrollView>
 
       <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        <Pressable
-          accessibilityLabel="Save valuation"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
-          onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>Save Valuation</Text>}
-        </Pressable>
+        <Button busy={saving} fullWidth label="Save valuation" onPress={() => void save()} size="lg" variant="primary" />
       </View>
     </KeyboardAvoidingView>
   );
@@ -229,6 +215,4 @@ const styles = StyleSheet.create({
   error: { ...typography.caption },
   help: { ...typography.caption },
   saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
-  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

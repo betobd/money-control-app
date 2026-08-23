@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
@@ -132,7 +133,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
             <View style={[styles.empty, { backgroundColor: theme.surface }]}>
               <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>No bank statement has been recorded yet.</Text>
               <Text style={[styles.body, { color: theme.secondaryText }]}>Current debt comes from Money Control transactions and is not treated as statement balance.</Text>
-              {!account.isArchived ? <Action label="Add latest statement" onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} primary /> : null}
+              {!account.isArchived ? <Action fullWidth label="Add latest statement" onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} primary /> : null}
             </View>
           )}
         </Section>
@@ -188,9 +189,16 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   return <View style={styles.metricRow}><Text style={[styles.body, { color: theme.secondaryText }]}>{label}</Text><Text style={[styles.bodyStrong, styles.metricValue, { color: theme.primaryText }]}>{value}</Text></View>;
 }
 
-function Action({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
-  const theme = useAppTheme();
-  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.action, { backgroundColor: primary ? theme.primaryAction : theme.elevatedSurface }]}><Text style={[styles.bodyStrong, { color: primary ? theme.onPrimaryAction : theme.primaryText }]}>{label}</Text></Pressable>;
+function Action({ label, onPress, primary = false, fullWidth = false }: { label: string; onPress: () => void; primary?: boolean; fullWidth?: boolean }) {
+  return (
+    <Button
+      fullWidth={fullWidth}
+      label={label}
+      onPress={onPress}
+      size={fullWidth ? 'lg' : 'md'}
+      variant={primary ? 'primary' : 'secondary'}
+    />
+  );
 }
 
 function TransactionSection({ title, items, empty }: { title: string; items: TransactionListItem[]; empty: string }) {
@@ -249,7 +257,6 @@ const styles = StyleSheet.create({
   progressFill: { borderRadius: borderRadii.full, height: '100%' },
   cycleRow: { gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  action: { alignItems: 'center', borderRadius: borderRadii.full, flex: 1, justifyContent: 'center', minHeight: 52, minWidth: 145, paddingHorizontal: spacing.md },
   notice: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   section: { gap: spacing.sm },
   sectionTitle: { ...typography.sectionTitle },

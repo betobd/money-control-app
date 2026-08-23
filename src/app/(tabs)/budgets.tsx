@@ -7,17 +7,20 @@ import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { ScreenContainer } from '@/components/screen-container';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { budgetMonthLabel, currentBudgetMonth, shiftBudgetMonth } from '@/features/budgets/budget-month';
+import { groupBudgets } from '@/features/budgets/budget.service';
 import { BudgetCard } from '@/features/budgets/components/budget-card';
 import { BudgetErrorState, EmptyBudgetsState, LoadingBudgetCard } from '@/features/budgets/components/budget-states';
 import { BudgetSummaryCard } from '@/features/budgets/components/budget-summary-card';
 import { CreateBudgetButton } from '@/features/budgets/components/create-budget-button';
 import { useBudgets } from '@/features/budgets/use-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
 export default function BudgetsScreen() {
   const theme = useAppTheme();
   const [month, setMonth] = useState(() => currentBudgetMonth());
   const data = useBudgets(month);
+  const pullToRefresh = usePullToRefresh(data.reload);
   const label = budgetMonthLabel(month);
   const openForm = (id?: string) => router.push({
     pathname: '/budget-form',
@@ -25,7 +28,7 @@ export default function BudgetsScreen() {
   });
 
   return (
-    <ScreenContainer contentStyle={styles.content}>
+    <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
       <PrimaryScreenHeader title="Budgets" />
 
       <View accessibilityLabel={`Selected month, ${label}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
@@ -51,7 +54,18 @@ export default function BudgetsScreen() {
             <Text style={[styles.sectionMonth, { color: theme.mutedText }]}>{label}</Text>
           </View>
           <View accessibilityLabel="Monthly category budgets" style={styles.budgets}>
-            {data.budgets.map((budget) => <BudgetCard budget={budget} key={budget.id} onPress={() => openForm(budget.id)} />)}
+            {groupBudgets(data.budgets).map((group) => (
+              <View key={group.budget.id} style={styles.group}>
+                <BudgetCard budget={group.budget} onPress={() => openForm(group.budget.id)} />
+                {group.children.length ? (
+                  <View style={styles.subLimits}>
+                    {group.children.map((child) => (
+                      <BudgetCard budget={child} key={child.id} nested onPress={() => openForm(child.id)} />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ))}
           </View>
         </>
       ) : null}
@@ -68,4 +82,6 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.sectionTitle, fontSize: 15, lineHeight: 20 },
   sectionMonth: { ...typography.caption },
   budgets: { gap: spacing.sm + spacing.xs },
+  group: { gap: spacing.xs + 2 },
+  subLimits: { gap: spacing.xs + 2, paddingLeft: spacing.md },
 });

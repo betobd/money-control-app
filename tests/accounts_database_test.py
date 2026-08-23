@@ -23,8 +23,8 @@ accounts = [
     ('archived', 'Old Cash', 'cash', 'COP', 50000, None, 1, utc, utc, utc),
 ]
 connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
-connection.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('income', 'Salary', 'income', None, 0, None, utc, utc))
-connection.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('expense', 'Food', 'expense', None, 0, None, utc, utc))
+connection.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('income', 'Salary', 'income', None, 0, None, utc, utc))
+connection.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('expense', 'Food', 'expense', None, 0, None, utc, utc))
 
 transactions = [
     ('income-posted', 'income', 'posted', 200000, 'COP', 'active', None, 'income', None, '2026-07-12', utc, utc),

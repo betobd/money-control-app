@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/button';
+import { Skeleton } from '@/components/skeleton';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -30,11 +32,11 @@ export function LoadingAccountCard() {
       accessibilityLabel="Loading account"
       accessibilityRole="progressbar"
       style={[styles.loading, { backgroundColor: theme.surface }]}>
-      <View style={[styles.loadingIcon, { backgroundColor: theme.disabledSurface }]} />
+      <Skeleton style={styles.loadingIcon} />
       <View style={styles.loadingCopy}>
-        <View style={[styles.loadingName, { backgroundColor: theme.disabledSurface }]} />
-        <View style={[styles.loadingType, { backgroundColor: theme.disabledSurface }]} />
-        <View style={[styles.loadingBalance, { backgroundColor: theme.disabledSurface }]} />
+        <Skeleton style={styles.loadingName} />
+        <Skeleton style={styles.loadingType} />
+        <Skeleton style={styles.loadingBalance} />
       </View>
     </View>
   );
@@ -46,7 +48,7 @@ export function AccountsErrorState({ message, onRetry }: { message: string; onRe
     <View style={[styles.empty, { backgroundColor: theme.surface }]}>
       <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>Unable to load accounts</Text>
       <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>{message}</Text>
-      <Text accessibilityRole="button" onPress={onRetry} style={[styles.retry, { color: theme.primaryAction }]}>Retry</Text>
+      <Button accessibilityLabel="Retry loading accounts" label="Retry" onPress={onRetry} variant="tonal" />
     </View>
   );
 }
@@ -72,7 +74,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: 'center',
   },
-  retry: { ...typography.body, fontWeight: '700', minHeight: 48, paddingVertical: spacing.sm },
   loading: {
     alignItems: 'flex-start',
     borderRadius: borderRadii.card,

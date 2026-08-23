@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import {
@@ -157,14 +158,13 @@ export function DataExportScreen() {
         <Card style={styles.distinction}>
           <Text style={[styles.cardTitle, { color: theme.primaryText }]}>CSV is not a backup</Text>
           <Text style={[styles.body, { color: theme.secondaryText }]}>Need to restore Money Control later? Backup & Restore preserves IDs and relationships in versioned JSON. CSV cannot be restored.</Text>
-          <Pressable
+          <Button
             accessibilityHint="Opens the complete restoration backup feature"
             accessibilityLabel="Open Backup and Restore"
-            accessibilityRole="button"
+            label="Open Backup & Restore"
             onPress={() => router.push('/backup' as Href)}
-            style={styles.linkButton}>
-            <Text style={[styles.linkText, { color: theme.primaryAction }]}>Open Backup & Restore</Text>
-          </Pressable>
+            variant="ghost"
+          />
         </Card>
 
         <ExportCard
@@ -182,17 +182,18 @@ export function DataExportScreen() {
             <Text style={[styles.caption, { color: theme.secondaryText }]}>Category: {selectedCategory?.name ?? 'All'}</Text>
             <Text style={[styles.caption, { color: theme.mutedText }]}>{transactionFilterCount} active {transactionFilterCount === 1 ? 'filter' : 'filters'} · {formatEstimatedSize(overview?.transactions.estimatedBytes ?? 0)}</Text>
           </View>
-          <Pressable
+          <Button
             accessibilityLabel="Configure transaction export filters"
-            accessibilityRole="button"
             disabled={busy || loadingOverview}
+            fullWidth
+            label="Configure filters"
             onPress={() => {
               setFilterModalKey((value) => value + 1);
               setFilterModalVisible(true);
             }}
-            style={[styles.secondaryButton, { backgroundColor: theme.elevatedSurface }]}>
-            <Text style={[styles.buttonLabel, { color: theme.primaryAction }]}>Configure filters</Text>
-          </Pressable>
+            size="lg"
+            variant="tonal"
+          />
           <NotesToggle
             disabled={busy}
             label="Include transaction notes"
@@ -481,17 +482,7 @@ function ExportButton({ disabled, kind, label, onPress, operation, theme }: {
 }) {
   const busy = operation === kind;
   return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.primaryButton, { backgroundColor: disabled ? theme.disabledSurface : theme.primaryAction }]}>
-      {busy ? <ActivityIndicator color={theme.onPrimaryAction} /> : (
-        <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.onPrimaryAction }]}>{label}</Text>
-      )}
-    </Pressable>
+    <Button busy={busy} disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="primary" />
   );
 }
 

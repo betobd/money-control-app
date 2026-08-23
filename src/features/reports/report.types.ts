@@ -42,6 +42,11 @@ export type PeriodSummary = {
   incomeCount: number;
   averageExpense: number;
   largestExpense: LargestExpense | null;
+  /**
+   * Net result as a share of income, in basis points. Null when there is no
+   * income in the period, where a rate is undefined rather than zero.
+   */
+  savingsRateBasisPoints: number | null;
 };
 
 export type CashFlowBucket = {
@@ -56,13 +61,31 @@ export type CashFlowBucket = {
   net: number;
 };
 
+/** One row of a category's internal breakdown. */
+export type SubcategoryExpenseSummary = {
+  /** Null for spending recorded on the category itself, with no subcategory. */
+  subcategoryId: string | null;
+  name: string;
+  total: number;
+  /** Share of the parent category's total, in basis points. */
+  percentageBasisPoints: number;
+  transactionCount: number;
+};
+
 export type CategoryExpenseSummary = {
   categoryId: string;
   categoryName: string;
   icon: string;
+  /** Includes every subcategory, so this ranking is unchanged by subcategories. */
   total: number;
+  /** Share of all expenses in the period, in basis points. */
   percentageBasisPoints: number;
   transactionCount: number;
+  /**
+   * Breakdown rows, summing exactly to `total`. Empty when the category has no
+   * subcategorised spending at all, where a one-row breakdown says nothing.
+   */
+  subcategories: SubcategoryExpenseSummary[];
 };
 
 export type NetWorthPoint = {
@@ -71,6 +94,48 @@ export type NetWorthPoint = {
   date: string;
   netWorth: number;
   isStartingPoint: boolean;
+};
+
+/** Net expenses for one day of week across the period. */
+export type WeekdaySpending = {
+  /** 0 = Sunday. */
+  weekday: number;
+  label: string;
+  total: number;
+  /** Total divided by how many of that weekday the period actually contained. */
+  average: number;
+  dayCount: number;
+};
+
+/** One step of the cumulative-spending comparison against the previous period. */
+export type PacePoint = {
+  key: string;
+  label: string;
+  index: number;
+  current: number | null;
+  /** Previous period's cumulative total at the same offset, null past its end. */
+  previous: number | null;
+};
+
+/** A category budget limit that applies to the report period. */
+export type BudgetLimitForPeriod = {
+  categoryId: string;
+  categoryName: string;
+  icon: string;
+  /** Sum of the monthly limits for every month the period covers. */
+  limitAmount: number;
+  monthCount: number;
+};
+
+export type BudgetPerformance = {
+  categoryId: string;
+  categoryName: string;
+  icon: string;
+  limit: number;
+  spent: number;
+  remaining: number;
+  percentageUsed: number;
+  status: 'under' | 'near' | 'over';
 };
 
 export type ComparisonDirection = 'increased' | 'decreased' | 'unchanged';
@@ -106,6 +171,9 @@ export type ReportData = {
   period: ReportPeriod;
   summary: PeriodSummary;
   cashFlow: CashFlowBucket[];
+  /** Empty for month-grouped periods, which have no daily resolution. */
+  weekdaySpending: WeekdaySpending[];
+  pace: PacePoint[];
   categoryExpenses: CategoryExpenseSummary[];
   netWorth: NetWorthPoint[];
   comparison: PreviousPeriodComparison;
@@ -114,7 +182,7 @@ export type ReportData = {
 
 export type ReportSummaryAggregate = Omit<
   PeriodSummary,
-  'expenses' | 'net' | 'averageExpense'
+  'expenses' | 'net' | 'averageExpense' | 'savingsRateBasisPoints'
 >;
 
 export type ReportBucketAggregate = {
@@ -124,7 +192,22 @@ export type ReportBucketAggregate = {
   refunds: number;
 };
 
-export type CategoryExpenseAggregate = Omit<CategoryExpenseSummary, 'percentageBasisPoints'>;
+/**
+  * One (category, subcategory) group as the database returns it.
+  *
+  * Grouping at the leaf level and folding upwards in one pass is deliberate: a
+  * separate breakdown query could drift from the ranking query and a category's
+  * total would stop equalling the sum of its parts.
+  */
+export type CategoryExpenseAggregate = {
+  categoryId: string;
+  categoryName: string;
+  icon: string;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  total: number;
+  transactionCount: number;
+};
 
 export type NetWorthAggregate = {
   startingNetWorth: number;

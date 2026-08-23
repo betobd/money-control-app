@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { getCategoryIcon } from '@/features/categories/category-icons';
+import { foldForSearch } from '@/features/categories/category-search';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type BudgetCategoryOption = {
@@ -11,6 +12,8 @@ export type BudgetCategoryOption = {
   name: string;
   icon: string;
   isArchived: boolean;
+  /** Set when the option is a subcategory, so two "Otros" stay distinguishable. */
+  parentName: string | null;
 };
 
 type Props = {
@@ -24,8 +27,12 @@ type Props = {
 
 export function BudgetCategorySelector({ categories, error, onChange, onSearchChange, search, selectedId }: Props) {
   const theme = useAppTheme();
-  const normalized = search.trim().toLocaleLowerCase('es-CO');
-  const visible = categories.filter((category) => !normalized || category.name.toLocaleLowerCase('es-CO').includes(normalized));
+  // Folded like every other category search, and matched against the parent name
+  // too so typing "Hogar" surfaces what is inside it.
+  const normalized = foldForSearch(search);
+  const visible = categories.filter((category) => !normalized
+    || foldForSearch(category.name).includes(normalized)
+    || (category.parentName !== null && foldForSearch(category.parentName).includes(normalized)));
   return (
     <View style={styles.field}>
       <Overline color={theme.mutedText}>Expense category</Overline>
@@ -58,6 +65,7 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
                 <SymbolView name={getCategoryIcon(category.icon)} size={22} tintColor={selected ? theme.primaryAction : theme.primaryText} />
               </View>
               <Text numberOfLines={2} style={[styles.optionLabel, { color: theme.primaryText }]}>{category.name}</Text>
+              {category.parentName ? <Text numberOfLines={1} style={[styles.parent, { color: theme.mutedText }]}>in {category.parentName}</Text> : null}
               {category.isArchived ? <Text style={[styles.archived, { color: theme.mutedText }]}>Archived</Text> : null}
               {selected ? <View style={[styles.check, { backgroundColor: theme.primaryAction }]}><SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={12} tintColor={theme.onPrimaryAction} /></View> : null}
             </Pressable>
@@ -77,6 +85,7 @@ const styles = StyleSheet.create({
   option: { alignItems: 'center', borderRadius: borderRadii.card, borderWidth: borderWidths.thin, flexBasis: '47%', flexGrow: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 126, padding: spacing.sm, position: 'relative' },
   icon: { alignItems: 'center', borderRadius: borderRadii.full, height: 42, justifyContent: 'center', width: 42 },
   optionLabel: { ...typography.caption, fontWeight: '700', textAlign: 'center' },
+  parent: { ...typography.label, maxWidth: '100%', textAlign: 'center' },
   archived: { ...typography.label },
   check: { alignItems: 'center', borderRadius: borderRadii.full, height: 22, justifyContent: 'center', position: 'absolute', right: 6, top: 6, width: 22 },
   empty: { ...typography.caption, paddingVertical: spacing.md, textAlign: 'center' },

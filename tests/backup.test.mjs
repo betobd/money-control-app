@@ -36,6 +36,7 @@ const category = (id, type, overrides = {}) => ({
   name: id,
   type,
   icon: 'other',
+  parentCategoryId: null,
   isArchived: false,
   archivedAt: null,
   createdAt: NOW,
@@ -53,6 +54,7 @@ const transaction = (id, overrides = {}) => {
     accountId: 'checking',
     destinationAccountId: null,
     categoryId: 'food',
+    subcategoryId: null,
     originalTransactionId: null,
     note: 'Preserved note',
     transactionDate: '2026-07-16',
@@ -85,12 +87,14 @@ function representativeData() {
     categories: [
       category('salary', 'income', { name: 'Salary' }),
       category('food', 'expense', { name: 'Food' }),
+      category('groceries', 'expense', { name: 'Groceries', parentCategoryId: 'food' }),
       category('archived-category', 'expense', { name: 'Old bills', isArchived: true, archivedAt: NOW }),
     ],
     transactions: [
       transaction('transfer', { type: 'transfer', accountId: 'checking', destinationAccountId: 'savings', categoryId: null }),
       transaction('income', { type: 'income', amount: 300_000, categoryId: 'salary' }),
       transaction('expense', { categoryId: 'archived-category' }),
+      transaction('subcategorised', { categoryId: 'food', subcategoryId: 'groceries', amount: 25_000 }),
       transaction('voided', { status: 'voided', amount: 20_000 }),
     ],
     transactionSplits: [
@@ -102,7 +106,7 @@ function representativeData() {
     recurringTransactions: [
       {
         id: 'rule', type: 'expense', amount: 50_000, currency: 'COP', accountId: 'checking',
-        destinationAccountId: null, categoryId: 'food', note: 'Monthly', frequency: 'monthly', interval: 1,
+        destinationAccountId: null, categoryId: 'food', subcategoryId: 'groceries', note: 'Monthly', frequency: 'monthly', interval: 1,
         startDate: '2026-07-16', nextOccurrenceDate: '2026-09-16', endDate: null,
         isActive: true, endedAt: null, createdAt: NOW, updatedAt: NOW,
       },
@@ -111,12 +115,12 @@ function representativeData() {
       {
         id: 'occurrence-posted', recurringTransactionId: 'rule', scheduledDate: '2026-07-16', status: 'posted',
         type: 'expense', amount: 50_000, currency: 'COP', accountId: 'checking', destinationAccountId: null,
-        categoryId: 'food', note: 'Monthly', transactionId: 'expense', createdAt: NOW, updatedAt: NOW,
+        categoryId: 'food', subcategoryId: 'groceries', note: 'Monthly', transactionId: 'expense', createdAt: NOW, updatedAt: NOW,
       },
       {
         id: 'occurrence-pending', recurringTransactionId: 'rule', scheduledDate: '2026-08-16', status: 'pending',
         type: 'expense', amount: 50_000, currency: 'COP', accountId: 'checking', destinationAccountId: null,
-        categoryId: 'food', note: 'Monthly', transactionId: null, createdAt: NOW, updatedAt: NOW,
+        categoryId: 'food', subcategoryId: 'groceries', note: 'Monthly', transactionId: null, createdAt: NOW, updatedAt: NOW,
       },
     ],
     creditCardStatements: [
@@ -164,7 +168,9 @@ async function validate(file, declaredSize = 0) {
         ? validator.validateV3(envelope.raw)
         : envelope.formatVersion === 4
           ? validator.validateV4(envelope.raw)
-          : validator.validateV5(envelope.raw);
+          : envelope.formatVersion === 5
+            ? validator.validateV5(envelope.raw)
+            : validator.validateV6(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -184,13 +190,13 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 5);
+  assert.equal(file.formatVersion, 6);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
   assert.equal(file.schemaVersion, '0005');
   assert.deepEqual(file.summary, {
-    accounts: 5, categories: 3, transactions: 4, transactionSplits: 1,
+    accounts: 5, categories: 4, transactions: 5, transactionSplits: 1,
     budgets: 1, recurringRules: 1, recurringOccurrences: 2, creditCardStatements: 1,
     investmentAccounts: 1, investmentValuations: 1,
   });
@@ -262,7 +268,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 6;
+  future.formatVersion = 7;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');
@@ -430,4 +436,110 @@ test('backup v3 preserves and validates linked refund relationships', async () =
     (error) => error instanceof BackupValidationError
       && error.issues.some((item) => item.code === 'domain_mismatch'),
   );
+});
+
+/* ------------------------------------------------- format v6: subcategories */
+
+function findCategory(file, id) {
+  return file.data.categories.find((row) => row.id === id);
+}
+
+test('subcategories survive a round trip with their hierarchy intact', async () => {
+  const migrated = await validate(await createFile());
+  const groceries = migrated.categories.find((row) => row.id === 'groceries');
+  assert.equal(groceries.parentCategoryId, 'food');
+  assert.equal(migrated.categories.find((row) => row.id === 'food').parentCategoryId, null);
+
+  const transaction = migrated.transactions.find((row) => row.id === 'subcategorised');
+  assert.equal(transaction.categoryId, 'food');
+  assert.equal(transaction.subcategoryId, 'groceries');
+  assert.equal(migrated.recurringTransactions[0].subcategoryId, 'groceries');
+  assert.equal(migrated.recurringOccurrences[0].subcategoryId, 'groceries');
+});
+
+test('a format v5 backup upgrades by filling nulls, never by inventing a hierarchy', async () => {
+  const legacy = structuredClone(await createFile());
+  legacy.formatVersion = 5;
+  // A v5 file simply has no such fields.
+  legacy.data.categories = legacy.data.categories
+    .filter((row) => row.parentCategoryId === null)
+    .map(({ parentCategoryId: _parent, ...row }) => row);
+  legacy.data.transactions = legacy.data.transactions
+    .filter((row) => row.subcategoryId === null)
+    .map(({ subcategoryId: _sub, ...row }) => row);
+  legacy.data.recurringTransactions = legacy.data.recurringTransactions
+    .map(({ subcategoryId: _sub, ...row }) => row);
+  legacy.data.recurringOccurrences = legacy.data.recurringOccurrences
+    .map(({ subcategoryId: _sub, ...row }) => row);
+  legacy.summary.categories = legacy.data.categories.length;
+  legacy.summary.transactions = legacy.data.transactions.length;
+  await resign(legacy);
+
+  const migrated = await validate(legacy);
+  assert.equal(migrated.categories.every((row) => row.parentCategoryId === null), true);
+  assert.equal(migrated.transactions.every((row) => row.subcategoryId === null), true);
+  assert.equal(migrated.recurringTransactions.every((row) => row.subcategoryId === null), true);
+  assert.equal(migrated.recurringOccurrences.every((row) => row.subcategoryId === null), true);
+  // Everything else is untouched, which is what makes the upgrade lossless.
+  assert.equal(migrated.transactions.find((row) => row.id === 'income').amount, 300_000);
+  assert.equal(migrated.budgets.length, 1);
+});
+
+test('rejects a subcategory whose parent is missing, nested, or of another type', async () => {
+  await invalid((file) => { findCategory(file, 'groceries').parentCategoryId = 'ghost'; }, 'missing_reference');
+  await invalid((file) => {
+    // food -> groceries -> a third level.
+    file.data.categories.push({
+      ...findCategory(file, 'groceries'), id: 'deeper', name: 'Deeper', parentCategoryId: 'groceries',
+    });
+  }, 'domain_mismatch');
+  await invalid((file) => { findCategory(file, 'groceries').parentCategoryId = 'salary'; }, 'domain_mismatch');
+  await invalid((file) => { findCategory(file, 'groceries').parentCategoryId = 'groceries'; }, 'domain_mismatch');
+});
+
+test('a two-node cycle is rejected by the depth rule, with no graph walk', async () => {
+  // food -> groceries and groceries -> food. Neither parent is top-level, so the
+  // depth rule alone catches it.
+  await invalid((file) => {
+    findCategory(file, 'food').parentCategoryId = 'groceries';
+  }, 'domain_mismatch');
+});
+
+test('rejects an active subcategory under an archived parent', async () => {
+  await invalid((file) => { findCategory(file, 'food').isArchived = true; }, 'domain_mismatch');
+});
+
+test('subcategory names are unique per parent, not per type', async () => {
+  await invalid((file) => {
+    file.data.categories.push({
+      ...findCategory(file, 'groceries'), id: 'groceries-2', parentCategoryId: 'food',
+    });
+  }, 'duplicate_constraint');
+
+  // The same name under a different parent is legitimate and must round-trip.
+  const file = structuredClone(await createFile());
+  file.data.categories.push({
+    ...findCategory(file, 'groceries'), id: 'salary-groceries', parentCategoryId: 'salary', type: 'income',
+  });
+  file.summary.categories = file.data.categories.length;
+  await resign(file);
+  const migrated = await validate(file);
+  assert.equal(migrated.categories.filter((row) => row.name === 'Groceries').length, 2);
+});
+
+test('rejects a stored pair whose subcategory belongs to another category', async () => {
+  await invalid((file) => {
+    file.data.transactions.find((row) => row.id === 'subcategorised').categoryId = 'salary';
+  }, 'domain_mismatch');
+  await invalid((file) => { file.data.recurringTransactions[0].categoryId = 'salary'; }, 'domain_mismatch');
+  await invalid((file) => { file.data.recurringOccurrences[0].categoryId = 'salary'; }, 'domain_mismatch');
+  await invalid((file) => {
+    file.data.transactions.find((row) => row.id === 'subcategorised').subcategoryId = 'ghost';
+  }, 'missing_reference');
+});
+
+test('rows that cannot carry a category cannot carry a subcategory either', async () => {
+  await invalid((file) => {
+    file.data.transactions.find((row) => row.id === 'transfer').subcategoryId = 'groceries';
+  }, 'domain_mismatch');
 });

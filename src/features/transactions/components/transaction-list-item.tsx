@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { IconChip } from '@/components/icon-chip';
+import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import {
+  categoryPathLabel,
   signedTransactionAmount,
   transactionAccountLabel,
   transactionIcon,
@@ -26,12 +28,12 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
     transaction.type === 'transfer'
       ? 'Transfer'
       : transaction.type === 'refund'
-        ? `Refund · ${transaction.categoryName ?? 'Original expense'}`
-        : transaction.categoryName ?? 'Uncategorized'
+        ? `Refund · ${categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Original expense'}`
+        : categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Uncategorized'
   }`;
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityHint="Opens transaction details"
       accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}, ${voided ? 'voided' : 'posted'}`}
       accessibilityRole="button"
@@ -58,7 +60,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           {voided ? 'Voided' : transactionTypeLabel(transaction)}
         </Text>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }
 

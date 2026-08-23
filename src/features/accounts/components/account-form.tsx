@@ -1,4 +1,5 @@
 import { SymbolView } from 'expo-symbols';
+import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -310,15 +311,15 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       </ScrollView>
 
       <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        <Pressable
+        <Button
           accessibilityLabel={isEditing ? 'Save account changes' : 'Create account'}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
+          busy={saving}
+          fullWidth
+          label={isEditing ? 'Save changes' : 'Create account'}
           onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>{isEditing ? 'Save Changes' : 'Create Account'}</Text>}
-        </Pressable>
+          size="lg"
+          variant="primary"
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -378,6 +379,4 @@ const styles = StyleSheet.create({
   error: { ...typography.caption },
   help: { ...typography.caption },
   saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
-  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

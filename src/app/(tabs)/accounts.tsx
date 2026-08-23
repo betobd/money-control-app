@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { toUserMessage } from '@/errors/user-error';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, type AlertButton } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ActionSheet, actionIcons, type SheetAction } from '@/components/action-sheet';
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
@@ -19,14 +20,19 @@ import { InvestmentCard } from '@/features/investments/components/investment-car
 import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
 import { useInvestments } from '@/features/investments/use-investments';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+
+type AccountMenu = { account: AccountWithBalance; canDelete: boolean };
 
 export default function AccountsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const [showArchived, setShowArchived] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  const [menu, setMenu] = useState<AccountMenu | null>(null);
   const { accounts, rateStatus, error, loading, reload } = useAccounts();
-  const { portfolio } = useInvestments();
+  const { portfolio, reload: reloadInvestments } = useInvestments();
+  const pullToRefresh = usePullToRefresh(() => Promise.all([reload(), reloadInvestments()]));
   // Investment accounts live in their own section (and screen); exclude them from the
   // cash/credit lists so their misleading ledger balance is never shown as spendable.
   const activeAccounts = useMemo(
@@ -54,34 +60,48 @@ export default function AccountsScreen() {
 
   async function openActions(account: AccountWithBalance) {
     setActionError(undefined);
-    let canDelete = false;
     try {
-      canDelete = await accountService.canPermanentlyDelete(account.id);
+      setMenu({ account, canDelete: await accountService.canPermanentlyDelete(account.id) });
     } catch (cause) {
       setActionError(toUserMessage(cause, 'Unable to load account actions.'));
-      return;
     }
-    const actions: AlertButton[] = [
-      { text: 'Cancel', style: 'cancel' as const },
-      { text: 'Edit', onPress: () => router.push({ pathname: '/account-form', params: { id: account.id } }) },
+  }
+
+  function menuActions({ account, canDelete }: AccountMenu): SheetAction[] {
+    const actions: SheetAction[] = [
+      {
+        icon: actionIcons.edit,
+        label: 'Edit',
+        description: 'Change the name, type, or details',
+        onPress: () => router.push({ pathname: '/account-form', params: { id: account.id } }),
+      },
     ];
     if (account.isArchived) {
-      actions.push({ text: 'Restore account', onPress: () => void restoreAccount(account) });
+      actions.push({
+        icon: actionIcons.restore,
+        label: 'Restore account',
+        description: 'Make it available for new transactions again',
+        onPress: () => void restoreAccount(account),
+      });
     } else {
       actions.push({
-        text: 'Archive',
-        style: 'destructive',
+        icon: actionIcons.archive,
+        label: 'Archive',
+        description: 'Keeps history and balance, blocks new transactions',
         onPress: () => confirmArchive(account),
+        tone: 'destructive',
       });
     }
     if (canDelete) {
       actions.push({
-        text: 'Delete permanently',
-        style: 'destructive',
+        icon: actionIcons.delete,
+        label: 'Delete permanently',
+        description: 'Only possible because it has no financial history',
         onPress: () => confirmPermanentDelete(account),
+        tone: 'destructive',
       });
     }
-    Alert.alert(account.name, 'Choose an account action.', actions);
+    return actions;
   }
 
   async function restoreAccount(account: AccountWithBalance) {
@@ -129,7 +149,7 @@ export default function AccountsScreen() {
   }
 
   return (
-    <ScreenContainer contentStyle={styles.content}>
+    <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
       <PrimaryScreenHeader title="Accounts" />
 
       {actionError ? (
@@ -203,6 +223,14 @@ export default function AccountsScreen() {
       ) : null}
 
       <AddAccountButton onPress={() => router.push('/account-form')} />
+
+      <ActionSheet
+        actions={menu ? menuActions(menu) : []}
+        description={menu?.account.isArchived ? 'This account is archived.' : 'Choose an account action.'}
+        onClose={() => setMenu(null)}
+        title={menu?.account.name ?? ''}
+        visible={menu !== null}
+      />
     </ScreenContainer>
   );
 }

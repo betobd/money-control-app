@@ -5,17 +5,21 @@ import {
   collectDueDates,
   firstScheduledOnOrAfter,
   nextScheduledDate,
-} from '../src/features/recurring-transactions/recurring-schedule.ts';
+} from '@/features/recurring-transactions/recurring-schedule';
 import {
   RecurringActionError,
-  RecurringRuleValidationError,
   RecurringTransactionService,
-} from '../src/features/recurring-transactions/recurring-transaction.service.ts';
+  isRecurringRuleValidationError,
+} from '@/features/recurring-transactions/recurring-transaction.service';
+// Imported through the '@/' alias, exactly as recurring-transaction.service.ts
+// does. The test runner keys its module cache on the specifier, so importing the
+// same file as '@/.../transaction.service' would yield a second copy of
+// the module and every `instanceof TransactionValidationError` inside the
+// recurring service would silently be false.
 import {
   TransactionService,
-  TransactionValidationError,
-} from '../src/features/transactions/transaction.service.ts';
-import { subscribeToFinancialDataChanges } from '../src/features/transactions/financial-data-events.ts';
+  isTransactionValidationError,
+} from '@/features/transactions/transaction.service';
 
 const NOW = '2026-07-16T15:00:00.000Z';
 
@@ -34,9 +38,11 @@ class Accounts {
 
 class Categories {
   values = new Map([
-    ['food', { id: 'food', type: 'expense', isArchived: false }],
-    ['salary', { id: 'salary', type: 'income', isArchived: false }],
-    ['archived', { id: 'archived', type: 'expense', isArchived: true }],
+    ['food', { id: 'food', type: 'expense', parentCategoryId: null, isArchived: false }],
+    ['salary', { id: 'salary', type: 'income', parentCategoryId: null, isArchived: false }],
+    ['archived', { id: 'archived', type: 'expense', parentCategoryId: null, isArchived: true }],
+    ['hogar', { id: 'hogar', type: 'expense', parentCategoryId: null, isArchived: false }],
+    ['mercado', { id: 'mercado', type: 'expense', parentCategoryId: 'hogar', isArchived: false }],
   ]);
   async findById(id) { return this.values.get(id) ?? null; }
 }
@@ -162,12 +168,14 @@ function setup(today = '2026-07-16') {
   const recurring = new RecurringRepo();
   const transactionRepo = new TransactionRepo();
   let sequence = 0;
+  const changes = [];
   const transactionService = new TransactionService(
     transactionRepo,
     accounts,
     categories,
     () => `tx-${++sequence}`,
     () => NOW,
+    (change) => { changes.push(change); },
   );
   const service = new RecurringTransactionService(
     recurring,
@@ -176,7 +184,7 @@ function setup(today = '2026-07-16') {
     () => NOW,
     () => today,
   );
-  return { accounts, categories, recurring, service, transactionRepo };
+  return { accounts, categories, changes, recurring, service, transactionRepo };
 }
 
 test('monthly schedules preserve the anchor day across short months', () => {
@@ -273,11 +281,11 @@ test('rejects archived references and category type mismatches in rules', async 
   const { service } = setup();
   await assert.rejects(
     () => service.createRule(expenseRule({ accountId: 'archived' })),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.accountId),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.accountId),
   );
   await assert.rejects(
     () => service.createRule(expenseRule({ categoryId: 'salary' })),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.categoryId),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.categoryId),
   );
 });
 
@@ -285,15 +293,15 @@ test('rejects invalid rule amount, dates, and same-account transfers', async () 
   const { service } = setup();
   await assert.rejects(
     () => service.createRule(expenseRule({ amount: 0 })),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.amount),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.amount),
   );
   await assert.rejects(
     () => service.createRule(expenseRule({ startDate: '2026-02-30' })),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.startDate),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.startDate),
   );
   await assert.rejects(
     () => service.createRule(expenseRule({ endDate: '2025-12-31' })),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.endDate),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.endDate),
   );
   await assert.rejects(
     () => service.createRule({
@@ -308,7 +316,7 @@ test('rejects invalid rule amount, dates, and same-account transfers', async () 
       startDate: '2026-07-16',
       endDate: null,
     }),
-    (error) => error instanceof RecurringRuleValidationError && Boolean(error.fields.destinationAccountId),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.destinationAccountId),
   );
 });
 
@@ -420,7 +428,7 @@ test('confirmation revalidates current account state and transfer funds', async 
   context.accounts.values.get('checking').balance = 100_000;
   await assert.rejects(
     () => context.service.confirmOccurrence(context.recurring.occurrences[0].id),
-    (error) => error instanceof TransactionValidationError
+    (error) => isTransactionValidationError(error)
       && /insufficient funds/i.test(error.fields.amount),
   );
   assert.equal(context.recurring.occurrences[0].status, 'pending');
@@ -445,18 +453,18 @@ test('successful confirmation invalidates financial views while failed confirmat
   const context = setup('2026-07-16');
   await context.service.createRule(expenseRule({ startDate: '2026-07-16' }));
   await context.service.generateDueOccurrences();
-  let refreshes = 0;
-  const unsubscribe = subscribeToFinancialDataChanges(() => { refreshes += 1; });
+  context.changes.length = 0;
   await context.service.confirmOccurrence(context.recurring.occurrences[0].id);
-  assert.equal(refreshes, 1);
+  assert.equal(context.changes.length, 1);
+  assert.equal(context.changes[0].operation, 'create');
 
   const failure = setup('2026-07-16');
   await failure.service.createRule(expenseRule({ startDate: '2026-07-16' }));
   await failure.service.generateDueOccurrences();
+  failure.changes.length = 0;
   failure.accounts.values.get('checking').isArchived = true;
   await assert.rejects(() => failure.service.confirmOccurrence(failure.recurring.occurrences[0].id));
-  unsubscribe();
-  assert.equal(refreshes, 1);
+  assert.equal(failure.changes.length, 0);
 });
 
 test('editing future behavior preserves generated history and ending is terminal', async () => {
@@ -474,4 +482,54 @@ test('editing future behavior preserves generated history and ending is terminal
     () => context.service.resumeRule(rule.id),
     (error) => error instanceof RecurringActionError && error.code === 'rule_ended',
   );
+});
+
+/* ------------------------------------------- subcategories on recurring rules */
+
+test('a rule created from a subcategory stores the parent and the leaf', async () => {
+  const { recurring, service } = setup();
+  const rule = await service.createRule(expenseRule({ categoryId: 'mercado' }));
+  assert.equal(rule.categoryId, 'hogar');
+  assert.equal(rule.subcategoryId, 'mercado');
+  assert.equal(recurring.rules[0].subcategoryId, 'mercado');
+});
+
+test('a rule on a plain category carries no subcategory', async () => {
+  const { service } = setup();
+  const rule = await service.createRule(expenseRule({ categoryId: 'hogar' }));
+  assert.equal(rule.categoryId, 'hogar');
+  assert.equal(rule.subcategoryId, null);
+});
+
+test('a mismatched pair is rejected before the rule is stored', async () => {
+  const { recurring, service } = setup();
+  await assert.rejects(
+    () => service.createRule(expenseRule({ categoryId: 'food', subcategoryId: 'mercado' })),
+    (error) => isRecurringRuleValidationError(error) && Boolean(error.fields.subcategoryId),
+  );
+  assert.equal(recurring.rules.length, 0);
+});
+
+test('generated occurrences inherit both levels and carry them into the posted transaction', async () => {
+  const { recurring, service } = setup('2026-01-31');
+  await service.createRule(expenseRule({ categoryId: 'mercado' }));
+  await service.generateDueOccurrences();
+  const occurrence = recurring.occurrences[0];
+  assert.equal(occurrence.categoryId, 'hogar');
+  assert.equal(occurrence.subcategoryId, 'mercado');
+
+  const transaction = await service.confirmOccurrence(occurrence.id);
+  assert.equal(transaction.categoryId, 'hogar');
+  assert.equal(transaction.subcategoryId, 'mercado');
+});
+
+test('recurring transfers carry neither level', async () => {
+  const { recurring, service } = setup();
+  await service.createRule(expenseRule({
+    type: 'transfer',
+    categoryId: null,
+    destinationAccountId: 'savings',
+  }));
+  assert.equal(recurring.rules[0].categoryId, null);
+  assert.equal(recurring.rules[0].subcategoryId, null);
 });

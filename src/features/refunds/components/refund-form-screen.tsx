@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { DateField } from '@/components/date-field';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
@@ -184,27 +185,12 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
           {errors.exchangeRate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.exchangeRate}</Text> : null}
         </View>
 
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.secondaryText }]}>Refund date</Text>
-          <TextInput
-            accessibilityLabel="Refund date, YYYY-MM-DD"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-            onChangeText={setTransactionDate}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                borderColor: errors.transactionDate ? theme.destructive : theme.hairline,
-                color: theme.primaryText,
-              },
-            ]}
-            value={transactionDate}
-          />
-          {errors.transactionDate ? (
-            <Text style={[styles.error, { color: theme.destructive }]}>{errors.transactionDate}</Text>
-          ) : null}
-        </View>
+        <DateField
+          error={errors.transactionDate}
+          label="Refund date"
+          onChange={setTransactionDate}
+          value={transactionDate}
+        />
 
         <View style={styles.field}>
           <Text style={[styles.label, { color: theme.secondaryText }]}>Note (optional)</Text>

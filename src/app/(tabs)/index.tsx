@@ -2,7 +2,10 @@ import { SymbolView } from 'expo-symbols';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/button';
+import { shiftCalendarMonth } from '@/components/calendar';
 import { Card } from '@/components/card';
+import { PressableScale } from '@/components/pressable-scale';
 import { Overline } from '@/components/overline';
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
@@ -22,14 +25,43 @@ import {
   transactionTypeLabel,
 } from '@/features/transactions/transaction-presentation';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 
-function MonthPill({ label }: { label: string }) {
+function MonthPill({
+  label,
+  longLabel,
+  onPrevious,
+  onNext,
+}: {
+  label: string;
+  longLabel: string;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
   const theme = useAppTheme();
   return (
-    <View style={[styles.monthPill, { backgroundColor: theme.elevatedSurface }]}>
-      <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={16} tintColor={theme.mutedText} />
-      <Text style={[styles.monthLabel, { color: theme.primaryText }]}>{label}</Text>
-      <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.mutedText} />
+    <View
+      accessibilityLabel={`Selected month, ${longLabel}`}
+      style={[styles.monthPill, { backgroundColor: theme.elevatedSurface }]}>
+      <Pressable
+        accessibilityHint="Shows the previous month's summary and budgets"
+        accessibilityLabel="Previous month"
+        accessibilityRole="button"
+        hitSlop={spacing.sm}
+        onPress={onPrevious}
+        style={styles.monthArrow}>
+        <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={16} tintColor={theme.secondaryText} />
+      </Pressable>
+      <Text accessibilityLiveRegion="polite" style={[styles.monthLabel, { color: theme.primaryText }]}>{label}</Text>
+      <Pressable
+        accessibilityHint="Shows the next month's summary and budgets"
+        accessibilityLabel="Next month"
+        accessibilityRole="button"
+        hitSlop={spacing.sm}
+        onPress={onNext}
+        style={styles.monthArrow}>
+        <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.secondaryText} />
+      </Pressable>
     </View>
   );
 }
@@ -38,9 +70,19 @@ export default function HomeScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const dashboard = useHomeDashboard();
+  const pullToRefresh = usePullToRefresh(dashboard.reload);
   const monthDate = new Date(`${dashboard.month}-01T00:00:00Z`);
   const monthShort = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(monthDate).toUpperCase();
   const monthLong = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthDate);
+  const shiftMonth = (delta: number) => dashboard.setMonth((current) => shiftCalendarMonth(current, delta));
+  const monthPill = (
+    <MonthPill
+      label={monthShort}
+      longLabel={monthLong}
+      onNext={() => shiftMonth(1)}
+      onPrevious={() => shiftMonth(-1)}
+    />
+  );
 
   const net = dashboard.summary.net;
   const netUp = net >= 0;
@@ -58,7 +100,7 @@ export default function HomeScreen() {
   if (!dashboard.hasLoaded && dashboard.loading) {
     return (
       <ScreenContainer contentStyle={styles.content}>
-        <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+        <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
         <View accessibilityLabel="Loading your dashboard" style={styles.stateArea}>
           <ActivityIndicator color={theme.primaryAction} size="large" />
         </View>
@@ -69,23 +111,18 @@ export default function HomeScreen() {
   if (!dashboard.hasLoaded && dashboard.error) {
     return (
       <ScreenContainer contentStyle={styles.content}>
-        <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+        <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
         <View accessibilityLiveRegion="assertive" style={styles.stateArea}>
           <Text style={[styles.stateText, { color: theme.secondaryText }]}>{dashboard.error}</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void dashboard.reload()}
-            style={[styles.retryButton, { backgroundColor: theme.primaryAction }]}>
-            <Text style={[styles.retryLabel, { color: theme.onPrimaryAction }]}>Try again</Text>
-          </Pressable>
+          <Button label="Try again" onPress={() => void dashboard.reload()} variant="primary" />
         </View>
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer contentStyle={styles.content}>
-      <PrimaryScreenHeader accessory={<MonthPill label={monthShort} />} title="Money Control" />
+    <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
+      <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
 
       {dashboard.error ? (
         <Text accessibilityLiveRegion="polite" style={[styles.inlineError, { color: theme.warning }]}>
@@ -130,10 +167,11 @@ export default function HomeScreen() {
       />
 
       {investments.investmentAccountCount > 0 ? (
-        <Pressable
+        <PressableScale
           accessibilityHint="Open the investments screen"
           accessibilityLabel={`Investments, current value ${investments.totalCurrentValueCopMinor === null ? 'estimated, incomplete' : `${formatCop(investments.totalCurrentValueCopMinor)} Colombian pesos`}`}
           accessibilityRole="button"
+          activeScale={0.985}
           onPress={() => router.push('/investments')}>
           <Card variant="raised">
             <View style={styles.investmentHeader}>
@@ -157,7 +195,7 @@ export default function HomeScreen() {
               {latestValuationDate ? ` · as of ${formatTransactionDate(latestValuationDate)}` : ''}
             </Text>
           </Card>
-        </Pressable>
+        </PressableScale>
       ) : null}
 
       <BudgetProgressCard budgets={dashboard.budgets} summary={dashboard.budget} />
@@ -202,14 +240,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: borderRadii.full,
     flexDirection: 'row',
-    gap: spacing.xs,
     height: 32,
-    paddingHorizontal: spacing.sm + spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  monthArrow: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    width: 26,
   },
   monthLabel: {
     fontFamily: fonts.mono.bold,
     fontSize: 12,
     lineHeight: 16,
+    minWidth: 62,
+    textAlign: 'center',
   },
   hero: {
     gap: spacing.xs + 2,

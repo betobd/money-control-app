@@ -1,7 +1,7 @@
-import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
+import { Button } from '@/components/button';
+import { spacing } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -16,6 +16,9 @@ type FixedSaveBarProps = {
 
 export function FixedSaveBar({ bottomInset, onPress, type, disabled = false, saving = false }: FixedSaveBarProps) {
   const theme = useAppTheme();
+  const inactive = disabled || saving;
+  // The save action carries the transaction type's colour (income/expense/
+  // transfer), so it overrides the primary variant's fill while it is actionable.
   const tone = getTypeTone(type, theme);
   const typeLabel = type[0].toUpperCase() + type.slice(1);
 
@@ -29,20 +32,18 @@ export function FixedSaveBar({ bottomInset, onPress, type, disabled = false, sav
           paddingBottom: Math.max(bottomInset, spacing.md),
         },
       ]}>
-      <Pressable
+      <Button
         accessibilityLabel={`Save ${typeLabel}`}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: disabled || saving }}
-        disabled={disabled || saving}
+        busy={saving}
+        disabled={disabled}
+        fullWidth
+        icon={{ ios: 'checkmark', android: 'check', web: 'check' }}
+        label={saving ? 'Saving…' : `Save ${typeLabel}`}
         onPress={onPress}
-        style={[styles.button, { backgroundColor: tone }]}> 
-        {saving ? <ActivityIndicator color={theme.onPrimaryAction} /> : <SymbolView
-          name={{ ios: 'checkmark', android: 'check', web: 'check' }}
-          size={22}
-          tintColor={theme.onPrimaryAction}
-        />}
-        <Text style={[styles.label, { color: theme.onPrimaryAction }]}>{saving ? 'Saving…' : `Save ${typeLabel}`}</Text>
-      </Pressable>
+        size="lg"
+        style={inactive ? undefined : { backgroundColor: tone }}
+        variant="primary"
+      />
     </View>
   );
 }
@@ -52,20 +53,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-  },
-  button: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 56,
-    paddingHorizontal: spacing.lg,
-  },
-  label: {
-    ...typography.body,
-    fontFamily: fonts.sans.bold,
-    fontSize: 15,
-    fontWeight: '700',
   },
 });

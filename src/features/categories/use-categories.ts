@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
 import { categoryService } from './categories';
-import type { Category, CategoryType } from './category.types';
+import { buildCategoryTree, type Category, type CategoryTree, type CategoryType } from './category.types';
 
 export function useCategories(type: CategoryType, includeArchived = true) {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -12,4 +12,22 @@ export function useCategories(type: CategoryType, includeArchived = true) {
   useFocusEffect(useCallback(() => { void reload(); }, [reload]));
   useEffect(() => subscribeToFinancialDataChanges(() => { void reload(); }), [reload]);
   return { categories, loading, error, reload };
+}
+
+/**
+ * The same categories grouped as parents with their subcategories attached.
+ *
+ * Pickers need the hierarchy; lists and forms that only care about names keep
+ * using {@link useCategories}. Both read through one subscription, so a category
+ * change refreshes every consumer at once.
+ */
+export function useCategoryTree(type: CategoryType, includeArchived = true): {
+  tree: CategoryTree[];
+  categories: Category[];
+  loading: boolean;
+  error: string | undefined;
+  reload: () => Promise<void>;
+} {
+  const { categories, loading, error, reload } = useCategories(type, includeArchived);
+  return { tree: buildCategoryTree(categories), categories, loading, error, reload };
 }

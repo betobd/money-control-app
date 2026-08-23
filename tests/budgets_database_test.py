@@ -9,7 +9,7 @@ UTC = '2026-07-13T12:00:00.000Z'
 
 
 def apply_migrations(connection: sqlite3.Connection) -> None:
-    for migration in sorted(MIGRATIONS.glob('000*.sql')):
+    for migration in sorted(MIGRATIONS.glob('*.sql')):
         sql = migration.read_text(encoding='utf-8').replace('--> statement-breakpoint', '')
         connection.executescript(sql)
 
@@ -46,7 +46,7 @@ connection = sqlite3.connect(DATABASE_PATH)
 connection.execute('PRAGMA foreign_keys = ON')
 apply_migrations(connection)
 connection.executemany(
-    'INSERT INTO categories VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [
         ('food', 'Food & Dining', 'expense', 'food', 0, None, UTC, UTC),
         ('travel', 'Travel', 'expense', 'travel', 0, None, UTC, UTC),
@@ -63,7 +63,7 @@ connection.executemany(
     ],
 )
 connection.executemany(
-    'INSERT INTO budgets VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO budgets (id, category_id, month, limit_amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
     [
         ('food-july', 'food', '2026-07', 600_000, UTC, UTC),
         ('travel-july', 'travel', '2026-07', 300_000, UTC, UTC),
@@ -123,7 +123,7 @@ assert june == [('archived-june', 'archived', 'Old household', 'home', 1, 100_00
 
 try:
     connection.execute(
-        'INSERT INTO budgets VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO budgets (id, category_id, month, limit_amount, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
         ('duplicate-food-july', 'food', '2026-07', 800_000, UTC, UTC),
     )
     raise AssertionError('duplicate category/month budget was accepted')
@@ -136,3 +136,104 @@ connection.close()
 DATABASE_PATH.unlink()
 
 print('budgets database integration: PASS')
+
+
+# Budget spending attribution across two levels, mirroring
+# SQLiteBudgetRepository.listMonth's correlated subquery. Isolated so the row-set
+# assertions above keep their meaning.
+NESTED_SPENDING_SQL = """
+SELECT budget.id, budget.category_id, (
+  SELECT coalesce(sum(
+    CASE
+      WHEN refund_rows.type = 'expense' THEN coalesce(refund_rows.base_amount_minor, refund_rows.amount)
+      WHEN refund_rows.type = 'refund' THEN -coalesce(refund_rows.base_amount_minor, refund_rows.amount)
+      ELSE 0
+    END
+  ), 0)
+  FROM transactions refund_rows
+  LEFT JOIN transactions original_rows
+    ON refund_rows.original_transaction_id = original_rows.id
+  WHERE refund_rows.status = 'posted'
+    AND refund_rows.transaction_date >= ?
+    AND refund_rows.transaction_date < ?
+    AND (
+      coalesce(refund_rows.category_id, original_rows.category_id) = budget.category_id
+      OR coalesce(refund_rows.subcategory_id, original_rows.subcategory_id) = budget.category_id
+    )
+) AS spent
+FROM budgets AS budget
+WHERE budget.month = ?
+"""
+
+nested = sqlite3.connect(':memory:')
+nested.row_factory = sqlite3.Row
+nested.execute('PRAGMA foreign_keys = ON')
+apply_migrations(nested)
+
+stamp = '2026-07-01T00:00:00.000Z'
+nested.execute(
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at)'
+    " VALUES ('nb-checking','Checking','checking','COP',0,NULL,0,NULL,?,?)",
+    (stamp, stamp),
+)
+nested.executemany(
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,0,NULL,?,?)',
+    [
+        ('hogar', 'Hogar', 'expense', 'other', stamp, stamp),
+        ('transporte', 'Transporte', 'expense', 'transport', stamp, stamp),
+    ],
+)
+nested.executemany(
+    'INSERT INTO categories (id,name,type,icon,parent_category_id,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,0,NULL,?,?)',
+    [
+        ('mercado', 'Mercado', 'expense', 'other', 'hogar', stamp, stamp),
+        ('servicios', 'Servicios', 'expense', 'bills', 'hogar', stamp, stamp),
+        ('taxi', 'Taxi', 'expense', 'transport', 'transporte', stamp, stamp),
+    ],
+)
+nested.executemany(
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,original_transaction_id,transaction_date,created_at,updated_at)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    [
+        ('nb-mercado', 'expense', 'posted', 200_000, 'COP', 'nb-checking', 'hogar', 'mercado', None, '2026-07-02', stamp, stamp),
+        ('nb-servicios', 'expense', 'posted', 120_000, 'COP', 'nb-checking', 'hogar', 'servicios', None, '2026-07-03', stamp, stamp),
+        ('nb-hogar-plain', 'expense', 'posted', 80_000, 'COP', 'nb-checking', 'hogar', None, None, '2026-07-04', stamp, stamp),
+        ('nb-taxi', 'expense', 'posted', 60_000, 'COP', 'nb-checking', 'transporte', 'taxi', None, '2026-07-05', stamp, stamp),
+        # A refund of a subcategorised expense must reduce that same leaf, and the
+        # parent along with it.
+        ('nb-refund', 'refund', 'posted', 50_000, 'COP', 'nb-checking', None, None, 'nb-mercado', '2026-07-06', stamp, stamp),
+        # Out of month: must not appear anywhere.
+        ('nb-august', 'expense', 'posted', 999_000, 'COP', 'nb-checking', 'hogar', 'mercado', None, '2026-08-01', stamp, stamp),
+    ],
+)
+nested.executemany(
+    'INSERT INTO budgets (id,category_id,month,limit_amount,color,rule_id,created_at,updated_at) VALUES (?,?,?,?,NULL,NULL,?,?)',
+    [
+        ('b-hogar', 'hogar', '2026-07', 500_000, stamp, stamp),
+        ('b-mercado', 'mercado', '2026-07', 200_000, stamp, stamp),
+        ('b-taxi', 'taxi', '2026-07', 100_000, stamp, stamp),
+    ],
+)
+nested.commit()
+
+spending = {
+    row['id']: row['spent']
+    for row in nested.execute(NESTED_SPENDING_SQL, ('2026-07-01', '2026-08-01', '2026-07'))
+}
+
+# A budget on a parent covers its whole subtree: Mercado (200k net of the 50k
+# refund) + Servicios (120k) + Hogar's own uncategorised 80k.
+assert spending['b-hogar'] == 350_000, spending
+# A budget on a leaf covers only that leaf, refund included.
+assert spending['b-mercado'] == 150_000, spending
+# And a leaf in another tree is untouched by either.
+assert spending['b-taxi'] == 60_000, spending
+
+# The decisive property: a sub-limit's spending is a subset of its parent's, which
+# is exactly why calculateBudgetSummary must not add the two together.
+assert spending['b-mercado'] < spending['b-hogar']
+
+assert nested.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+nested.close()
+
+print('nested budget spending attribution: PASS')

@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { ReportPeriodValidationError, resolveReportPeriod } from '../report-period';
@@ -89,21 +91,15 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
       {selection.preset === 'custom' ? (
         <Card style={styles.customPanel}>
           <View style={styles.dateFields}>
-            <DateField label="Start date" value={dateFrom} onChangeText={setDateFrom} />
-            <DateField label="End date" value={dateTo} onChangeText={setDateTo} />
+            <DateField label="Start date" maxDate={dateTo || undefined} onChange={setDateFrom} value={dateFrom} />
+            <DateField label="End date" minDate={dateFrom || undefined} onChange={setDateTo} value={dateTo} />
           </View>
           {error ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>
               {error}
             </Text>
           ) : null}
-          <Pressable
-            accessibilityLabel="Apply custom report period"
-            accessibilityRole="button"
-            onPress={applyCustomRange}
-            style={[styles.apply, { backgroundColor: theme.primaryAction }]}>
-            <Text style={[styles.applyText, { color: theme.onPrimaryAction }]}>Apply range</Text>
-          </Pressable>
+          <Button accessibilityLabel="Apply custom report period" fullWidth label="Apply range" onPress={applyCustomRange} variant="primary" />
         </Card>
       ) : null}
 
@@ -112,38 +108,6 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
           {periodLabel}
         </Text>
       ) : null}
-    </View>
-  );
-}
-
-function DateField({
-  label,
-  value,
-  onChangeText,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-}) {
-  const theme = useAppTheme();
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>{label}</Text>
-      <TextInput
-        accessibilityLabel={`${label}, YYYY-MM-DD`}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="numbers-and-punctuation"
-        maxLength={10}
-        onChangeText={onChangeText}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={theme.mutedText}
-        style={[
-          styles.input,
-          { backgroundColor: theme.appBackground, borderColor: theme.hairline, color: theme.primaryText },
-        ]}
-        value={value}
-      />
     </View>
   );
 }
@@ -162,7 +126,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginHorizontal: spacing.md,
   },
-  dateFields: { flexDirection: 'row', gap: spacing.sm },
+  dateFields: { gap: spacing.md },
   field: { flex: 1, gap: spacing.xs },
   fieldLabel: { ...typography.label },
   input: {

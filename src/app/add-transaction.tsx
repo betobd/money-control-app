@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import {
@@ -27,14 +28,15 @@ import {
 } from '@/features/currency/currency';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
 import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
-import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
+import { CategoryGrid, type CategorySelection } from '@/features/add-transaction/components/category-grid';
+import { CategoryPicker } from '@/features/add-transaction/components/category-picker';
 import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
 import { SuccessToast } from '@/features/add-transaction/components/success-toast';
 import { TransactionTypeSelector } from '@/features/add-transaction/components/transaction-type-selector';
 import { TransferAccountFields } from '@/features/add-transaction/components/transfer-account-fields';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
-import { useCategories } from '@/features/categories/use-categories';
+import { useCategoryTree } from '@/features/categories/use-categories';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { transactionService } from '@/features/transactions/transactions';
@@ -49,7 +51,8 @@ export default function AddTransactionModal() {
   const [type, setType] = useState<TransactionFormType>('expense');
   const [amountDigits, setAmountDigits] = useState('');
   const [destinationAmountDigits, setDestinationAmountDigits] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>();
+  const [selection, setSelection] = useState<CategorySelection | null>(null);
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string>();
   const [destinationAccountId, setDestinationAccountId] = useState<string>();
   const [transactionDate, setTransactionDate] = useState(bogotaToday);
@@ -63,9 +66,9 @@ export default function AddTransactionModal() {
 
   const { accounts, rateStatus } = useAccounts();
   const activeAccounts = accounts.filter((account) => !account.isArchived);
-  const expenseCategories = useCategories('expense', false).categories;
-  const incomeCategories = useCategories('income', false).categories;
-  const categories = type === 'income' ? incomeCategories : expenseCategories;
+  const expenseTree = useCategoryTree('expense', false).tree;
+  const incomeTree = useCategoryTree('income', false).tree;
+  const tree = type === 'income' ? incomeTree : expenseTree;
   const selectedAccount = activeAccounts.find((account) => account.id === selectedAccountId);
   const destinationAccount = activeAccounts.find((account) => account.id === destinationAccountId);
   const sourceCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
@@ -76,9 +79,21 @@ export default function AddTransactionModal() {
   const valuationRate: ScaledRate | null = rateStatus?.rate
     ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale }
     : null;
-  const effectiveCategoryId = categories.some((category) => category.id === selectedCategoryId)
-    ? selectedCategoryId
-    : categories[0]?.id;
+  // The selection is re-resolved against the current tree on every render: a
+  // category (or subcategory) archived elsewhere while this modal is open must
+  // not stay silently selected. Falling back to the first category preserves the
+  // existing behaviour of always having one chosen.
+  const selectedCategory = tree.find((category) => category.id === selection?.categoryId);
+  const effectiveSelection: CategorySelection | null = selectedCategory
+    ? {
+        categoryId: selectedCategory.id,
+        subcategoryId: selectedCategory.subcategories.some((item) => item.id === selection?.subcategoryId)
+          ? selection?.subcategoryId ?? null
+          : null,
+      }
+    : tree[0]
+      ? { categoryId: tree[0].id, subcategoryId: null }
+      : null;
   const pickerAccounts = accountPickerField === 'source'
     ? activeAccounts.filter((account) => account.id !== destinationAccountId)
     : accountPickerField === 'destination'
@@ -91,9 +106,14 @@ export default function AddTransactionModal() {
 
   function changeType(next: TransactionFormType) {
     setType(next);
-    setSelectedCategoryId(undefined);
+    setSelection(null);
     setErrors({});
     setGeneralError(undefined);
+  }
+
+  function selectCategory(next: CategorySelection) {
+    setSelection(next);
+    setErrors((current) => ({ ...current, categoryId: undefined, subcategoryId: undefined }));
   }
 
   function selectAccount(id: string) {
@@ -175,7 +195,8 @@ export default function AddTransactionModal() {
         await transactionService.create({
           ...common,
           type,
-          categoryId: effectiveCategoryId ?? '',
+          categoryId: effectiveSelection?.categoryId ?? '',
+          subcategoryId: effectiveSelection?.subcategoryId ?? null,
           exchangeRate,
         });
       }
@@ -323,14 +344,15 @@ export default function AddTransactionModal() {
           ) : (
             <>
               <CategoryGrid
-                categories={categories}
+                categories={tree}
                 error={errors.categoryId}
-                onSelect={setSelectedCategoryId}
-                onViewAll={() => router.push({ pathname: '/categories', params: { type } })}
-                selectedId={effectiveCategoryId}
+                onSelect={selectCategory}
+                onViewAll={() => setCategoryPickerVisible(true)}
+                selection={effectiveSelection}
+                subcategoryError={errors.subcategoryId}
                 type={type}
               />
-              {categories.length === 0 ? (
+              {tree.length === 0 ? (
                 <Pressable onPress={() => router.push({ pathname: '/categories', params: { type } })}>
                   <Text style={{ color: theme.primaryAction }}>Manage categories</Text>
                 </Pressable>
@@ -345,28 +367,15 @@ export default function AddTransactionModal() {
             </>
           )}
 
-          <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Transaction date</Text>
-            <TextInput
-              accessibilityLabel="Transaction date, YYYY-MM-DD"
-              autoCapitalize="none"
-              keyboardType="numbers-and-punctuation"
-              maxLength={10}
-              onChangeText={setTransactionDate}
-              value={transactionDate}
-              style={[
-                styles.textInput,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: errors.transactionDate ? theme.destructive : theme.hairline,
-                  color: theme.primaryText,
-                },
-              ]}
-            />
-            {errors.transactionDate ? (
-              <Text style={[styles.error, { color: theme.destructive }]}>{errors.transactionDate}</Text>
-            ) : null}
-          </View>
+          <DateField
+            error={errors.transactionDate}
+            label="Transaction date"
+            onChange={(value) => {
+              setTransactionDate(value);
+              setErrors((current) => ({ ...current, transactionDate: undefined }));
+            }}
+            value={transactionDate}
+          />
 
           <View style={styles.field}>
             <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Note (optional)</Text>
@@ -407,6 +416,16 @@ export default function AddTransactionModal() {
         selectedId={pickerSelectedId}
         title={pickerTitle}
         visible={accountPickerField !== null}
+      />
+
+      <CategoryPicker
+        categories={tree}
+        onClose={() => setCategoryPickerVisible(false)}
+        onManage={() => router.push({ pathname: '/categories', params: { type } })}
+        onSelect={selectCategory}
+        selection={effectiveSelection}
+        title={type === 'income' ? 'Select income category' : 'Select expense category'}
+        visible={categoryPickerVisible}
       />
     </View>
   );

@@ -9,6 +9,7 @@ import type { BudgetRuleRepository } from './budget-rule.repository';
 import type { BudgetRule } from './budget-rule.types';
 import type {
   Budget,
+  BudgetGroup,
   BudgetInput,
   BudgetMonthView,
   BudgetRecord,
@@ -93,13 +94,34 @@ export function calculateBudget(record: BudgetSpendingRecord, isRecurring = fals
   };
 }
 
+/**
+ * True when this budget is a sub-limit inside another budget in the same set.
+ *
+ * A budget on a parent already covers its whole subtree, so a budget on one of
+ * its subcategories describes a slice of money the parent has already counted.
+ */
+function isNestedSubLimit(budget: BudgetView, budgetedCategoryIds: ReadonlySet<string>): boolean {
+  return budget.categoryParentId !== null && budgetedCategoryIds.has(budget.categoryParentId);
+}
+
+/**
+ * Month totals over the budgets that describe distinct money.
+ *
+ * Both the limit and the spending of a nested sub-limit are excluded: they are
+ * already inside their parent's figures, and counting them twice would inflate
+ * the total and make `percentageUsed` meaningless. Sub-limits stay fully visible
+ * on screen — they are shown once as their own limit and once inside the
+ * parent's, but they are counted once here.
+ */
 export function calculateBudgetSummary(budgets: BudgetView[]): BudgetSummary {
+  const budgetedCategoryIds = new Set(budgets.map((budget) => budget.categoryId));
+  const counted = budgets.filter((budget) => !isNestedSubLimit(budget, budgetedCategoryIds));
   const totalBudget = ensureSafeMoney(
-    budgets.reduce((sum, budget) => ensureSafeMoney(sum + budget.limitAmount, 'Total monthly budget'), 0),
+    counted.reduce((sum, budget) => ensureSafeMoney(sum + budget.limitAmount, 'Total monthly budget'), 0),
     'Total monthly budget',
   );
   const totalSpent = ensureSafeMoney(
-    budgets.reduce((sum, budget) => ensureSafeMoney(sum + budget.spent, 'Total budget spending'), 0),
+    counted.reduce((sum, budget) => ensureSafeMoney(sum + budget.spent, 'Total budget spending'), 0),
     'Total budget spending',
   );
   const totalRemaining = ensureSafeMoney(totalBudget - totalSpent, 'Total budget remaining amount');
@@ -110,7 +132,28 @@ export function calculateBudgetSummary(budgets: BudgetView[]): BudgetSummary {
     totalRemaining,
     percentageUsed,
     progressWidth: progressWidth(percentageUsed),
+    nestedCount: budgets.length - counted.length,
   };
+}
+
+/**
+ * Groups budgets for display: top-level budgets with their sub-limits inside.
+ *
+ * A subcategory budget whose parent is **not** budgeted this month is not nested
+ * anywhere — it is a budget in its own right and stays at the top level, which is
+ * also how the summary counts it.
+ */
+export function groupBudgets(budgets: readonly BudgetView[]): BudgetGroup[] {
+  const budgetedCategoryIds = new Set(budgets.map((budget) => budget.categoryId));
+  const children = new Map<string, BudgetView[]>();
+  for (const budget of budgets) {
+    if (!isNestedSubLimit(budget, budgetedCategoryIds)) continue;
+    const parentId = budget.categoryParentId!;
+    children.set(parentId, [...(children.get(parentId) ?? []), budget]);
+  }
+  return budgets
+    .filter((budget) => !isNestedSubLimit(budget, budgetedCategoryIds))
+    .map((budget) => ({ budget, children: children.get(budget.categoryId) ?? [] }));
 }
 
 export class BudgetService {

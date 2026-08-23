@@ -34,6 +34,7 @@ export default function RecurringOccurrenceRoute() {
         accountId: occurrence.accountId,
         destinationAccountId: occurrence.destinationAccountId,
         categoryId: occurrence.categoryId,
+        subcategoryId: occurrence.subcategoryId,
         note: occurrence.note,
         date: occurrence.scheduledDate,
       }}

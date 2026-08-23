@@ -23,6 +23,9 @@ export type BudgetRecord = Budget & {
   categoryName: string;
   categoryIcon: string;
   categoryIsArchived: boolean;
+  /** Null when the budget is on a top-level category, set when it is on a subcategory. */
+  categoryParentId: string | null;
+  categoryParentName: string | null;
 };
 
 export type BudgetSpendingRecord = BudgetRecord & {
@@ -44,9 +47,20 @@ export type BudgetSummary = {
   totalRemaining: number;
   percentageUsed: number;
   progressWidth: ProgressWidth;
+  /**
+   * How many subcategory budgets were left out of the totals because their
+   * parent is budgeted too. They are sub-limits inside it, already counted once.
+   */
+  nestedCount: number;
 };
 
 export type BudgetMonthView = {
   budgets: BudgetView[];
   summary: BudgetSummary;
+};
+
+/** A top-level budget with the subcategory sub-limits nested inside it. */
+export type BudgetGroup = {
+  budget: BudgetView;
+  children: BudgetView[];
 };

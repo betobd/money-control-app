@@ -29,11 +29,23 @@ export type AppLockConfigurationErrorCode =
   | 'missing_verifier';
 
 export class AppLockConfigurationError extends Error {
+  /**
+   * Stable brand. Cross-module `instanceof` compares constructor identity, which
+   * only holds while every importer shares one module instance. Code outside
+   * this module must use the exported type guard.
+   */
+  readonly isAppLockConfigurationError = true;
+
   constructor(
     public readonly code: AppLockConfigurationErrorCode,
     message: string,
   ) {
     super(message);
   }
+}
+
+/** Identity-independent check for {@link AppLockConfigurationError}. */
+export function isAppLockConfigurationError(value: unknown): value is AppLockConfigurationError {
+  return value instanceof Error && (value as AppLockConfigurationError).isAppLockConfigurationError === true;
 }
 

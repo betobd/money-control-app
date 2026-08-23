@@ -37,6 +37,15 @@ export function BudgetSummaryCard({ summary }: { summary: BudgetSummary }) {
         <Text style={[styles.progressValue, { color: status === 'over-budget' ? theme.destructive : theme.primaryText }]}>{summary.percentageUsed}%</Text>
       </View>
       <BudgetProgressBar percentage={summary.percentageUsed} progressWidth={summary.progressWidth} status={status} />
+      {/* Without this the total looks wrong to anyone who budgeted a subcategory
+          and expected its limit to be added on top of its category's. */}
+      {summary.nestedCount > 0 ? (
+        <Text style={[styles.note, { color: theme.mutedText }]}>
+          {summary.nestedCount === 1
+            ? '1 sub-limit is counted inside its category, not added to the total.'
+            : `${summary.nestedCount} sub-limits are counted inside their categories, not added to the total.`}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -60,4 +69,5 @@ const styles = StyleSheet.create({
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   progressLabel: { ...typography.caption },
   progressValue: { ...typography.caption, fontWeight: '700' },
+  note: { ...typography.label, marginTop: spacing.xs },
 });

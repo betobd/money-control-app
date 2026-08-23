@@ -14,6 +14,7 @@ import m0009 from './0009_multi_currency.sql';
 import m0010 from './0010_budget_colors.sql';
 import m0011 from './0011_recurring_budgets.sql';
 import m0012 from './0012_investments_v1.sql';
+import m0013 from './0013_category_subcategories.sql';
 
 export default {
   journal,
@@ -31,5 +32,6 @@ export default {
     m0010,
     m0011,
     m0012,
+    m0013,
   },
 };

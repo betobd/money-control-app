@@ -74,6 +74,8 @@ export type TransactionExportRow = {
   destinationCurrencyCode: string | null;
   categoryId: string | null;
   categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
   originalTransactionId: string | null;
   originalTransactionDate: string | null;
   originalTransactionAmountCop: number | null;

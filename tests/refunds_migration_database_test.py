@@ -56,7 +56,7 @@ for fixture in ('empty', 'populated'):
             (now, now),
         )
         database.execute(
-            "INSERT INTO recurring_occurrences VALUES ('occurrence','rule','2026-07-20','posted','expense',25000,'COP','account',NULL,'category','Lunch','transaction',?,?)",
+            "INSERT INTO recurring_occurrences (id,recurring_transaction_id,scheduled_date,status,type,amount,currency,account_id,destination_account_id,category_id,note,transaction_id,created_at,updated_at) VALUES ('occurrence','rule','2026-07-20','posted','expense',25000,'COP','account',NULL,'category','Lunch','transaction',?,?)",
             (now, now),
         )
         database.commit()

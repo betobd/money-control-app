@@ -126,6 +126,7 @@ test('normalizes summary calculations and handles an empty period', () => {
     refundCount: 1,
     averageExpense: 60_001,
     largestExpense,
+    savingsRateBasisPoints: 6667, // 199,999 of 300,000 income, rounded
   });
   assert.deepEqual(normalizeSummary({
     income: 0,
@@ -146,6 +147,7 @@ test('normalizes summary calculations and handles an empty period', () => {
     refundCount: 0,
     averageExpense: 0,
     largestExpense: null,
+    savingsRateBasisPoints: null, // undefined without income, never 0%
   });
 });
 
@@ -216,8 +218,8 @@ test('fills missing cash-flow buckets chronologically and excludes absent data',
 test('normalizes category percentages, archived/unknown rows, and zero totals', async () => {
   const repository = new FakeReportRepository();
   repository.categories = [
-    { categoryId: 'archived', categoryName: 'Old utilities', icon: 'bills', total: 300, transactionCount: 2 },
-    { categoryId: 'unknown-category', categoryName: 'Unknown category', icon: 'other', total: 100, transactionCount: 1 },
+    { categoryId: 'archived', categoryName: 'Old utilities', icon: 'bills', subcategoryId: null, subcategoryName: null, total: 300, transactionCount: 2 },
+    { categoryId: 'unknown-category', categoryName: 'Unknown category', icon: 'other', subcategoryId: null, subcategoryName: null, total: 100, transactionCount: 1 },
   ];
   const service = new ReportService(repository);
   const data = await service.load({ preset: 'current-month' }, TODAY);

@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Button } from '@/components/button';
+import { Skeleton } from '@/components/skeleton';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -13,9 +15,7 @@ export function EmptyBudgetsState({ onCreate }: { onCreate: () => void }) {
       </View>
       <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>No budgets for this month</Text>
       <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>Create a category budget to start planning your monthly spending.</Text>
-      <Pressable accessibilityLabel="Create the first budget" accessibilityRole="button" onPress={onCreate} style={[styles.emptyAction, { backgroundColor: theme.primaryAction }]}>
-        <Text style={[styles.emptyActionText, { color: theme.onPrimaryAction }]}>Create Budget</Text>
-      </Pressable>
+      <Button accessibilityLabel="Create the first budget" label="Create budget" onPress={onCreate} variant="primary" />
     </View>
   );
 }
@@ -25,11 +25,11 @@ export function LoadingBudgetCard() {
   return (
     <View accessibilityLabel="Loading budgets" accessibilityRole="progressbar" style={[styles.loading, { backgroundColor: theme.surface }]}>
       <View style={styles.loadingHeader}>
-        <View style={[styles.loadingIcon, { backgroundColor: theme.disabledSurface }]} />
-        <View style={[styles.loadingTitle, { backgroundColor: theme.disabledSurface }]} />
+        <Skeleton style={styles.loadingIcon} />
+        <Skeleton style={styles.loadingTitle} />
       </View>
-      <View style={[styles.loadingAmount, { backgroundColor: theme.disabledSurface }]} />
-      <View style={[styles.loadingBar, { backgroundColor: theme.disabledSurface }]} />
+      <Skeleton style={styles.loadingAmount} />
+      <Skeleton style={styles.loadingBar} />
     </View>
   );
 }
@@ -39,9 +39,7 @@ export function BudgetErrorState({ message, onRetry }: { message: string; onRetr
   return (
     <View style={[styles.empty, { backgroundColor: theme.surface }]}>
       <Text accessibilityLiveRegion="assertive" style={[styles.emptyBody, { color: theme.destructive }]}>{message}</Text>
-      <Pressable accessibilityLabel="Retry loading budgets" accessibilityRole="button" onPress={onRetry} style={[styles.retry, { backgroundColor: theme.tintPrimary }]}>
-        <Text style={[styles.emptyActionText, { color: theme.primaryAction }]}>Retry</Text>
-      </Pressable>
+      <Button accessibilityLabel="Retry loading budgets" label="Retry" onPress={onRetry} variant="tonal" />
     </View>
   );
 }
@@ -51,9 +49,6 @@ const styles = StyleSheet.create({
   emptyIcon: { alignItems: 'center', borderRadius: borderRadii.card, height: 56, justifyContent: 'center', width: 56 },
   emptyTitle: { ...typography.sectionTitle, textAlign: 'center' },
   emptyBody: { ...typography.body, textAlign: 'center' },
-  emptyAction: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', marginTop: spacing.sm, minHeight: 48, paddingHorizontal: spacing.lg },
-  emptyActionText: { ...typography.body, fontWeight: '700' },
-  retry: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.lg },
   loading: { borderRadius: borderRadii.card, gap: spacing.md, minHeight: 176, padding: spacing.md },
   loadingHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   loadingIcon: { borderRadius: borderRadii.md, height: 40, width: 40 },

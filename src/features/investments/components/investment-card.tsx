@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { PressableScale } from '@/components/pressable-scale';
 
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
@@ -31,7 +33,7 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
   const gainSign = view.estimatedGainLossMinor > 0 ? '+' : '';
 
   return (
-    <Pressable
+    <PressableScale
       accessibilityHint="Open investment details"
       accessibilityLabel={`${account.name}, ${investmentTypeLabels[metadata.investmentType]}, current value ${formatMoneyWithSymbol(view.currentValueMinor, currency)}`}
       accessibilityRole="button"
@@ -84,7 +86,7 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
           <MetricRow label="Maturity" value={formatTransactionDate(metadata.maturityDate)} />
         ) : null}
       </Card>
-    </Pressable>
+    </PressableScale>
   );
 }
 

@@ -20,9 +20,9 @@ import type {
   TransactionListFilters,
 } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { DateField } from '@/components/date-field';
 import {
   ChoicePill,
-  DateField,
   dateFilterOptions,
   FilterChoiceGroup,
   FilterDateFields,
@@ -193,12 +193,14 @@ export function TransactionFilterModal({
               <FilterDateFields>
                 <DateField
                   label="Start date"
-                  onChangeText={(value) => setDraft((current) => ({ ...current, customDateFrom: value }))}
+                  maxDate={draft.customDateTo || undefined}
+                  onChange={(value) => setDraft((current) => ({ ...current, customDateFrom: value }))}
                   value={draft.customDateFrom}
                 />
                 <DateField
                   label="End date"
-                  onChangeText={(value) => setDraft((current) => ({ ...current, customDateTo: value }))}
+                  minDate={draft.customDateFrom || undefined}
+                  onChange={(value) => setDraft((current) => ({ ...current, customDateTo: value }))}
                   value={draft.customDateTo}
                 />
               </FilterDateFields>

@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -15,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
@@ -119,9 +121,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
         {generalError ? (
           <>
             <Text style={[styles.body, { color: theme.destructive }]}>{generalError}</Text>
-            <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.retry, { backgroundColor: theme.elevatedSurface }]}>
-              <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Go back</Text>
-            </Pressable>
+            <Button label="Go back" onPress={() => router.back()} />
           </>
         ) : (
           <ActivityIndicator color={theme.primaryAction} size="large" />
@@ -159,17 +159,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
         <DateField error={errors.closingDate} label="Closing date" onChange={(text) => changeDate('closingDate', text)} value={dates.closingDate} />
         <DateField error={errors.dueDate} label="Due date" onChange={(text) => changeDate('dueDate', text)} value={dates.dueDate} />
         <Text style={[styles.help, { color: theme.mutedText }]}>Dates default from the configured cycle. Closing normally matches period end, but all dates may be corrected to match the bank statement.</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
-          onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}
-        >
-          {saving
-            ? <ActivityIndicator color={theme.disabledText} />
-            : <Text style={[styles.strong, { color: theme.onPrimaryAction }]}>Save statement</Text>}
-        </Pressable>
+        <Button busy={saving} fullWidth label="Save statement" onPress={() => void save()} size="lg" variant="primary" />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -177,10 +167,6 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
 
 function MoneyField({ error, label, onChange, value }: { error?: string; label: string; onChange: (value: string) => void; value: string }) {
   return <Field error={error} label={label}><Input accessibilityLabel={`${label} in whole Colombian pesos`} invalid={Boolean(error)} keyboardType="number-pad" onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={value} /></Field>;
-}
-
-function DateField({ error, label, onChange, value }: { error?: string; label: string; onChange: (value: string) => void; value: string }) {
-  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in YYYY-MM-DD`} autoCapitalize="none" invalid={Boolean(error)} maxLength={10} onChangeText={onChange} value={value} /></Field>;
 }
 
 function Field({ children, error, label }: { children: React.ReactNode; error?: string; label: string }) {
@@ -205,7 +191,6 @@ const styles = StyleSheet.create({
   field: { gap: spacing.sm, marginTop: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   amountInput: { fontFamily: fonts.mono.medium },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, marginTop: spacing.md },
   body: { ...typography.body },
   strong: { ...typography.body, fontWeight: '700' },
   help: { ...typography.caption },

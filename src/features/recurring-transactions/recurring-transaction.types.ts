@@ -14,12 +14,15 @@ type RecurringShapeBase = {
 export type RecurringTransactionShape =
   | (RecurringShapeBase & {
       type: CategorizedTransactionType;
+      /** Always the top-level category, matching how transactions store it. */
       categoryId: string;
+      subcategoryId: string | null;
       destinationAccountId: null;
     })
   | (RecurringShapeBase & {
       type: 'transfer';
       categoryId: null;
+      subcategoryId: null;
       destinationAccountId: string;
     });
 
@@ -44,6 +47,7 @@ export type RecurringRuleListItem = RecurringRuleRecord & {
   accountName: string;
   destinationAccountName: string | null;
   categoryName: string | null;
+  subcategoryName: string | null;
 };
 
 export type RecurringOccurrenceRecord = RecurringTransactionShape & {
@@ -61,6 +65,7 @@ export type RecurringOccurrenceListItem = RecurringOccurrenceRecord & {
   accountName: string;
   destinationAccountName: string | null;
   categoryName: string | null;
+  subcategoryName: string | null;
 };
 
 export type RecurringRuleField =
@@ -69,6 +74,7 @@ export type RecurringRuleField =
   | 'accountId'
   | 'destinationAccountId'
   | 'categoryId'
+  | 'subcategoryId'
   | 'frequency'
   | 'interval'
   | 'startDate'

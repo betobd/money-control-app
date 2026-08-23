@@ -41,9 +41,14 @@ export function budgetAlertContent(
   const over = threshold === 100;
   const privateBody = over ? 'A budget has reached its limit.' : 'A budget is close to its limit.';
   const month = budgetMonthLabel(budget.month);
+  // A subcategory budget names its parent: two categories may each have an
+  // "Otros", and "Otros has reached its budget" would say nothing.
+  const label = budget.categoryParentName
+    ? `${budget.categoryParentName} › ${budget.categoryName}`
+    : budget.categoryName;
   const detailedBody = over
-    ? `${budget.categoryName} has reached its ${month} budget.`
-    : `${budget.categoryName} has used ${Math.round(budget.percentageUsed)}% of its ${month} budget.`;
+    ? `${label} has reached its ${month} budget.`
+    : `${label} has used ${Math.round(budget.percentageUsed)}% of its ${month} budget.`;
   return {
     title: over ? 'Budget limit reached' : 'Budget nearing limit',
     body: mode === 'private' ? privateBody : detailedBody,

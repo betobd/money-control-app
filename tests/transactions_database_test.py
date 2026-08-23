@@ -35,7 +35,7 @@ categories = [
     ('income', 'Salary', 'income', 'salary', 0, None, utc, utc),
 ]
 connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
-connection.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', categories)
+connection.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', categories)
 connection.executemany(
     'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     [
@@ -128,7 +128,7 @@ assert payment_history == ('card-payment', 'Checking', 'Credit card', None)
 # Editing mutates the existing row, preserves identity/creation metadata, and changes derived effects.
 later = '2026-07-12T18:00:00.000Z'
 connection.execute(
-    'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
     ('expense-2', 'Utilities', 'expense', 'bills', 0, None, utc, utc),
 )
 connection.execute(
@@ -215,7 +215,7 @@ filter_categories = [
     ('unused-category-filter', 'Unused', 'expense', 'other', 0, None, utc, utc),
 ]
 query_database.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', filter_accounts)
-query_database.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', filter_categories)
+query_database.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', filter_categories)
 tie_time = '2026-07-10T10:00:00.000Z'
 query_database.executemany(
     'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -237,7 +237,7 @@ def escape_like(value):
 
 def query_history(
     *, search=None, types=None, statuses=None, account_id=None, category_id=None,
-    date_from=None, date_to=None, limit=40, cursor=None,
+    date_from=None, date_to=None, limit=40, cursor=None, database=None,
 ):
     conditions = []
     parameters = []
@@ -249,9 +249,12 @@ def query_history(
           OR lower(source.name) LIKE ? ESCAPE '\\'
           OR lower(coalesce(destination.name, '')) LIKE ? ESCAPE '\\'
           OR lower(coalesce(category.name, '')) LIKE ? ESCAPE '\\'
+          OR lower(coalesce(subcategory.name, '')) LIKE ? ESCAPE '\\'
+          OR lower(coalesce(original_category.name, '')) LIKE ? ESCAPE '\\'
+          OR lower(coalesce(original_subcategory.name, '')) LIKE ? ESCAPE '\\'
           OR lower(t.type) LIKE ? ESCAPE '\\'
         )''')
-        parameters.extend([pattern] * 5)
+        parameters.extend([pattern] * 8)
     if types:
         conditions.append(f"t.type IN ({','.join('?' for _ in types)})")
         parameters.extend(types)
@@ -262,8 +265,16 @@ def query_history(
         conditions.append('(t.account_id = ? OR t.destination_account_id = ?)')
         parameters.extend([account_id, account_id])
     if category_id:
-        conditions.append('t.category_id = ?')
-        parameters.append(category_id)
+        # Node-scoped, mirroring SQLiteTransactionRepository: the id matches
+        # whichever level owns it. A parent id never lands in subcategory_id and a
+        # leaf id never in category_id, so the OR is unambiguous. Refunds resolve
+        # through the expense they refund, at both levels.
+        conditions.append('''(
+          t.category_id = ?
+          OR t.subcategory_id = ?
+          OR (t.type = 'refund' AND (original.category_id = ? OR original.subcategory_id = ?))
+        )''')
+        parameters.extend([category_id] * 4)
     if date_from:
         conditions.append('t.transaction_date >= ?')
         parameters.append(date_from)
@@ -280,14 +291,19 @@ def query_history(
             cursor[0], cursor[0], cursor[1], cursor[0], cursor[1], cursor[2],
         ])
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ''
-    rows = query_database.execute(
+    rows = (database or query_database).execute(
         f'''SELECT t.id, t.type, t.status, t.transaction_date, t.created_at,
                    source.name AS source_name, destination.name AS destination_name,
-                   category.name AS category_name
+                   coalesce(category.name, original_category.name) AS category_name,
+                   coalesce(subcategory.name, original_subcategory.name) AS subcategory_name
             FROM transactions t
             JOIN accounts source ON source.id = t.account_id
             LEFT JOIN accounts destination ON destination.id = t.destination_account_id
             LEFT JOIN categories category ON category.id = t.category_id
+            LEFT JOIN categories subcategory ON subcategory.id = t.subcategory_id
+            LEFT JOIN transactions original ON original.id = t.original_transaction_id
+            LEFT JOIN categories original_category ON original_category.id = original.category_id
+            LEFT JOIN categories original_subcategory ON original_subcategory.id = original.subcategory_id
             {where}
             ORDER BY t.transaction_date DESC, t.created_at DESC, t.id DESC
             LIMIT ?''',
@@ -388,3 +404,85 @@ query_database.close()
 
 db_file.unlink()
 print('transactions database integration: PASS')
+
+
+# Two-level classification: Hogar > Mercado and Transporte > Taxi, in an isolated
+# fixture so the row-set assertions above keep their meaning.
+tree_database = sqlite3.connect(':memory:')
+tree_database.row_factory = sqlite3.Row
+tree_database.execute('PRAGMA foreign_keys = ON')
+apply_migrations(tree_database)
+tree_database.execute(
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at)'
+    " VALUES ('tree-checking','Checking','checking','COP',0,NULL,0,NULL,?,?)",
+    (utc, utc),
+)
+tree_database.executemany(
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
+    [
+        ('hogar', 'Hogar', 'expense', 'other', 0, None, utc, utc),
+        ('transporte', 'Transporte', 'expense', 'transport', 0, None, utc, utc),
+    ],
+)
+tree_database.executemany(
+    'INSERT INTO categories (id,name,type,icon,parent_category_id,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    [
+        ('mercado', 'Mercado', 'expense', 'other', 'hogar', 0, None, utc, utc),
+        ('taxi', 'Taxi', 'expense', 'transport', 'transporte', 0, None, utc, utc),
+    ],
+)
+tree_database.executemany(
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    [
+        ('tree-mercado', 'expense', 'posted', 90_000, 'COP', 'tree-checking', None, 'hogar', 'mercado', None, None, '2026-07-14', '2026-07-14T09:00:00.000Z', utc),
+        ('tree-hogar', 'expense', 'posted', 30_000, 'COP', 'tree-checking', None, 'hogar', None, None, None, '2026-07-14', '2026-07-14T10:00:00.000Z', utc),
+        ('tree-taxi', 'expense', 'posted', 12_000, 'COP', 'tree-checking', None, 'transporte', 'taxi', None, None, '2026-07-14', '2026-07-14T11:00:00.000Z', utc),
+        # A refund carries no classification of its own and inherits both levels.
+        ('tree-refund', 'refund', 'posted', 15_000, 'COP', 'tree-checking', None, None, None, 'tree-mercado', None, '2026-07-15', '2026-07-15T09:00:00.000Z', utc),
+    ],
+)
+
+
+def tree_ids(**query):
+    return {row['id'] for row in query_history(database=tree_database, limit=100, **query)[0]}
+
+
+def tree_row(transaction_id):
+    rows = query_history(database=tree_database, limit=100)[0]
+    return next(row for row in rows if row['id'] == transaction_id)
+
+
+# A parent returns its whole subtree, subcategorised and not; a leaf returns only
+# itself. This is what lets category reports and budgets keep their meaning.
+assert tree_ids(category_id='hogar') == {'tree-mercado', 'tree-hogar', 'tree-refund'}
+assert tree_ids(category_id='mercado') == {'tree-mercado', 'tree-refund'}
+assert tree_ids(category_id='transporte') == {'tree-taxi'}
+assert tree_ids(category_id='taxi') == {'tree-taxi'}
+
+# The leaf name is searchable, and a refund is findable through the classification
+# it inherits from the expense it refunds.
+assert tree_ids(search='Mercado') == {'tree-mercado', 'tree-refund'}
+assert tree_ids(search='Hogar') == {'tree-mercado', 'tree-hogar', 'tree-refund'}
+assert tree_ids(search='Taxi') == {'tree-taxi'}
+
+assert tree_row('tree-mercado')['subcategory_name'] == 'Mercado'
+assert tree_row('tree-hogar')['subcategory_name'] is None
+assert tree_row('tree-refund')['category_name'] == 'Hogar'
+assert tree_row('tree-refund')['subcategory_name'] == 'Mercado'
+
+# The database refuses a mismatched pair regardless of what the service does.
+try:
+    tree_database.execute(
+        'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,transaction_date,created_at,updated_at)'
+        " VALUES ('tree-mismatch','expense','posted',1000,'COP','tree-checking','transporte','mercado','2026-07-14',?,?)",
+        (utc, utc),
+    )
+    raise AssertionError('a subcategory from another parent must be rejected')
+except sqlite3.IntegrityError:
+    pass
+
+assert tree_database.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+tree_database.close()
+
+print('transaction subcategory queries verified')

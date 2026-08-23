@@ -29,6 +29,21 @@ export function transactionTitle(item: Pick<TransactionListItem, 'note' | 'categ
   return item.categoryName ?? 'Transaction';
 }
 
+/**
+ * Renders a classification as "Category › Subcategory", or just the category
+ * when there is no subcategory.
+ *
+ * The parent is always shown: two categories may each have an "Otros", so the
+ * leaf alone would be ambiguous.
+ */
+export function categoryPathLabel(
+  categoryName: string | null,
+  subcategoryName: string | null,
+): string | null {
+  if (!categoryName) return subcategoryName;
+  return subcategoryName ? `${categoryName} › ${subcategoryName}` : categoryName;
+}
+
 export function transactionAccountLabel(
   item: Pick<TransactionListItem, 'accountName' | 'destinationAccountName' | 'type'>,
 ) {

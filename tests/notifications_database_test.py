@@ -13,7 +13,7 @@ if DATABASE_PATH.exists():
 
 connection = sqlite3.connect(DATABASE_PATH)
 connection.execute('PRAGMA foreign_keys = ON')
-for migration in sorted(MIGRATIONS.glob('000*.sql')):
+for migration in sorted(MIGRATIONS.glob('*.sql')):
     connection.executescript(migration.read_text(encoding='utf-8').replace('--> statement-breakpoint', ''))
 
 tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}

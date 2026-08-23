@@ -11,6 +11,8 @@ import {
   type BackupFileV3,
   type BackupFileV4,
   type BackupFileV5,
+  type BackupFileV6,
+  CURRENT_BACKUP_FORMAT_VERSION,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -250,8 +252,15 @@ function validateTransactionShape(
   path: string,
   issues: ValidationIssues,
   supportsRefunds = false,
+  supportsSubcategories = false,
 ): void {
   const type = row.type;
+  // A subcategory requires a category, so anything that cannot have a category
+  // cannot have a subcategory either. This is the shape CHECK from migration
+  // 0013, restated for a file the database has not seen yet.
+  if (supportsSubcategories && row.categoryId === null && row.subcategoryId !== null) {
+    issue(issues, 'domain_mismatch', `${path}.subcategoryId`, 'A subcategory requires a category.');
+  }
   if (type === 'transfer') {
     if (!validateId(row.destinationAccountId, `${path}.destinationAccountId`, issues)) return;
     if (row.categoryId !== null) {
@@ -279,7 +288,7 @@ function validateTransactionShape(
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6): void {
   const accountTypes = version >= 5
     ? ['checking', 'savings', 'credit_card', 'cash', 'investment', 'other']
     : ['checking', 'savings', 'credit_card', 'cash', 'other'];
@@ -349,7 +358,27 @@ function validateCreditCardStatementRows(rows: unknown[], issues: ValidationIssu
   });
 }
 
-function validateCategoryRows(rows: unknown[], issues: ValidationIssues): void {
+/** Narrows to the current format, so v6-only fields are typed rather than cast. */
+function isCurrentFormat(file: BackupFile): file is BackupFileV6 {
+  return file.formatVersion === CURRENT_BACKUP_FORMAT_VERSION;
+}
+
+/**
+ * Refunds exist from v3 on. Expressed as `>=` rather than a list of versions:
+ * an enumerated check silently stops applying the day a new version is added,
+ * which is exactly how v6 briefly lost these rules.
+ */
+function supportsRefunds(
+  file: BackupFile,
+): file is BackupFileV3 | BackupFileV4 | BackupFileV5 | BackupFileV6 {
+  return file.formatVersion >= 3;
+}
+
+function validateCategoryRows(
+  rows: unknown[],
+  issues: ValidationIssues,
+  version: 1 | 2 | 3 | 4 | 5 | 6 = 1,
+): void {
   rows.forEach((value, index) => {
     const path = `data.categories[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -358,6 +387,12 @@ function validateCategoryRows(rows: unknown[], issues: ValidationIssues): void {
     validateString(row.name, `${path}.name`, issues, { nonBlank: true });
     validateEnum(row.type, ['expense', 'income'], `${path}.type`, issues);
     validateNullableString(row.icon, `${path}.icon`, issues);
+    if (version >= 6) {
+      validateNullableString(row.parentCategoryId, `${path}.parentCategoryId`, issues, backupLimits.maxIdLength);
+      if (row.parentCategoryId === row.id) {
+        issue(issues, 'domain_mismatch', `${path}.parentCategoryId`, 'A category cannot be its own parent.');
+      }
+    }
     validateArchiveFields(row, path, issues);
     validateAuditFields(row, path, issues);
   });
@@ -449,7 +484,7 @@ function validateTransactionCurrencyV4(row: Record<string, unknown>, path: strin
 function validateTransactionRows(
   rows: unknown[],
   issues: ValidationIssues,
-  version: 1 | 2 | 3 | 4 | 5,
+  version: 1 | 2 | 3 | 4 | 5 | 6,
 ): void {
   rows.forEach((value, index) => {
     const path = `data.transactions[${index}]`;
@@ -468,6 +503,9 @@ function validateTransactionRows(
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
+    if (version >= 6) {
+      validateNullableString(row.subcategoryId, `${path}.subcategoryId`, issues, backupLimits.maxIdLength);
+    }
     if (version >= 3) {
       validateNullableString(
         row.originalTransactionId,
@@ -479,7 +517,7 @@ function validateTransactionRows(
     validateNullableString(row.note, `${path}.note`, issues, backupLimits.maxNoteLength);
     validateCalendarDate(row.transactionDate, `${path}.transactionDate`, issues);
     validateAuditFields(row, path, issues);
-    validateTransactionShape(row, path, issues, version >= 3);
+    validateTransactionShape(row, path, issues, version >= 3, version >= 6);
     if (version >= 4) validateTransactionCurrencyV4(row, path, issues);
   });
 }
@@ -547,7 +585,7 @@ function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void
   });
 }
 
-function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 = 1): void {
+function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringTransactions[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -559,6 +597,9 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
+    if (version >= 6) {
+      validateNullableString(row.subcategoryId, `${path}.subcategoryId`, issues, backupLimits.maxIdLength);
+    }
     validateNullableString(row.note, `${path}.note`, issues, backupLimits.maxNoteLength);
     validateEnum(row.frequency, ['daily', 'weekly', 'monthly', 'yearly'], `${path}.frequency`, issues);
     validateSafeInteger(row.interval, `${path}.interval`, issues, { positive: true });
@@ -568,7 +609,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
     validateBoolean(row.isActive, `${path}.isActive`, issues);
     validateNullableUtcTimestamp(row.endedAt, `${path}.endedAt`, issues);
     validateAuditFields(row, path, issues);
-    validateTransactionShape(row, path, issues);
+    validateTransactionShape(row, path, issues, false, version >= 6);
     if (typeof row.startDate === 'string' && typeof row.endDate === 'string' && row.endDate < row.startDate) {
       issue(issues, 'domain_mismatch', `${path}.endDate`, 'Recurring end date cannot be earlier than its start date.');
     }
@@ -578,7 +619,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
   });
 }
 
-function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 = 1): void {
+function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6 = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringOccurrences[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -593,10 +634,13 @@ function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, versi
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
+    if (version >= 6) {
+      validateNullableString(row.subcategoryId, `${path}.subcategoryId`, issues, backupLimits.maxIdLength);
+    }
     validateNullableString(row.note, `${path}.note`, issues, backupLimits.maxNoteLength);
     validateNullableString(row.transactionId, `${path}.transactionId`, issues, backupLimits.maxIdLength);
     validateAuditFields(row, path, issues);
-    validateTransactionShape(row, path, issues);
+    validateTransactionShape(row, path, issues, false, version >= 6);
     if (row.status === 'posted' && (typeof row.transactionId !== 'string' || !row.transactionId)) {
       issue(issues, 'domain_mismatch', `${path}.transactionId`, 'A posted occurrence must link to a transaction.');
     }
@@ -735,7 +779,11 @@ export class BackupValidator {
     return this.validateVersion(raw, 5) as BackupFileV5;
   }
 
-  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5): BackupFile {
+  validateV6(raw: Record<string, unknown>): BackupFileV6 {
+    return this.validateVersion(raw, 6) as BackupFileV6;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5 | 6): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
       issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
@@ -788,7 +836,7 @@ export class BackupValidator {
         ? requireArray(data, 'creditCardStatements', 'data.creditCardStatements', backupLimits.collections.creditCardStatements, issues)
         : [];
       validateAccountRows(accounts, issues, version);
-      validateCategoryRows(categories, issues);
+      validateCategoryRows(categories, issues, version);
       validateTransactionRows(transactions, issues, version);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
@@ -858,15 +906,23 @@ export class BackupValidator {
       }
       activeAccountNames.add(key);
     }
+    // Name uniqueness is scoped to the parent from v6 on, matching
+    // categories_active_scope_name_uidx. Legacy files have no parents, so the
+    // empty scope reproduces the old type-only rule exactly.
     const activeCategoryNames = new Set<string>();
     for (const category of data.categories) {
       if (category.isArchived) continue;
-      const key = `${category.type}:${normalizedName(category.name)}`;
+      const scope = 'parentCategoryId' in category ? category.parentCategoryId ?? '' : '';
+      const key = `${category.type}:${scope}:${normalizedName(category.name)}`;
       if (activeCategoryNames.has(key)) {
-        issue(issues, 'duplicate_constraint', 'data.categories', 'Active category names must be unique within their type.');
+        issue(issues, 'duplicate_constraint', 'data.categories', scope
+          ? 'A parent category has two active subcategories with the same name.'
+          : 'Active category names must be unique within their type.');
       }
       activeCategoryNames.add(key);
     }
+
+    this.validateCategoryHierarchy(file, issues);
 
     for (const transaction of data.transactions) {
       this.validateAccountReference(accountIds, transaction.accountId, 'transaction', transaction.id, issues);
@@ -876,9 +932,16 @@ export class BackupValidator {
       if (transaction.categoryId) {
         this.validateCategoryReference(categories, transaction.categoryId, transaction.type, 'transaction', transaction.id, issues);
       }
+      this.validateSubcategoryPair(file, transaction, 'transaction', issues);
+    }
+    for (const rule of data.recurringTransactions) {
+      this.validateSubcategoryPair(file, rule, 'recurring rule', issues);
+    }
+    for (const occurrence of data.recurringOccurrences) {
+      this.validateSubcategoryPair(file, occurrence, 'recurring occurrence', issues);
     }
 
-    if (file.formatVersion === 3 || file.formatVersion === 4 || file.formatVersion === 5) {
+    if (supportsRefunds(file)) {
       const transactionsById = new Map(file.data.transactions.map((row) => [row.id, row]));
       const postedRefundTotals = new Map<string, number>();
       for (const transaction of file.data.transactions) {
@@ -1069,6 +1132,63 @@ export class BackupValidator {
   ): void {
     if (!accountIds.has(accountId)) {
       issue(issues, 'missing_reference', 'data', `${source} ${sourceId} references a missing account.`);
+    }
+  }
+
+  /**
+   * Two-level hierarchy checks for a v6 payload.
+   *
+   * The depth rule doubles as the cycle guard: every parent must itself be
+   * top-level, so no chain longer than two links can form, and a cycle of any
+   * length would require some member to have both a parent and a child. Nothing
+   * has to walk the graph.
+   */
+  private validateCategoryHierarchy(file: BackupFile, issues: ValidationIssues): void {
+    if (!isCurrentFormat(file)) return;
+    const categories = new Map(file.data.categories.map((row) => [row.id, row]));
+    for (const category of file.data.categories) {
+      const parentId = category.parentCategoryId;
+      if (parentId === null) continue;
+      if (parentId === category.id) {
+        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} is its own parent.`);
+        continue;
+      }
+      const parent = categories.get(parentId);
+      if (!parent) {
+        issue(issues, 'missing_reference', 'data.categories', `Category ${category.id} references a missing parent.`);
+        continue;
+      }
+      if (parent.parentCategoryId !== null) {
+        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} nests more than two levels.`);
+      }
+      if (parent.type !== category.type) {
+        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} does not match its parent type.`);
+      }
+      // An active subcategory under an archived parent is a state no picker can
+      // represent, and archiving cascades, so it cannot arise from normal use.
+      if (!category.isArchived && parent.isArchived) {
+        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} is active under an archived parent.`);
+      }
+    }
+  }
+
+  /** The stored (category, subcategory) pair must actually belong together. */
+  private validateSubcategoryPair(
+    file: BackupFile,
+    row: { id: string; categoryId: string | null; subcategoryId?: string | null },
+    source: string,
+    issues: ValidationIssues,
+  ): void {
+    if (!isCurrentFormat(file)) return;
+    const subcategoryId = row.subcategoryId ?? null;
+    if (subcategoryId === null) return;
+    const subcategory = file.data.categories.find((category) => category.id === subcategoryId);
+    if (!subcategory) {
+      issue(issues, 'missing_reference', 'data', `${source} ${row.id} references a missing subcategory.`);
+      return;
+    }
+    if (subcategory.parentCategoryId !== row.categoryId) {
+      issue(issues, 'domain_mismatch', 'data', `${source} ${row.id} has a subcategory from another category.`);
     }
   }
 

@@ -20,7 +20,7 @@ defaults = [
 def seed_if_empty():
     with connection:
         if connection.execute('SELECT count(*) FROM categories').fetchone()[0]: return False
-        connection.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', [(id, name, type, icon, 0, None, utc, utc) for id, name, type, icon in defaults])
+        connection.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', [(id, name, type, icon, 0, None, utc, utc) for id, name, type, icon in defaults])
         return True
 
 assert seed_if_empty() is True
@@ -31,22 +31,22 @@ connection.execute("UPDATE categories SET is_archived = 1, archived_at = ? WHERE
 assert seed_if_empty() is False
 assert connection.execute("SELECT name FROM categories WHERE id = 'default-expense-food-dining'").fetchone()[0] == 'Meals'
 
-connection.execute('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', ('custom-expense', 'Custom', 'expense', 'other', 0, None, utc, utc))
-connection.execute('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', ('custom-income', ' custom ', 'income', 'other', 0, None, utc, utc))
+connection.execute('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', ('custom-expense', 'Custom', 'expense', 'other', 0, None, utc, utc))
+connection.execute('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', ('custom-income', ' custom ', 'income', 'other', 0, None, utc, utc))
 try:
-    connection.execute('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', ('duplicate', ' CUSTOM ', 'expense', 'other', 0, None, utc, utc))
+    connection.execute('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', ('duplicate', ' CUSTOM ', 'expense', 'other', 0, None, utc, utc))
     raise AssertionError('same-type active duplicate accepted')
 except sqlite3.IntegrityError: pass
 
 connection.execute("UPDATE categories SET is_archived = 1, archived_at = ? WHERE id = 'custom-expense'", (utc,))
-connection.execute('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', ('replacement', 'custom', 'expense', 'other', 0, None, utc, utc))
+connection.execute('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', ('replacement', 'custom', 'expense', 'other', 0, None, utc, utc))
 try:
     connection.execute("UPDATE categories SET is_archived = 0, archived_at = NULL WHERE id = 'custom-expense'")
     raise AssertionError('restore conflict accepted')
 except sqlite3.IntegrityError: pass
 connection.execute("UPDATE categories SET name = 'Restored', is_archived = 0, archived_at = NULL WHERE id = 'custom-expense'")
 
-connection.execute('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', ('unused', 'Unused', 'expense', 'other', 0, None, utc, utc))
+connection.execute('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', ('unused', 'Unused', 'expense', 'other', 0, None, utc, utc))
 connection.execute("DELETE FROM categories WHERE id = 'unused'")
 assert connection.execute("SELECT count(*) FROM categories WHERE id = 'unused'").fetchone()[0] == 0
 

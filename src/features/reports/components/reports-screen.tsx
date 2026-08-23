@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -11,16 +11,32 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatCop } from '@/features/accounts/account-format';
 import { formatEstimatedReturn } from '@/features/investments/investment-format';
 import { useInvestments } from '@/features/investments/use-investments';
 import { formatReportDate } from '../report-period';
-import type { ComparisonMetric, ReportPeriodSelection } from '../report.types';
+import type {
+  ComparisonMetric,
+  PeriodSummary,
+  PreviousPeriodComparison,
+  ReportPeriodSelection,
+} from '../report.types';
 import { useReports } from '../use-reports';
 import { ReportPeriodSelector } from './report-period-selector';
-import { CashFlowBars, CategoryExpenseList, NetWorthLineChart } from './report-visualizations';
+import {
+  BudgetPerformanceList,
+  CashFlowChart,
+  CategoryDonut,
+  CategoryExpenseList,
+  NetWorthChart,
+  PaceChart,
+  WeekdayChart,
+} from './report-visualizations';
+import { budgetPerformance } from '../report-insights';
+import { useReportBudgets } from '../use-report-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function ReportsScreen() {
@@ -31,6 +47,8 @@ export function ReportsScreen() {
   const reports = useReports(selection);
   const { portfolio } = useInvestments();
   const data = reports.data;
+  const { limits, monthCount } = useReportBudgets(data?.period);
+  const budgets = data ? budgetPerformance(limits, data.categoryExpenses) : [];
 
   if (reports.loading && !data) {
     return <ReportsLoading onBack={() => router.back()} />;
@@ -70,9 +88,7 @@ export function ReportsScreen() {
           <Text accessibilityLiveRegion="assertive" style={[styles.errorText, { color: theme.destructive }]}>
             {reports.error}
           </Text>
-          <Pressable accessibilityRole="button" onPress={reports.reload} style={styles.retryButton}>
-            <Text style={[styles.retryText, { color: theme.primaryAction }]}>Retry</Text>
-          </Pressable>
+          <Button label="Retry" onPress={reports.reload} size="sm" variant="ghost" />
         </View>
       ) : null}
 
@@ -97,16 +113,17 @@ export function ReportsScreen() {
           <ReportSection
             description="Posted income and expenses in the selected period."
             title="Period summary">
-            <View style={styles.summaryGrid}>
-              <SummaryMetric label="Income" tone="income" value={formatCop(data.summary.income)} />
-              <SummaryMetric label="Gross expenses" tone="expense" value={formatCop(data.summary.grossExpenses)} />
-              <SummaryMetric label="Refunds" tone="refund" value={formatCop(data.summary.refunds)} />
-              <SummaryMetric label="Net expenses" tone="expense" value={formatCop(data.summary.expenses)} />
-              <SummaryMetric label="Net result" tone={data.summary.net >= 0 ? 'income' : 'expense'} value={formatCop(data.summary.net)} />
-              <SummaryMetric label="Average expense" value={formatCop(data.summary.averageExpense)} />
-              <SummaryMetric label="Expense transactions" value={String(data.summary.expenseCount)} />
-              <SummaryMetric label="Income transactions" value={String(data.summary.incomeCount)} />
-            </View>
+            <PeriodHeadline comparison={data.comparison} summary={data.summary} />
+            <CollapsibleDetails>
+              <View style={styles.summaryGrid}>
+                <SummaryMetric label="Gross expenses" tone="expense" value={formatCop(data.summary.grossExpenses)} />
+                <SummaryMetric label="Refunds" tone="refund" value={formatCop(data.summary.refunds)} />
+                <SummaryMetric label="Average expense" value={formatCop(data.summary.averageExpense)} />
+                <SummaryMetric label="Expense transactions" value={String(data.summary.expenseCount)} />
+                <SummaryMetric label="Income transactions" value={String(data.summary.incomeCount)} />
+                <SummaryMetric label="Refund transactions" value={String(data.summary.refundCount)} />
+              </View>
+            </CollapsibleDetails>
             <View style={[styles.largest, { borderTopColor: theme.hairline }]}>
               <Text style={[styles.largestLabel, { color: theme.secondaryText }]}>Largest expense</Text>
               {data.summary.largestExpense ? (
@@ -126,16 +143,44 @@ export function ReportsScreen() {
           </ReportSection>
 
           <ReportSection
-            description={`Grouped by ${data.period.grouping === 'day' ? 'Bogotá-local day' : 'calendar month'}; missing buckets are shown as zero.`}
+            description={`One column per ${data.period.grouping === 'day' ? 'Bogotá-local day' : 'calendar month'}. Income rises above the line, expenses fall below it.`}
             title="Income vs expenses">
-            <CashFlowBars buckets={data.cashFlow} />
+            <CashFlowChart buckets={data.cashFlow} />
           </ReportSection>
+
+          {data.pace.length > 1 ? (
+            <ReportSection
+              description={`Running total of net expenses, against the same point of ${data.comparison.previousPeriod.label}.`}
+              title="Spending pace">
+              <PaceChart pace={data.pace} previousLabel="Previous period" />
+            </ReportSection>
+          ) : null}
+
+          {budgets.length > 0 ? (
+            <ReportSection
+              description="Category budgets against what was actually spent. Spending is already net of refunds and excludes transfers."
+              title="Budget vs actual">
+              <BudgetPerformanceList budgets={budgets} monthCount={monthCount} />
+            </ReportSection>
+          ) : null}
+
+          {data.weekdaySpending.length > 0 ? (
+            <ReportSection
+              description="Average net expenses per weekday, divided by how many of each weekday the period contained."
+              title="Spending by weekday">
+              <WeekdayChart weekdays={data.weekdaySpending} />
+            </ReportSection>
+          ) : null}
 
           <ReportSection
             description="All posted expenses ranked by stable category ID, including archived historical categories."
             title="Expenses by category">
             {data.categoryExpenses.length > 0 ? (
-              <CategoryExpenseList categories={data.categoryExpenses} />
+              <>
+                <CategoryDonut categories={data.categoryExpenses} />
+                <View style={styles.donutDivider} />
+                <CategoryExpenseList categories={data.categoryExpenses} />
+              </>
             ) : (
               <SectionEmpty text="No posted expenses to rank for this period." />
             )}
@@ -144,7 +189,7 @@ export function ReportsScreen() {
           <ReportSection
             description={`Starts with net worth before ${formatReportDate(data.period.dateFrom)}, then applies posted history through each ${data.period.grouping === 'day' ? 'day' : 'month end'}.`}
             title="Net worth evolution">
-            <NetWorthLineChart points={data.netWorth} />
+            <NetWorthChart points={data.netWorth} />
           </ReportSection>
 
           {portfolio.investmentAccountCount > 0 ? (
@@ -230,6 +275,102 @@ function ReportSection({
         <Text style={[styles.sectionDescription, { color: theme.secondaryText }]}>{description}</Text>
       </View>
       <Card>{children}</Card>
+    </View>
+  );
+}
+
+/**
+ * Headline block: the number that answers "did I come out ahead", with its
+ * savings rate and previous-period delta, then the three supporting totals.
+ *
+ * The previous grid gave "Net result" and "Income transactions" identical weight,
+ * so nothing stood out. Counts and averages now live behind "Show details".
+ */
+function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; comparison: PreviousPeriodComparison }) {
+  const theme = useAppTheme();
+  const positive = summary.net >= 0;
+  const netColor = positive ? theme.income : theme.expense;
+
+  return (
+    <View style={styles.headline}>
+      <View style={styles.headlineTop}>
+        <View style={styles.headlineMain}>
+          <Text style={[styles.headlineLabel, { color: theme.mutedText }]}>Net result</Text>
+          <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.headlineValue, { color: netColor }]}>
+            {positive ? '+' : '-'}{formatCop(Math.abs(summary.net))}
+          </Text>
+        </View>
+        <DeltaChip metric={comparison.net} />
+      </View>
+
+      {summary.savingsRateBasisPoints === null ? (
+        <Text style={[styles.headlineHint, { color: theme.mutedText }]}>
+          No income this period, so a savings rate does not apply.
+        </Text>
+      ) : (
+        <Text style={[styles.headlineHint, { color: theme.secondaryText }]}>
+          You kept {formatPercentage(summary.savingsRateBasisPoints)} of what you earned.
+        </Text>
+      )}
+
+      <View style={styles.headlineRow}>
+        <SummaryMetric label="Income" tone="income" value={formatCop(summary.income)} />
+        <SummaryMetric label="Net expenses" tone="expense" value={formatCop(summary.expenses)} />
+      </View>
+    </View>
+  );
+}
+
+/** Compact previous-period delta, shown next to the metric it belongs to. */
+function DeltaChip({ metric }: { metric: ComparisonMetric }) {
+  const theme = useAppTheme();
+  if (!metric.hasPreviousData) return null;
+  const toneColor = metric.tone === 'positive'
+    ? theme.income
+    : metric.tone === 'negative'
+      ? theme.expense
+      : theme.secondaryText;
+  const arrow: SymbolViewProps['name'] = metric.direction === 'increased'
+    ? { ios: 'arrow.up', android: 'arrow_upward', web: 'arrow_upward' }
+    : metric.direction === 'decreased'
+      ? { ios: 'arrow.down', android: 'arrow_downward', web: 'arrow_downward' }
+      : { ios: 'minus', android: 'remove', web: 'remove' };
+  return (
+    <View style={[styles.deltaChip, { backgroundColor: theme.elevatedSurface }]}>
+      <SymbolView name={arrow} size={13} tintColor={toneColor} />
+      <Text style={[styles.deltaChipText, { color: toneColor }]}>
+        {metric.percentageChangeBasisPoints === null
+          ? formatCop(Math.abs(metric.difference))
+          : formatPercentage(Math.abs(metric.percentageChangeBasisPoints))}
+      </Text>
+    </View>
+  );
+}
+
+function CollapsibleDetails({ children }: { children: React.ReactNode }) {
+  const theme = useAppTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.details}>
+      <Pressable
+        accessibilityLabel={open ? 'Hide summary details' : 'Show summary details'}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        hitSlop={spacing.sm}
+        onPress={() => setOpen((value) => !value)}
+        style={styles.detailsToggle}>
+        <Text style={[styles.detailsToggleLabel, { color: theme.primaryAction }]}>
+          {open ? 'Hide details' : 'Show details'}
+        </Text>
+        <SymbolView
+          name={open
+            ? { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' }
+            : { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }}
+          size={16}
+          tintColor={theme.primaryAction}
+        />
+      </Pressable>
+      {open ? children : null}
     </View>
   );
 }
@@ -373,6 +514,26 @@ const styles = StyleSheet.create({
   sectionHeading: { gap: spacing.xs },
   sectionTitle: { ...typography.sectionTitle },
   sectionDescription: { ...typography.caption },
+  headline: { gap: spacing.sm },
+  headlineTop: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
+  headlineMain: { flex: 1, gap: spacing.xs, minWidth: 0 },
+  headlineLabel: { ...typography.overline },
+  headlineValue: { ...typography.moneyHero },
+  headlineHint: { ...typography.caption },
+  headlineRow: { borderTopColor: 'transparent', flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
+  deltaChip: {
+    alignItems: 'center',
+    borderRadius: borderRadii.full,
+    flexDirection: 'row',
+    gap: 2,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  deltaChipText: { ...typography.label, fontSize: 11 },
+  details: { gap: spacing.sm, marginTop: spacing.sm },
+  detailsToggle: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs, minHeight: 32 },
+  detailsToggleLabel: { ...typography.label },
+  donutDivider: { height: spacing.md },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.lg },
   metric: { gap: spacing.xs, minWidth: '50%', paddingRight: spacing.sm, width: '50%' },
   metricLabel: { ...typography.label },

@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/card';
 import { IconChip } from '@/components/icon-chip';
+import { PressableScale } from '@/components/pressable-scale';
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -110,7 +111,7 @@ export function MoreScreen() {
           {menuItems.map((item, index) => (
             <Fragment key={item.label}>
               {index > 0 ? <View style={[styles.separator, { backgroundColor: theme.hairline }]} /> : null}
-              <Pressable
+              <PressableScale
                 accessibilityLabel={item.accessibilityLabel}
                 accessibilityHint={item.accessibilityHint}
                 accessibilityRole="button"
@@ -122,7 +123,7 @@ export function MoreScreen() {
                   <Text style={[styles.description, { color: theme.secondaryText }]}>{item.description}</Text>
                 </View>
                 <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} />
-              </Pressable>
+              </PressableScale>
             </Fragment>
           ))}
         </Card>

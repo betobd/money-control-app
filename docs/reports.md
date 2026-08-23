@@ -31,15 +31,41 @@ Calendar presets compare with the immediately preceding equivalent calendar wind
 
 ### Period summary
 
-The summary exposes posted income, posted expenses, `income - expenses`, income/expense counts, the average expense, and the largest expense with its category, account, and financial date. The average is rounded to the nearest whole peso because fractional COP is unsupported; a zero expense count produces zero rather than division by zero. No budget summary is shown because the available budgets are monthly and would be misleading for arbitrary report windows.
+The summary exposes posted income, posted expenses, `income - expenses`, income/expense counts, the average expense, and the largest expense with its category, account, and financial date. The average is rounded to the nearest whole peso because fractional COP is unsupported; a zero expense count produces zero rather than division by zero.
+
+**Savings rate** (`savingsRateBasisPoints`) is the net result as a share of income, in basis points. It is `null` — never `0` — when the period has no income, because a rate against a zero denominator is undefined and rendering `0%` would read as "saved nothing" rather than "does not apply".
+
+The screen presents net result as the headline with its savings rate and previous-period delta, then income and net expenses as supporting values. Counts, averages and gross/refund totals sit behind a **Show details** disclosure. The previous flat grid gave every metric identical weight, so nothing stood out.
 
 ### Income versus expenses
 
-SQLite aggregates posted income and expenses by selected day/month. The service fills absent buckets and calculates each bucket's net result. Transfers and voided records never enter the query.
+SQLite aggregates posted income and expenses by selected day/month. `fillBuckets` joins those sparse aggregates onto the period's complete bucket list so a day with no activity is an explicit zero — charts depend on this, since a missing bucket would silently compress the time axis. Transfers and voided records never enter the query.
+
+The chart is a **diverging bar chart**: one column per bucket, income above a shared baseline and expenses below it. Selecting a column reveals its exact figures in a readout above the chart; with nothing selected the readout shows the whole period. This replaced a stacked list of one row per bucket, which made a 31-day period roughly 2,400px tall and almost entirely zeros.
+
+### Spending pace
+
+The service also fetches the **previous** period's buckets and `cumulativePace` builds a running total of net expenses for both, aligned index by index. Alignment is positional rather than by date because the periods can differ in length (a 31-day month against a 30-day one); the shorter series ends early rather than being stretched, which would invent data points.
+
+### Spending by weekday
+
+`weekdaySpending` groups net expenses by day of week, Sunday first. `average` divides by how many times that weekday actually occurred in the period, so a period containing five Fridays and four Mondays stays comparable. It requires daily resolution, so month-grouped periods return an empty array and the section is hidden.
+
+### Budget vs actual
+
+`useReportBudgets` reads the budgets feature's monthly read model for every month the period touches and sums the limits per category; `budgetPerformance` pairs those limits with the period's actual category spending. A period covering part of a month still counts that month's whole limit — **budgets are never prorated**, because inventing a daily rate would misrepresent the user's own plan. `monthCount` is surfaced in the UI whenever more than one month is summed.
+
+Categories with a limit but no spending are kept (the useful "nothing spent yet" case). Spending without a limit is not a budget and is left to the category ranking. Status is `over` past the limit, `near` from 80%, otherwise `under`; spending exactly the limit is `near`, not `over`.
+
+This lives in the reports feature rather than the report service because it reads another feature's read model, matching how the screen already composes investments.
 
 ### Expenses by category
 
 SQLite groups posted expenses by stable category ID, not category name, then sorts descending by total spent. Each result includes its persisted name/icon, total, transaction count, and percentage of selected-period expenses. Archived categories continue to appear. A defensive `Unknown category` / `other` fallback exists for legacy or damaged historical display data even though current foreign-key restrictions prevent normal category loss. The UI shows the complete ranked list rather than truncating it.
+
+The query groups by `(category, subcategory)` and the service folds those leaf rows upward, so the ranking is identical to what it was before subcategories existed: a category's total always includes every subcategory beneath it. Grouping once and folding — rather than running a second breakdown query — makes "a category's total equals the sum of its parts" true by construction instead of by two queries agreeing. Both levels resolve refunds through the expense they refund with the same `coalesce`, so a refund reduces exactly the leaf its original expense landed in.
+
+Each category row expands to its breakdown, which includes an explicit `No subcategory` bucket for spending recorded on the category itself. Breakdown percentages are relative to the parent category, not to period expenses. A category whose spending carries no subcategory at all gets no breakdown — a single row would only repeat the header — but a category whose spending is entirely one subcategory does, because "all of Transporte was Taxi" is worth seeing.
 
 ### Net worth
 
@@ -69,7 +95,9 @@ Percentages are not persisted. The service calculates integer basis points (`10,
 
 Reports uses the existing focus/event financial-data refresh hook. It reloads when focused and after transaction, account, or budget invalidation events; background real-time subscriptions are unnecessary. Pull-to-refresh runs the same complete report load. A period change refreshes every section together.
 
-The screen uses the existing theme tokens and React Native primitives. No chart dependency was added. Cash flow uses labeled grouped bars, category spending uses a complete ranked horizontal-bar list, and net worth uses a dependency-free line plot plus a scrollable textual point summary. Accessible summaries expose totals, start/end values, and extrema without relying only on color.
+The screen uses the existing theme tokens. Charts live in `src/components/charts/` as presentational primitives with no domain knowledge; their geometry is pure and tested in `tests/charts.test.mjs`.
+
+`react-native-svg` backs the donut and the line/area charts, which need arcs, gradients and curves. The diverging bar chart and the weekday bars are deliberately plain Views instead, so each column is natively tappable. Category spending keeps its complete ranked list below the donut — the ring shows proportion, the list shows detail. Accessible summaries expose totals, start/end values, and extrema without relying only on color.
 
 ## Investments
 
@@ -93,5 +121,7 @@ Known limitations:
 - Daily custom charts are limited by the service to ranges of 45 days; longer ranges use monthly aggregation.
 - Calendar presets cover complete periods, including later dates in the current month/year if future-dated transactions exist.
 - Opening balances are modeled as existing before transaction history because accounts do not store an opening-balance date.
-- The net-worth chart is a lightweight view-based line plot, not an interactive analytics chart.
-- There is no report export, drill-down, forecast, budget overlay, multi-currency conversion, or background report subscription.
+- Charts have no pan/zoom, no crosshair, and no per-point tooltip beyond the cash-flow column readout.
+- Budget limits are summed per whole month and never prorated, so a partial-month period compares actual spending against a full month's limit.
+- The weekday and pace sections need daily buckets, so they are hidden for periods longer than the 45-day daily-grouping limit (pace still renders for monthly buckets, one point per month).
+- There is no report export, drill-down, forecast, multi-currency conversion, or background report subscription.

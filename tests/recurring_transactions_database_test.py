@@ -36,18 +36,18 @@ connection.execute(
     ('checking', 'Checking', 'checking', 'COP', 1_000_000, None, 0, None, utc, utc),
 )
 connection.execute(
-    'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
     ('food', 'Food', 'expense', 'food', 0, None, utc, utc),
 )
 connection.execute(
-    '''INSERT INTO recurring_transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+    '''INSERT INTO recurring_transactions (id,type,amount,currency,account_id,destination_account_id,category_id,note,frequency,interval,start_date,next_occurrence_date,end_date,is_active,ended_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
     (
         'rule', 'expense', 50_000, 'COP', 'checking', None, 'food', 'Internet',
         'monthly', 1, '2026-01-31', '2026-02-28', None, 1, None, utc, utc,
     ),
 )
 connection.execute(
-    '''INSERT INTO recurring_occurrences VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+    '''INSERT INTO recurring_occurrences (id,recurring_transaction_id,scheduled_date,status,type,amount,currency,account_id,destination_account_id,category_id,note,transaction_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
     (
         'occurrence', 'rule', '2026-01-31', 'pending', 'expense', 50_000, 'COP',
         'checking', None, 'food', 'Internet', None, utc, utc,
@@ -56,7 +56,7 @@ connection.execute(
 
 try:
     connection.execute(
-        '''INSERT INTO recurring_occurrences VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        '''INSERT INTO recurring_occurrences (id,recurring_transaction_id,scheduled_date,status,type,amount,currency,account_id,destination_account_id,category_id,note,transaction_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
         (
             'duplicate', 'rule', '2026-01-31', 'pending', 'expense', 50_000, 'COP',
             'checking', None, 'food', None, None, utc, utc,
@@ -118,11 +118,11 @@ upgrade.execute(
     ('legacy-account', 'Legacy', 'checking', 'COP', 0, None, 0, None, utc, utc),
 )
 upgrade.execute(
-    'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
     ('legacy-category', 'Legacy', 'expense', 'other', 0, None, utc, utc),
 )
 upgrade.execute(
-    'INSERT INTO recurring_transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO recurring_transactions (id,type,amount,currency,account_id,destination_account_id,category_id,note,frequency,interval,next_transaction_date,is_active,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     (
         'legacy-rule', 'expense', 1_000, 'COP', 'legacy-account', None,
         'legacy-category', None, 'monthly', 1, '2026-08-31', 1, utc, utc,

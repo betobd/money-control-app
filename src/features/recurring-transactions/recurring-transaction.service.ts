@@ -1,6 +1,6 @@
 import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transaction-date';
 import {
-  TransactionValidationError,
+  isTransactionValidationError,
   type TransactionService,
 } from '@/features/transactions/transaction.service';
 import type {
@@ -25,9 +25,17 @@ import {
 const GENERATION_LIMIT_PER_RULE = 100;
 
 export class RecurringRuleValidationError extends Error {
+  /** See the note on TransactionValidationError's brand. */
+  readonly isRecurringRuleValidationError = true;
+
   constructor(public readonly fields: RecurringRuleValidationErrors) {
     super('Recurring transaction validation failed.');
   }
+}
+
+/** Identity-independent check for {@link RecurringRuleValidationError}. */
+export function isRecurringRuleValidationError(value: unknown): value is RecurringRuleValidationError {
+  return value instanceof Error && (value as RecurringRuleValidationError).isRecurringRuleValidationError === true;
 }
 
 export type RecurringActionErrorCode =
@@ -146,6 +154,7 @@ export class RecurringTransactionService {
         accountId: rule.accountId,
         destinationAccountId: rule.destinationAccountId,
         categoryId: rule.categoryId,
+        subcategoryId: rule.subcategoryId,
         note: rule.note,
         transactionId: null,
         createdAt: timestamp,
@@ -334,20 +343,24 @@ export class RecurringTransactionService {
             accountId: normalized.accountId,
             destinationAccountId: normalized.destinationAccountId,
             categoryId: null,
+            subcategoryId: null,
             note: normalized.note,
           }
         : {
             type: normalized.type,
             amount: normalized.amount,
             accountId: normalized.accountId,
+            // validateTemplate already resolved the pair, so a rule created from a
+            // subcategory stores the parent in categoryId, exactly like a transaction.
             categoryId: normalized.categoryId,
+            subcategoryId: normalized.subcategoryId,
             destinationAccountId: null,
             note: normalized.note,
           }) as T;
       return { shape, currency: normalized.currency };
     } catch (cause) {
-      if (cause instanceof RecurringRuleValidationError) throw cause;
-      if (!(cause instanceof TransactionValidationError)) throw cause;
+      if (isRecurringRuleValidationError(cause)) throw cause;
+      if (!isTransactionValidationError(cause)) throw cause;
       // A transfer that fails only on the destination leg/rate is a cross-currency pair.
       if (input.type === 'transfer' && (cause.fields.destinationAmount || cause.fields.exchangeRate)) {
         throw new RecurringRuleValidationError({
@@ -383,6 +396,7 @@ export class RecurringTransactionService {
       amount: occurrence.amount,
       accountId: occurrence.accountId,
       categoryId: occurrence.categoryId,
+      subcategoryId: occurrence.subcategoryId,
       destinationAccountId: null,
       transactionDate: occurrence.scheduledDate,
       note: occurrence.note,

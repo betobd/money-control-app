@@ -12,6 +12,7 @@ const empty: BudgetMonthView = {
     totalRemaining: 0,
     percentageUsed: 0,
     progressWidth: '0%',
+  nestedCount: 0,
   },
 };
 

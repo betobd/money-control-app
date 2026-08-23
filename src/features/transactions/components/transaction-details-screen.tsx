@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { useAccounts } from '@/features/accounts/use-accounts';
@@ -28,16 +29,18 @@ import {
 } from '@/features/currency/currency';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
 import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
-import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
+import { CategoryGrid, type CategorySelection } from '@/features/add-transaction/components/category-grid';
+import { CategoryPicker } from '@/features/add-transaction/components/category-picker';
 import { FixedSaveBar } from '@/features/add-transaction/components/fixed-save-bar';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
 import { TransferAccountFields } from '@/features/add-transaction/components/transfer-account-fields';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
+import { buildCategoryTree } from '@/features/categories/category.types';
 import { useCategories } from '@/features/categories/use-categories';
 import { refundService } from '@/features/refunds/refunds';
 import { useRefundSummary } from '@/features/refunds/use-refund-summary';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
-import { transactionTypeLabel } from '@/features/transactions/transaction-presentation';
+import { categoryPathLabel, transactionTypeLabel } from '@/features/transactions/transaction-presentation';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { transactionService } from '@/features/transactions/transactions';
 import type {
@@ -227,12 +230,18 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             ) : transaction.type === 'refund' ? (
               <>
                 <DetailRow label="Returned to account" value={transaction.accountName} />
-                <DetailRow label="Inherited category" value={transaction.categoryName ?? 'Unknown category'} />
+                <DetailRow
+                  label="Inherited category"
+                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Unknown category'}
+                />
               </>
             ) : (
               <>
                 <DetailRow label={transaction.type === 'income' ? 'Destination account' : 'Source account'} value={transaction.accountName} />
-                <DetailRow label="Category" value={transaction.categoryName ?? 'Unknown category'} />
+                <DetailRow
+                  label="Category"
+                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Unknown category'}
+                />
               </>
             )}
             <DetailRow label="Transaction date" value={formatTransactionDate(transaction.transactionDate)} />
@@ -334,7 +343,12 @@ function TransactionEditForm({
   const [amountDigits, setAmountDigits] = useState(editStringFromMinor(transaction.amount, editCurrency));
   const [selectedAccountId, setSelectedAccountId] = useState(transaction.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(transaction.destinationAccountId ?? undefined);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(transaction.categoryId ?? undefined);
+  const [selection, setSelection] = useState<CategorySelection | null>(
+    transaction.categoryId
+      ? { categoryId: transaction.categoryId, subcategoryId: transaction.subcategoryId }
+      : null,
+  );
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [transactionDate, setTransactionDate] = useState(transaction.transactionDate);
   const [note, setNote] = useState(transaction.note ?? '');
   const [pickerField, setPickerField] = useState<AccountPickerField>(null);
@@ -345,15 +359,23 @@ function TransactionEditForm({
   const categoryType = transaction.type === 'income' ? 'income' : 'expense';
   const { categories } = useCategories(categoryType, true);
   const activeAccounts = accounts.filter((account) => !account.isArchived);
-  const activeCategories = categories.filter((category) => !category.isArchived);
+  // buildCategoryTree drops a subcategory whose parent is missing, so an active
+  // subcategory under an archived category is correctly not offered.
+  const activeTree = buildCategoryTree(categories.filter((category) => !category.isArchived));
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
   const destinationAccount = accounts.find((account) => account.id === destinationAccountId);
-  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const selectedCategory = categories.find((category) => category.id === selection?.categoryId);
+  const selectedSubcategory = categories.find((category) => category.id === selection?.subcategoryId);
   const pickerAccounts = pickerField === 'source'
     ? activeAccounts.filter((account) => account.id !== destinationAccountId)
     : pickerField === 'destination'
       ? activeAccounts.filter((account) => account.id !== selectedAccountId)
       : activeAccounts;
+
+  function selectCategory(next: CategorySelection) {
+    setSelection(next);
+    setErrors((current) => ({ ...current, categoryId: undefined, subcategoryId: undefined }));
+  }
 
   async function save() {
     if (saving) return;
@@ -399,7 +421,8 @@ function TransactionEditForm({
         await transactionService.update(transaction.id, {
           ...common,
           type: transaction.type,
-          categoryId: selectedCategoryId ?? '',
+          categoryId: selection?.categoryId ?? '',
+          subcategoryId: selection?.subcategoryId ?? null,
           exchangeRate: savedRate,
         });
       }
@@ -420,8 +443,9 @@ function TransactionEditForm({
       ? 'Select destination account'
       : 'Select account';
   const pickerSelectedId = pickerField === 'destination' ? destinationAccountId : selectedAccountId;
-  const historicalCategory = selectedCategory?.isArchived
-    ? `${selectedCategory.name} (archived historical value)`
+  const categoryPath = [selectedCategory?.name, selectedSubcategory?.name].filter(Boolean).join(' › ');
+  const historicalCategory = selectedCategory?.isArchived || selectedSubcategory?.isArchived
+    ? `${categoryPath} (archived historical value)`
     : undefined;
 
   return (
@@ -461,15 +485,22 @@ function TransactionEditForm({
               <Text style={[styles.historicalValue, { color: theme.secondaryText }]}>{historicalCategory}</Text>
             ) : null}
             <CategoryGrid
-              categories={activeCategories}
+              categories={activeTree}
               error={errors.categoryId}
-              onSelect={(id) => {
-                setSelectedCategoryId(id);
-                setErrors((current) => ({ ...current, categoryId: undefined }));
-              }}
-              onViewAll={() => router.push({ pathname: '/categories', params: { type: transaction.type } })}
-              selectedId={selectedCategoryId}
+              onSelect={selectCategory}
+              onViewAll={() => setCategoryPickerVisible(true)}
+              selection={selection}
+              subcategoryError={errors.subcategoryId}
               type={transaction.type}
+            />
+            <CategoryPicker
+              categories={activeTree}
+              onClose={() => setCategoryPickerVisible(false)}
+              onManage={() => router.push({ pathname: '/categories', params: { type: transaction.type } })}
+              onSelect={selectCategory}
+              selection={selection}
+              title={transaction.type === 'income' ? 'Select income category' : 'Select expense category'}
+              visible={categoryPickerVisible}
             />
             <FormFieldButton
               error={errors.accountId}
@@ -483,25 +514,12 @@ function TransactionEditForm({
           </>
         )}
 
-        <View style={styles.field}>
-          <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>Transaction date</Text>
-          <TextInput
-            accessibilityLabel="Transaction date, YYYY-MM-DD"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-            onChangeText={setTransactionDate}
-            style={[
-              styles.textInput,
-              {
-                backgroundColor: theme.surface,
-                borderColor: errors.transactionDate ? theme.destructive : theme.hairline,
-                color: theme.primaryText,
-              },
-            ]}
-            value={transactionDate}
-          />
-          {errors.transactionDate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.transactionDate}</Text> : null}
-        </View>
+        <DateField
+          error={errors.transactionDate}
+          label="Transaction date"
+          onChange={setTransactionDate}
+          value={transactionDate}
+        />
 
         <View style={styles.field}>
           <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>Note (optional)</Text>

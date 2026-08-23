@@ -25,12 +25,50 @@ Key coverage:
 - `backup_restore_database_test.py`: atomic restore, rollback on simulated failure, and restore **over an existing database that already contains a linked refund** (guards the self-referential `ON DELETE RESTRICT` delete-order fix).
 - Refund migration, credit-card, budget schema, notifications, and data-export projections.
 - `investments_migration_database_test.py`: migration `0012` preserves all data, accepts the `investment` account type, and enforces the investment/valuation CHECKs (enums, currency, value, maturity/start, one valuation per account+date). `investments_reports_database_test.py`: realized-investment-income attribution (account vs category, voided/out-of-period excluded) and the value-minus-basis valuation series. `backup_restore_database_test.py` now round-trips the investment tables through atomic restore/rollback.
+- `category_subcategories_migration_database_test.py`: migration `0013` preserves every existing row and every derived total, keeps `subcategory_id` null throughout, and enforces the depth-two limit, inherited type, parent-scoped name uniqueness, and subcategory-parent consistency on all three transaction-shaped tables. `transactions_database_test.py` and `reports_database_test.py` mirror the repositories' node-scoped category filter and leaf-level grouping in raw SQL; the reports test asserts that folding the leaf rows reproduces the category-only ranking exactly. `backup_restore_database_test.py` proves both category ordering rules — a bulk `DELETE FROM categories` trips `ON DELETE RESTRICT`, and a subcategory cannot be inserted before its parent — and exercises the post-restore hierarchy check with the triggers removed.
+- `budgets_database_test.py` mirrors the node-scoped budget spending subquery and asserts that a parent budget covers its whole subtree while a leaf budget covers only that leaf, refunds included — and that a sub-limit's spending is a strict subset of its parent's, which is why the month totals must not add them together.
 
 ## Conventions
 
 - Tests assert observable outcomes (balances, totals, statuses, messages), not private structure.
 - New behavior gets a test that fails before the fix and passes after.
 - Financial invariants (refunds ≠ income, transfers ≠ income/expense, voided excluded, whole-integer COP) are asserted at the layer that enforces them.
+- Calendar-grid math for the shared date picker is covered by `tests/calendar.test.mjs` (`npm run test:calendar`): six-week grids, adjacent-month padding, leap February, and month/day arithmetic across year boundaries.
+- Chart geometry is covered by `tests/charts.test.mjs` (`npm run test:charts`): series projection, flat-series centring, line/area/arc path shapes, and the rules that a donut drops non-positive values and splits a full circle so it still renders.
+- Report insights are covered by `tests/report-insights.test.mjs` (part of `npm run test:reports`): savings rate (null without income, never 0), weekday averaging by occurrences, positional pace alignment across periods of different lengths, budget-vs-actual pairing and thresholds, and month spanning.
+
+### Never branch on `instanceof` across a module boundary
+
+`instanceof` compares constructor identity, which only holds while every importer
+shares a single module instance. That is not guaranteed: `tsx` keys its module
+cache on the **specifier form**, so `./transaction.service`,
+`@/features/transactions/transaction.service`, and
+`../src/features/transactions/transaction.service.ts` load the same file as up to
+three separate modules with three distinct error classes. A translating `catch`
+then silently fails its `instanceof` check and rethrows the raw error — the app
+behaves correctly under Metro (which dedupes by absolute path) while the test
+reports a wrong error type.
+
+Error classes crossing a feature boundary therefore carry a readonly brand and
+export a type guard, and both production code and tests use the guard:
+
+| Error | Guard |
+|---|---|
+| `TransactionValidationError` | `isTransactionValidationError` |
+| `RecurringRuleValidationError` | `isRecurringRuleValidationError` |
+| `AppLockConfigurationError` | `isAppLockConfigurationError` |
+| `ExchangeRateProviderError` | `isExchangeRateProviderError` |
+
+Plain `instanceof` remains fine **within** one module (for example a screen
+catching an error thrown by the service it imports directly).
+
+### Inject collaborators instead of observing module singletons
+
+`TransactionService` and `BudgetService` accept a `notifyChanged` function
+defaulting to `notifyFinancialDataChanged`. Tests inject a recorder rather than
+calling `subscribeToFinancialDataChanges`, for the same module-identity reason:
+a subscription registered from a test file can land on a different listener set
+than the one the service publishes to.
 
 ## Running everything
 

@@ -20,7 +20,7 @@ database.execute(
     ('checking', 'Checking', 'checking', 'COP', 1000000, None, 0, None, utc, utc, None, None),
 )
 database.execute(
-    'INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
     ('food', 'Food', 'expense', 'food', 0, None, utc, utc),
 )
 database.execute(

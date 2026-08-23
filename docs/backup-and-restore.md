@@ -10,6 +10,41 @@ Creating a backup reads one consistent SQLite snapshot, builds and self-validate
 
 Restoring uses the native document picker with cache copying enabled. The app reads and validates file content rather than trusting the extension or MIME type, presents metadata and record counts, requires a second destructive confirmation, then replaces all included application data in one exclusive transaction. Picker cancellation is a neutral outcome and does not show an error.
 
+## Version 6 (Subcategories)
+
+Two-level categories advance the logical format to **v6** ([ADR 0007](decisions/0007-category-subcategories.md)).
+No collection is added. `categories` gains `parentCategoryId`, and `transactions`,
+`recurringTransactions` and `recurringOccurrences` each gain `subcategoryId`.
+`categoryId` keeps its meaning and always holds the parent, so every count,
+aggregate and CSV built on it reads the same before and after.
+
+The importer accepts v1–v6 and rejects future versions. **A v1–v5 backup upgrades
+by filling nulls, never by inferring a hierarchy**: a null parent means "this was
+already a top-level category" and a null subcategory means "classified exactly as
+before" — the same statement migration `0013` makes about the database, so a
+restored legacy backup and an upgraded database agree.
+
+Restore validation adds the hierarchy rules: a parent must exist, be top-level,
+share the child's type, and be active whenever the child is; names are unique per
+parent rather than per type; and every stored `(categoryId, subcategoryId)` pair
+must belong together. The depth rule doubles as the cycle guard — every parent
+must itself be top-level, so no chain longer than two links can form and a cycle
+of any length would need a row with both a parent and a child. No graph walk is
+required.
+
+Ordering matters in both directions, because `categories.parentCategoryId` is a
+self-reference with `ON DELETE RESTRICT` enforced per row — the same shape that
+made refunds delicate. Restore **deletes subcategories before categories** (a
+bulk `DELETE FROM categories` reaches a parent before its children and fails) and
+**inserts categories before subcategories**. Depth is capped at two, which makes
+that two-pass split a complete topological order. The post-restore domain check
+verifies the whole restored set at once, catching pairs the per-row triggers
+cannot see together.
+
+The transaction and recurring-rule CSVs gain `subcategory_id` and
+`subcategory_name`, appended after `category_name` so existing column positions
+are unchanged.
+
 ## Version 5 (Investments)
 
 Investments v1 advances the logical format to **v5** ([investments.md](investments.md)).
@@ -64,7 +99,7 @@ All monetary values remain safe integers in the same whole-COP representation us
 |---|---|
 | `accounts` | prior account fields plus `statementClosingDay` and `paymentDueDay` |
 | `creditCardStatements` | ID, card relationship, period/closing/due dates, statement balance, minimum payment, audit timestamps |
-| `categories` | `id`, `name`, `type`, `icon`, `isArchived`, `archivedAt`, `createdAt`, `updatedAt` |
+| `categories` | `id`, `name`, `type`, `icon`, `isArchived`, `archivedAt`, `createdAt`, `updatedAt` (v6 adds `parentCategoryId`) |
 | `transactions` | prior transaction fields plus refund type and nullable `originalTransactionId` |
 | `transactionSplits` | `id`, `transactionId`, `accountId`, `amount`, `position` |
 | `budgets` | `id`, `categoryId`, `month`, `limitAmount`, `createdAt`, `updatedAt` |

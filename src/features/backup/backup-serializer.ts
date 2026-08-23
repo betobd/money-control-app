@@ -1,4 +1,4 @@
-import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV5, type BackupFileV5, type BackupOverview } from './backup.types';
+import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV6, type BackupFileV6, type BackupOverview } from './backup.types';
 import type { BackupChecksumService } from './backup-checksum.service';
 
 type BackupMetadata = {
@@ -18,7 +18,7 @@ function compareInvestmentAccounts(
   return left.accountId < right.accountId ? -1 : left.accountId > right.accountId ? 1 : 0;
 }
 
-export function sortBackupData(data: BackupDataV5): BackupDataV5 {
+export function sortBackupData(data: BackupDataV6): BackupDataV6 {
   return {
     accounts: [...data.accounts].sort(compareIds),
     categories: [...data.categories].sort(compareIds),
@@ -35,7 +35,7 @@ export function sortBackupData(data: BackupDataV5): BackupDataV5 {
   };
 }
 
-export function createBackupOverview(data: BackupDataV5): BackupOverview {
+export function createBackupOverview(data: BackupDataV6): BackupOverview {
   let oldest: string | null = null;
   let newest: string | null = null;
   for (const transaction of data.transactions) {
@@ -62,10 +62,10 @@ export function createBackupOverview(data: BackupDataV5): BackupOverview {
 export class BackupSerializer {
   constructor(private readonly checksum: BackupChecksumService) {}
 
-  async create(data: BackupDataV5, metadata: BackupMetadata): Promise<BackupFileV5> {
+  async create(data: BackupDataV6, metadata: BackupMetadata): Promise<BackupFileV6> {
     const orderedData = sortBackupData(data);
     const overview = createBackupOverview(orderedData);
-    const draft: BackupFileV5 = {
+    const draft: BackupFileV6 = {
       format: BACKUP_FORMAT,
       formatVersion: CURRENT_BACKUP_FORMAT_VERSION,
       appVersion: metadata.appVersion,
@@ -89,7 +89,7 @@ export class BackupSerializer {
     };
   }
 
-  stringify(file: BackupFileV5): string {
+  stringify(file: BackupFileV6): string {
     return `${JSON.stringify(file, null, 2)}\n`;
   }
 }

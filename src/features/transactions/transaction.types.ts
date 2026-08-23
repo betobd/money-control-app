@@ -44,12 +44,20 @@ type TransactionInputBase = {
 export type TransactionInput =
   | (TransactionInputBase & {
       type: CategorizedTransactionType;
+      /**
+       * The category, or the subcategory the user picked. When this names a
+       * subcategory the service infers the parent, so a caller never has to send
+       * both — see TransactionService.resolveCategorySelection.
+       */
       categoryId: string;
+      /** Optional leaf. Its parent must be `categoryId`; the service enforces that. */
+      subcategoryId?: string | null;
       destinationAccountId?: null;
     })
   | (TransactionInputBase & {
       type: 'transfer';
       categoryId: null;
+      subcategoryId?: null;
       destinationAccountId: string;
       /** Destination leg amount (destination currency minor units). Defaults to `amount` for same-currency. */
       destinationAmountMinor?: number;
@@ -62,13 +70,16 @@ export type ResolvedTransactionInput =
   | (Omit<TransactionInputBase, 'currency'> & {
       currency: CurrencyCode;
       type: CategorizedTransactionType;
+      /** Always the top-level category, even when the user picked a subcategory. */
       categoryId: string;
+      subcategoryId: string | null;
       destinationAccountId: null;
     })
   | (Omit<TransactionInputBase, 'currency'> & {
       currency: CurrencyCode;
       type: 'transfer';
       categoryId: null;
+      subcategoryId: null;
       destinationAccountId: string;
       destinationAmountMinor: number;
       destinationCurrencyCode: CurrencyCode;
@@ -100,19 +111,25 @@ type RecordBase = Omit<TransactionInputBase, 'exchangeRate'> & TransactionMetada
 export type TransactionRecord =
   | (RecordBase & {
       type: CategorizedTransactionType;
+      /** Always the top-level category, so every category aggregate keeps working. */
       categoryId: string;
+      subcategoryId: string | null;
       destinationAccountId: null;
       originalTransactionId: null;
     })
   | (RecordBase & {
       type: 'transfer';
       categoryId: null;
+      subcategoryId: null;
       destinationAccountId: string;
       originalTransactionId: null;
     })
   | (RecordBase & {
       type: 'refund';
       categoryId: null;
+      // Refunds carry no classification of their own; they inherit both levels
+      // from the expense they refund.
+      subcategoryId: null;
       destinationAccountId: null;
       originalTransactionId: string;
     });
@@ -123,6 +140,7 @@ export type TransactionUpdateRecord = {
   accountId: string;
   destinationAccountId: string | null;
   categoryId: string | null;
+  subcategoryId: string | null;
   transactionDate: string;
   note: string | null;
   updatedAt: string;
@@ -136,6 +154,7 @@ export type TransactionField =
   | 'destinationAccountId'
   | 'destinationAmount'
   | 'categoryId'
+  | 'subcategoryId'
   | 'transactionDate'
   | 'note'
   | 'exchangeRate';
@@ -147,6 +166,7 @@ export type TransactionListItem = TransactionRecord & {
   destinationAccountName: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
+  subcategoryName: string | null;
   originalTransactionDate: string | null;
   originalTransactionNote: string | null;
 };
@@ -186,6 +206,7 @@ export type TransactionFilterAccount = {
 
 export type TransactionFilterCategory = TransactionFilterAccount & {
   type: CategorizedTransactionType;
+  parentCategoryId: string | null;
 };
 
 export type TransactionFilterOptions = {

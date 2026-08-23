@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import type {
@@ -114,27 +114,6 @@ export function SelectionRow({ label, onPress, selected }: { label: string; onPr
         tintColor={selected ? theme.primaryAction : theme.mutedText}
       />
     </Pressable>
-  );
-}
-
-export function DateField({ label, onChangeText, value }: { label: string; onChangeText: (value: string) => void; value: string }) {
-  const theme = useAppTheme();
-  return (
-    <View style={styles.dateField}>
-      <Text style={[styles.dateLabel, { color: theme.secondaryText }]}>{label}</Text>
-      <TextInput
-        accessibilityLabel={`${label}, selected ${value || 'none'}`}
-        autoCapitalize="none"
-        autoCorrect={false}
-        inputMode="numeric"
-        maxLength={10}
-        onChangeText={onChangeText}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={theme.mutedText}
-        style={[styles.dateInput, { backgroundColor: theme.surface, color: theme.primaryText }]}
-        value={value}
-      />
-    </View>
   );
 }
 

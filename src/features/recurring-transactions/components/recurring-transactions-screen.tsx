@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { formatMoneyWithSymbol } from '@/features/currency/currency';
+import { categoryPathLabel } from '@/features/transactions/transaction-presentation';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { TransactionValidationError } from '@/features/transactions/transaction.service';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -315,19 +317,30 @@ function OccurrenceCard({
         <Text style={[styles.amount, { color: typeColor(occurrence.type, theme) }]}>{formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`} accessibilityRole="button" accessibilityState={{ disabled: busy, busy: confirming }} disabled={busy} onPress={onConfirm} style={[styles.actionButton, { backgroundColor: theme.primaryAction, opacity: busy && !confirming ? 0.5 : 1 }]}>
-          {confirming ? (
-            <ActivityIndicator color={theme.onPrimaryAction} size="small" />
-          ) : (
-            <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Confirm</Text>
-          )}
-        </Pressable>
-        <Pressable accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
-          <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit</Text>
-        </Pressable>
-        <Pressable accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`} accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onSkip} style={[styles.actionButton, { backgroundColor: theme.tintDestructive, opacity: busy ? 0.5 : 1 }]}>
-          <Text style={[styles.actionLabel, { color: theme.destructive }]}>Skip</Text>
-        </Pressable>
+        <Button
+          accessibilityLabel={`Confirm ${occurrenceLabel(occurrence)}`}
+          busy={confirming}
+          disabled={busy}
+          label="Confirm"
+          onPress={onConfirm}
+          size="sm"
+          variant="primary"
+        />
+        <Button
+          accessibilityLabel={`Edit ${occurrenceLabel(occurrence)} occurrence`}
+          disabled={busy}
+          label="Edit"
+          onPress={onEdit}
+          size="sm"
+        />
+        <Button
+          accessibilityLabel={`Skip ${occurrenceLabel(occurrence)} occurrence`}
+          disabled={busy}
+          label="Skip"
+          onPress={onSkip}
+          size="sm"
+          variant="destructive"
+        />
       </View>
     </Card>
   );
@@ -368,30 +381,24 @@ function RuleCard({
       </View>
       {!ended ? (
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEdit} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
-            <Text style={[styles.actionLabel, { color: theme.primaryText }]}>Edit future</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onToggle} style={[styles.actionButton, { backgroundColor: theme.elevatedSurface, opacity: busy ? 0.5 : 1 }]}>
-            <Text style={[styles.actionLabel, { color: theme.primaryText }]}>{rule.isActive ? 'Pause' : 'Resume'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} onPress={onEnd} style={[styles.actionButton, { backgroundColor: theme.tintDestructive, opacity: busy ? 0.5 : 1 }]}>
-            <Text style={[styles.actionLabel, { color: theme.destructive }]}>End</Text>
-          </Pressable>
+          <Button disabled={busy} label="Edit future" onPress={onEdit} size="sm" />
+          <Button disabled={busy} label={rule.isActive ? 'Pause' : 'Resume'} onPress={onToggle} size="sm" />
+          <Button disabled={busy} label="End" onPress={onEnd} size="sm" variant="destructive" />
         </View>
       ) : null}
     </Card>
   );
 }
 
-function occurrenceLabel(value: Pick<RecurringOccurrenceListItem, 'type' | 'note' | 'categoryName' | 'accountName' | 'destinationAccountName'>) {
+function occurrenceLabel(value: Pick<RecurringOccurrenceListItem, 'type' | 'note' | 'categoryName' | 'subcategoryName' | 'accountName' | 'destinationAccountName'>) {
   if (value.note) return value.note;
   if (value.type === 'transfer') return `${value.accountName} → ${value.destinationAccountName ?? 'Account'}`;
-  return value.categoryName ?? value.accountName;
+  return categoryPathLabel(value.categoryName, value.subcategoryName) ?? value.accountName;
 }
 
-function ruleDetail(value: Pick<RecurringOccurrenceListItem, 'type' | 'categoryName' | 'accountName' | 'destinationAccountName'>) {
+function ruleDetail(value: Pick<RecurringOccurrenceListItem, 'type' | 'categoryName' | 'subcategoryName' | 'accountName' | 'destinationAccountName'>) {
   if (value.type === 'transfer') return `${value.accountName} → ${value.destinationAccountName ?? 'Account'}`;
-  return `${value.accountName} · ${value.categoryName ?? 'Category'}`;
+  return `${value.accountName} · ${categoryPathLabel(value.categoryName, value.subcategoryName) ?? 'Category'}`;
 }
 
 function frequencyLabel(frequency: RecurringRuleListItem['frequency'], interval: number) {
@@ -425,8 +432,6 @@ const styles = StyleSheet.create({
   status: { ...typography.label, fontWeight: '700', textTransform: 'uppercase' },
   right: { alignItems: 'flex-end', gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  actionButton: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  actionLabel: { ...typography.caption, fontWeight: '700' },
   historyRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 68 },
   error: { ...typography.caption },
   notice: { ...typography.caption },

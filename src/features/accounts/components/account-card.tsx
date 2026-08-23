@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
+
 import { ProgressBar } from '@/components/progress-bar';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { accountTypeLabels } from '@/features/accounts/account-format';
@@ -87,9 +89,11 @@ export function AccountCard({ account, onActions, onOpen, valuationRate }: Accou
         </Pressable>
       </View>
 
-      <Pressable
+      <PressableScale
         accessibilityHint={onOpen ? 'Opens credit card details' : undefined}
         accessibilityRole={onOpen ? 'button' : undefined}
+        activeScale={onOpen ? 0.98 : 1}
+        activeOpacity={onOpen ? 0.9 : 1}
         disabled={!onOpen}
         onPress={() => onOpen?.(account)}
         style={styles.balance}>
@@ -136,7 +140,7 @@ export function AccountCard({ account, onActions, onOpen, valuationRate }: Accou
             {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
           </View>
         ) : null}
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }

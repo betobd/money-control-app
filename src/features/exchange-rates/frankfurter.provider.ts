@@ -20,12 +20,24 @@ export type ExchangeRateProviderErrorCode =
   | 'unsupported_rate';
 
 export class ExchangeRateProviderError extends Error {
+  /**
+   * Stable brand. Cross-module `instanceof` compares constructor identity, which
+   * only holds while every importer shares one module instance. Code outside
+   * this module must use the exported type guard.
+   */
+  readonly isExchangeRateProviderError = true;
+
   constructor(
     public readonly code: ExchangeRateProviderErrorCode,
     message: string,
   ) {
     super(message);
   }
+}
+
+/** Identity-independent check for {@link ExchangeRateProviderError}. */
+export function isExchangeRateProviderError(value: unknown): value is ExchangeRateProviderError {
+  return value instanceof Error && (value as ExchangeRateProviderError).isExchangeRateProviderError === true;
 }
 
 export interface ExchangeRateProvider {

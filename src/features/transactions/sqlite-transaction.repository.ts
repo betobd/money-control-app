@@ -32,12 +32,17 @@ import type {
 const destinationAccounts = alias(accounts, 'destination_accounts');
 const originalTransactions = alias(transactions, 'original_transactions');
 const originalCategories = alias(categories, 'original_categories');
+const subcategories = alias(categories, 'subcategories');
+const originalSubcategories = alias(categories, 'original_subcategories');
+// A refund carries no classification of its own, so both levels fall back to the
+// refunded expense's — the same coalesce Reports and Budgets already use.
 const selection = {
   transaction: transactions,
   accountName: accounts.name,
   destinationAccountName: destinationAccounts.name,
   categoryName: sql<string | null>`coalesce(${categories.name}, ${originalCategories.name})`,
   categoryIcon: sql<string | null>`coalesce(${categories.icon}, ${originalCategories.icon})`,
+  subcategoryName: sql<string | null>`coalesce(${subcategories.name}, ${originalSubcategories.name})`,
   originalTransactionDate: originalTransactions.transactionDate,
   originalTransactionNote: originalTransactions.note,
 };
@@ -52,6 +57,7 @@ type TransactionRow = {
   destinationAccountName: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
+  subcategoryName: string | null;
   originalTransactionDate: string | null;
   originalTransactionNote: string | null;
 };
@@ -72,6 +78,7 @@ function mapRow(row: TransactionRow): TransactionListItem {
     destinationAccountName: row.destinationAccountName,
     categoryName: row.categoryName,
     categoryIcon: row.categoryIcon,
+    subcategoryName: row.subcategoryName,
     originalTransactionDate: row.originalTransactionDate,
     originalTransactionNote: row.originalTransactionNote,
   };
@@ -131,6 +138,7 @@ export class SQLiteTransactionRepository implements TransactionRepository {
           name: categories.name,
           isArchived: categories.isArchived,
           type: categories.type,
+          parentCategoryId: categories.parentCategoryId,
         })
         .from(categories)
         .where(or(
@@ -138,6 +146,7 @@ export class SQLiteTransactionRepository implements TransactionRepository {
           sql<boolean>`exists (
             select 1 from ${transactions}
             where ${transactions.categoryId} = ${categories.id}
+               or ${transactions.subcategoryId} = ${categories.id}
           )`,
         ))
         .orderBy(asc(categories.type), asc(categories.isArchived), sql`lower(${categories.name})`, asc(categories.id)),
@@ -242,7 +251,9 @@ export class SQLiteTransactionRepository implements TransactionRepository {
         sql<boolean>`lower(${accounts.name}) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${destinationAccounts.name}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${categories.name}, '')) like ${pattern} escape '\\'`,
+        sql<boolean>`lower(coalesce(${subcategories.name}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${originalCategories.name}, '')) like ${pattern} escape '\\'`,
+        sql<boolean>`lower(coalesce(${originalSubcategories.name}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(coalesce(${originalTransactions.note}, '')) like ${pattern} escape '\\'`,
         sql<boolean>`lower(${transactions.type}) like ${pattern} escape '\\'`,
       )!);
@@ -256,11 +267,19 @@ export class SQLiteTransactionRepository implements TransactionRepository {
       )!);
     }
     if (query.categoryId) {
+      // Node-scoped: the id matches whichever level it belongs to. A parent id can
+      // never appear in subcategory_id and a leaf id never in category_id, so one
+      // OR covers both cases unambiguously. Selecting a parent still returns its
+      // whole subtree, because category_id always holds the parent.
       conditions.push(or(
         eq(transactions.categoryId, query.categoryId),
+        eq(transactions.subcategoryId, query.categoryId),
         and(
           eq(transactions.type, 'refund'),
-          eq(originalTransactions.categoryId, query.categoryId),
+          or(
+            eq(originalTransactions.categoryId, query.categoryId),
+            eq(originalTransactions.subcategoryId, query.categoryId),
+          ),
         ),
       )!);
     }
@@ -293,8 +312,10 @@ export class SQLiteTransactionRepository implements TransactionRepository {
       .innerJoin(accounts, eq(transactions.accountId, accounts.id))
       .leftJoin(destinationAccounts, eq(transactions.destinationAccountId, destinationAccounts.id))
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(subcategories, eq(transactions.subcategoryId, subcategories.id))
       .leftJoin(originalTransactions, eq(transactions.originalTransactionId, originalTransactions.id))
       .leftJoin(originalCategories, eq(originalTransactions.categoryId, originalCategories.id))
+      .leftJoin(originalSubcategories, eq(originalTransactions.subcategoryId, originalSubcategories.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(
         desc(transactions.transactionDate),

@@ -89,7 +89,7 @@ categories = [
     ('salary', 'Salary', 'income', 'salary', 0, None, utc, utc),
 ]
 connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
-connection.executemany('INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)', categories)
+connection.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', categories)
 transactions = [
     ('prior-expense', 'expense', 'posted', 100_000, 'COP', 'checking', None, 'food', None, '2026-06-30', utc, utc),
     ('income', 'income', 'posted', 500_000, 'COP', 'checking', None, 'salary', None, '2026-07-01', utc, utc),
@@ -106,13 +106,13 @@ rule = (
     'rule', 'expense', 700_000, 'COP', 'checking', None, 'food', None,
     'monthly', 1, '2026-07-07', '2026-08-07', None, 1, None, utc, utc,
 )
-connection.execute('INSERT INTO recurring_transactions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rule)
+connection.execute('INSERT INTO recurring_transactions (id,type,amount,currency,account_id,destination_account_id,category_id,note,frequency,interval,start_date,next_occurrence_date,end_date,is_active,ended_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', rule)
 occurrences = [
     ('pending', 'rule', '2026-07-07', 'pending', 'expense', 700_000, 'COP', 'checking', None, 'food', None, None, utc, utc),
     ('skipped', 'rule', '2026-07-08', 'skipped', 'expense', 800_000, 'COP', 'checking', None, 'food', None, None, utc, utc),
     ('posted', 'rule', '2026-07-06', 'posted', 'income', 50_000, 'COP', 'checking', None, 'salary', None, 'recurring-income', utc, utc),
 ]
-connection.executemany('INSERT INTO recurring_occurrences VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', occurrences)
+connection.executemany('INSERT INTO recurring_occurrences (id,recurring_transaction_id,scheduled_date,status,type,amount,currency,account_id,destination_account_id,category_id,note,transaction_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', occurrences)
 connection.commit()
 
 assert summary(connection) == (550_000, 300_000, 2, 2)
@@ -170,3 +170,116 @@ assert connection.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
 connection.close()
 db_file.unlink()
 print('reports database integration: PASS')
+
+
+# Category breakdown by subcategory, mirroring SQLiteReportRepository.categoryExpenses.
+# Isolated so the row-set assertions above keep their meaning.
+SUBCATEGORY_BREAKDOWN_SQL = '''
+SELECT
+  COALESCE(t.category_id, o.category_id) AS category_id,
+  COALESCE(c.name, oc.name) AS category_name,
+  COALESCE(t.subcategory_id, o.subcategory_id) AS subcategory_id,
+  COALESCE(sc.name, osc.name) AS subcategory_name,
+  COALESCE(SUM(CASE
+    WHEN t.type = 'expense' THEN COALESCE(t.base_amount_minor, t.amount)
+    WHEN t.type = 'refund' THEN -COALESCE(t.base_amount_minor, t.amount)
+    ELSE 0 END), 0) AS total,
+  COUNT(*) AS transaction_count
+FROM transactions t
+LEFT JOIN categories c ON c.id = t.category_id
+LEFT JOIN categories sc ON sc.id = t.subcategory_id
+LEFT JOIN transactions o ON o.id = t.original_transaction_id
+LEFT JOIN categories oc ON oc.id = o.category_id
+LEFT JOIN categories osc ON osc.id = o.subcategory_id
+WHERE t.status = 'posted' AND t.type IN ('expense', 'refund')
+  AND t.transaction_date >= ? AND t.transaction_date <= ?
+GROUP BY COALESCE(t.category_id, o.category_id), COALESCE(t.subcategory_id, o.subcategory_id)
+ORDER BY total DESC, category_id
+'''
+
+# The pre-subcategory ranking, kept verbatim as the reference the breakdown must
+# still agree with.
+CATEGORY_ONLY_SQL = '''
+SELECT
+  COALESCE(t.category_id, o.category_id) AS category_id,
+  COALESCE(SUM(CASE
+    WHEN t.type = 'expense' THEN COALESCE(t.base_amount_minor, t.amount)
+    WHEN t.type = 'refund' THEN -COALESCE(t.base_amount_minor, t.amount)
+    ELSE 0 END), 0) AS total,
+  COUNT(*) AS transaction_count
+FROM transactions t
+LEFT JOIN transactions o ON o.id = t.original_transaction_id
+WHERE t.status = 'posted' AND t.type IN ('expense', 'refund')
+  AND t.transaction_date >= ? AND t.transaction_date <= ?
+GROUP BY COALESCE(t.category_id, o.category_id)
+'''
+
+report_tree = sqlite3.connect(':memory:')
+report_tree.row_factory = sqlite3.Row
+report_tree.execute('PRAGMA foreign_keys = ON')
+apply_migrations(report_tree)
+report_tree.execute(
+    'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at)'
+    " VALUES ('rt-checking','Checking','checking','COP',0,NULL,0,NULL,?,?)",
+    (utc, utc),
+)
+report_tree.executemany(
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
+    [
+        ('hogar', 'Hogar', 'expense', 'other', 0, None, utc, utc),
+        ('transporte', 'Transporte', 'expense', 'transport', 0, None, utc, utc),
+    ],
+)
+report_tree.executemany(
+    'INSERT INTO categories (id,name,type,icon,parent_category_id,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    [
+        ('mercado', 'Mercado', 'expense', 'other', 'hogar', 0, None, utc, utc),
+        ('servicios', 'Servicios', 'expense', 'bills', 'hogar', 0, None, utc, utc),
+        ('taxi', 'Taxi', 'expense', 'transport', 'transporte', 0, None, utc, utc),
+    ],
+)
+report_tree.executemany(
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    [
+        ('rt-mercado', 'expense', 'posted', 200_000, 'COP', 'rt-checking', None, 'hogar', 'mercado', None, None, '2026-07-02', utc, utc),
+        ('rt-servicios', 'expense', 'posted', 120_000, 'COP', 'rt-checking', None, 'hogar', 'servicios', None, None, '2026-07-03', utc, utc),
+        ('rt-hogar-plain', 'expense', 'posted', 80_000, 'COP', 'rt-checking', None, 'hogar', None, None, None, '2026-07-04', utc, utc),
+        ('rt-taxi', 'expense', 'posted', 60_000, 'COP', 'rt-checking', None, 'transporte', 'taxi', None, None, '2026-07-05', utc, utc),
+        # A refund of a subcategorised expense must reduce that same leaf.
+        ('rt-refund', 'refund', 'posted', 50_000, 'COP', 'rt-checking', None, None, None, 'rt-mercado', None, '2026-07-06', utc, utc),
+        # Out of period, and a voided row: neither may appear.
+        ('rt-outside', 'expense', 'posted', 999_000, 'COP', 'rt-checking', None, 'hogar', 'mercado', None, None, '2026-08-01', utc, utc),
+        ('rt-voided', 'expense', 'voided', 999_000, 'COP', 'rt-checking', None, 'hogar', 'mercado', None, None, '2026-07-07', utc, utc),
+    ],
+)
+report_tree.commit()
+
+period = ('2026-07-01', '2026-07-31')
+breakdown = [tuple(row) for row in report_tree.execute(SUBCATEGORY_BREAKDOWN_SQL, period)]
+assert breakdown == [
+    # Mercado nets the refund: 200,000 - 50,000, over two transactions.
+    ('hogar', 'Hogar', 'mercado', 'Mercado', 150_000, 2),
+    ('hogar', 'Hogar', 'servicios', 'Servicios', 120_000, 1),
+    ('hogar', 'Hogar', None, None, 80_000, 1),
+    ('transporte', 'Transporte', 'taxi', 'Taxi', 60_000, 1),
+], breakdown
+
+# The decisive invariant: folding the leaf rows must reproduce the category
+# ranking exactly. If these ever diverge, a category total would stop being the
+# sum of its parts.
+folded = {}
+for row in report_tree.execute(SUBCATEGORY_BREAKDOWN_SQL, period):
+    total, count = folded.get(row['category_id'], (0, 0))
+    folded[row['category_id']] = (total + row['total'], count + row['transaction_count'])
+category_only = {
+    row['category_id']: (row['total'], row['transaction_count'])
+    for row in report_tree.execute(CATEGORY_ONLY_SQL, period)
+}
+assert folded == category_only, (folded, category_only)
+assert folded == {'hogar': (350_000, 4), 'transporte': (60_000, 1)}
+
+assert report_tree.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+report_tree.close()
+
+print('report subcategory breakdown verified')

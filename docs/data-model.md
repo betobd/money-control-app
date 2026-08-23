@@ -25,12 +25,15 @@ The Accounts service trims names and enforces case-insensitive uniqueness among 
 ### `categories`
 
 - `id`, `name`, `type` (`income | expense`), optional `icon`
+- `parent_category_id` (nullable self-reference, migration `0013`)
 - `is_archived`, `archived_at`
 - UTC `created_at`, `updated_at`
 
 Referenced categories cannot be physically deleted. Transaction/category compatibility is deliberately validated by application services rather than a fragile cross-table constraint.
 
-Active category names are unique after trimming and case folding within each category type; expense and income may each contain the same normalized name. Categories may change type only before financial use. Archived categories remain addressable for history and are excluded from new transaction selection. Permanent deletion is limited to categories with no transaction, budget, recurring-template, or other financial references.
+A row with a null parent is a category; a row with a parent is a subcategory. Depth is capped at two by trigger, and a subcategory inherits its parent's `type`. `transactions`, `recurring_transactions` and `recurring_occurrences` each carry a nullable `subcategory_id` whose parent must equal their `category_id`; `category_id` always holds the top-level category, so every existing category aggregate is unchanged. See [ADR 0007](decisions/0007-category-subcategories.md).
+
+Active category names are unique after trimming and case folding within each `(type, parent)` scope: expense and income may each contain the same normalized name, and two different categories may each have an "Otros". Categories may change type only before financial use, and may not be re-parented at all after financial use — moving one would either falsify closed months or leave rows whose subcategory no longer belongs to their category. Archiving a category archives its subcategories in the same transaction; restore deliberately does not cascade, and a subcategory can only be restored while its parent is active. Archived categories remain addressable for history and are excluded from new transaction selection. Permanent deletion is limited to categories with no subcategories and no transaction, budget, recurring-template, or other financial references.
 
 The application seeds eight expense and five income defaults atomically only when the category table is empty. Seeding is idempotent and does not track a separate `is_default` flag; an archived or renamed category keeps the table non-empty and is not recreated.
 
@@ -144,7 +147,8 @@ Migration 0006 adds `notification_settings`, `scheduled_notifications`, and `bud
 - Monthly income and expense use `transaction_date`, transaction type, and `status = posted`.
 - Transfers and voided transactions contribute zero to income and expense reporting.
 - History retains both posted and voided records and labels their status.
-- Budget spending uses posted expense transactions whose `category_id` equals the budget's category and whose `transaction_date` is inside the budget month. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
+- Budget spending uses posted expense transactions whose `category_id` **or** `subcategory_id` equals the budget's category and whose `transaction_date` is inside the budget month. A budget on a top-level category therefore covers its whole subtree, and a budget on a subcategory covers only that subcategory; the single id is unambiguous because a parent id can never appear in `subcategory_id` and a leaf id never in `category_id`. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
+- When a category and one of its subcategories are both budgeted in the same month, the subcategory budget is a sub-limit inside the other. Month totals exclude its limit **and** its spending, because both are already inside the parent's figures; the summary states how many were folded in. A subcategory budget whose parent is not budgeted that month counts normally. See [ADR 0007](decisions/0007-category-subcategories.md).
 - Pending and skipped recurring occurrences never affect balances, budgets, Home totals, or transaction history. A confirmed occurrence affects those read models only through its linked normal posted transaction.
 - Reports derive summaries, cash-flow buckets, category rankings, and net-worth changes from posted transactions and `transaction_date`. Report percentages and comparison values are transient service results and are never persisted.
 

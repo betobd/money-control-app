@@ -273,7 +273,8 @@ test('transaction export covers refunds, original references, other types, notes
   assert.ok(csv.indexOf('income,') < csv.indexOf('voided,'));
   assert.ok(csv.indexOf('voided,') < csv.indexOf('transfer,'));
   assert.match(csv, /transfer,posted,,25000,.*checking,Checking,card,Archived card/);
-  assert.match(csv, /refund,posted,,10000,.*food,Food,archived,2026-07-10,25000,/);
+  // A refund inherits both classification levels from the expense it refunds.
+  assert.match(csv, /refund,posted,,10000,.*food,Food,,,archived,2026-07-10,25000,/);
   assert.equal(csv.includes("'=private note"), false);
 
   await service.exportTransactions({

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -146,18 +147,7 @@ export function ExchangeRateSettingsScreen() {
             </Text>
           )}
 
-          <Pressable
-            accessibilityLabel="Refresh from Frankfurter"
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void refresh()}
-            style={[styles.primaryButton, { backgroundColor: busy ? theme.disabledSurface : theme.primaryAction }]}>
-            {busy ? (
-              <ActivityIndicator color={theme.onPrimaryAction} />
-            ) : (
-              <Text style={[styles.primaryButtonLabel, { color: theme.onPrimaryAction }]}>Refresh from Frankfurter</Text>
-            )}
-          </Pressable>
+          <Button busy={busy} fullWidth label="Refresh from Frankfurter" onPress={() => void refresh()} size="lg" variant="primary" />
           <Text style={[styles.caption, { color: theme.mutedText }]}>
             Frankfurter provides reference exchange rates from official sources. Your bank may use a different rate.
           </Text>
@@ -178,17 +168,14 @@ export function ExchangeRateSettingsScreen() {
             editable={!busy}
             style={[styles.input, { backgroundColor: theme.elevatedSurface, borderColor: theme.border, color: theme.primaryText }]}
           />
-          <Pressable
-            accessibilityLabel="Save manual rate"
-            accessibilityRole="button"
+          <Button
             disabled={busy || manualInput.trim().length === 0}
+            fullWidth
+            label="Save manual rate"
             onPress={() => void saveManualRate()}
-            style={[
-              styles.secondaryButton,
-              { borderColor: theme.primaryAction, opacity: busy || manualInput.trim().length === 0 ? 0.5 : 1 },
-            ]}>
-            <Text style={[styles.secondaryButtonLabel, { color: theme.primaryAction }]}>Save manual rate</Text>
-          </Pressable>
+            size="lg"
+            variant="tonal"
+          />
         </Card>
       </ScrollView>
     </View>

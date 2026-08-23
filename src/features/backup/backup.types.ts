@@ -2,8 +2,8 @@ import type { BudgetColorKey } from '@/constants/theme';
 import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
-export const CURRENT_BACKUP_FORMAT_VERSION = 5 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0012' as const;
+export const CURRENT_BACKUP_FORMAT_VERSION = 6 as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0013' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
@@ -64,7 +64,8 @@ export type BackupCreditCardStatement = {
   updatedAt: string;
 };
 
-export type BackupCategory = {
+/** Flat category, format v1-v5. */
+export type BackupCategoryV5 = {
   id: string;
   name: string;
   type: 'expense' | 'income';
@@ -73,6 +74,14 @@ export type BackupCategory = {
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/**
+ * Format v6 category: a null parent is a category, a set parent a subcategory.
+ * Depth is capped at two, so a row with a parent never has children of its own.
+ */
+export type BackupCategory = BackupCategoryV5 & {
+  parentCategoryId: string | null;
 };
 
 export type BackupTransactionV2 = {
@@ -96,8 +105,8 @@ export type BackupTransactionV3 = Omit<BackupTransactionV2, 'type'> & {
   originalTransactionId: string | null;
 };
 
-/** Format v4 canonical transaction: COP or USD, COP base snapshot, rate snapshot, transfer legs. */
-export type BackupTransaction = Omit<BackupTransactionV3, 'currency'> & {
+/** Format v4/v5 transaction: COP or USD, COP base snapshot, rate snapshot, transfer legs. */
+export type BackupTransactionV5 = Omit<BackupTransactionV3, 'currency'> & {
   currency: CurrencyCode;
   baseAmountMinor: number | null;
   exchangeRateScaled: number | null;
@@ -106,6 +115,15 @@ export type BackupTransaction = Omit<BackupTransactionV3, 'currency'> & {
   exchangeRateSource: ExchangeRateSnapshotSource | null;
   destinationAmountMinor: number | null;
   destinationCurrencyCode: CurrencyCode | null;
+};
+
+/**
+ * Format v6 canonical transaction: adds the optional subcategory. `categoryId`
+ * keeps its meaning and always holds the parent, so every aggregate built on it
+ * reads the same before and after the upgrade.
+ */
+export type BackupTransaction = BackupTransactionV5 & {
+  subcategoryId: string | null;
 };
 
 export type BackupTransactionSplit = {
@@ -141,7 +159,7 @@ export type BackupBudgetRule = {
   updatedAt: string;
 };
 
-export type BackupRecurringTransaction = {
+export type BackupRecurringTransactionV5 = {
   id: string;
   type: 'income' | 'expense' | 'transfer';
   amount: number;
@@ -159,6 +177,11 @@ export type BackupRecurringTransaction = {
   endedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Format v6 recurring rule: carries the subcategory its occurrences inherit. */
+export type BackupRecurringTransaction = BackupRecurringTransactionV5 & {
+  subcategoryId: string | null;
 };
 
 /** Investment-account metadata (format v5+); one row per `investment` account. */
@@ -188,7 +211,7 @@ export type BackupInvestmentValuation = {
   updatedAt: string;
 };
 
-export type BackupRecurringOccurrence = {
+export type BackupRecurringOccurrenceV5 = {
   id: string;
   recurringTransactionId: string;
   scheduledDate: string;
@@ -205,24 +228,29 @@ export type BackupRecurringOccurrence = {
   updatedAt: string;
 };
 
+/** Format v6 occurrence: the subcategory inherited from its rule. */
+export type BackupRecurringOccurrence = BackupRecurringOccurrenceV5 & {
+  subcategoryId: string | null;
+};
+
 export type BackupDataV1 = {
   accounts: BackupAccountV1[];
-  categories: BackupCategory[];
+  categories: BackupCategoryV5[];
   transactions: BackupTransactionV2[];
   transactionSplits: BackupTransactionSplit[];
   budgets: BackupBudget[];
-  recurringTransactions: BackupRecurringTransaction[];
-  recurringOccurrences: BackupRecurringOccurrence[];
+  recurringTransactions: BackupRecurringTransactionV5[];
+  recurringOccurrences: BackupRecurringOccurrenceV5[];
 };
 
 export type BackupDataV2 = {
   accounts: BackupAccount[];
-  categories: BackupCategory[];
+  categories: BackupCategoryV5[];
   transactions: BackupTransactionV2[];
   transactionSplits: BackupTransactionSplit[];
   budgets: BackupBudget[];
-  recurringTransactions: BackupRecurringTransaction[];
-  recurringOccurrences: BackupRecurringOccurrence[];
+  recurringTransactions: BackupRecurringTransactionV5[];
+  recurringOccurrences: BackupRecurringOccurrenceV5[];
   creditCardStatements: BackupCreditCardStatement[];
 };
 
@@ -232,17 +260,34 @@ export type BackupDataV3 = Omit<BackupDataV2, 'transactions'> & {
 
 /** Format-v4 data shape (multi-currency; no investments). */
 export type BackupDataV4 = Omit<BackupDataV3, 'transactions'> & {
-  transactions: BackupTransaction[];
+  transactions: BackupTransactionV5[];
   /** Portable latest USD/COP valuation rate, or null. */
   exchangeRate: BackupExchangeRate | null;
   /** Recurring-budget templates (schema 0011+). Absent in older backups. */
   budgetRules?: BackupBudgetRule[];
 };
 
-/** Canonical current data shape (format v5): adds investment accounts + valuations. */
+/** Format-v5 data shape: adds investment accounts + valuations. */
 export type BackupDataV5 = BackupDataV4 & {
   investmentAccounts: BackupInvestmentAccount[];
   investmentValuations: BackupInvestmentValuation[];
+};
+
+/**
+ * Canonical current data shape (format v6): two-level categories.
+ *
+ * Only the four category-bearing collections change; every other collection is
+ * byte-for-byte what v5 wrote, which is why a v5 file upgrades by filling nulls
+ * rather than by transforming anything.
+ */
+export type BackupDataV6 = Omit<
+  BackupDataV5,
+  'categories' | 'transactions' | 'recurringTransactions' | 'recurringOccurrences'
+> & {
+  categories: BackupCategory[];
+  transactions: BackupTransaction[];
+  recurringTransactions: BackupRecurringTransaction[];
+  recurringOccurrences: BackupRecurringOccurrence[];
 };
 
 export type BackupSummary = {
@@ -308,12 +353,23 @@ export type BackupFileV4 = Omit<BackupFileV3, 'formatVersion' | 'data'> & {
 };
 
 export type BackupFileV5 = Omit<BackupFileV4, 'formatVersion' | 'data' | 'summary'> & {
-  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  formatVersion: 5;
   summary: BackupSummaryV5;
   data: BackupDataV5;
 };
 
-export type BackupFile = BackupFileV1 | BackupFileV2 | BackupFileV3 | BackupFileV4 | BackupFileV5;
+export type BackupFileV6 = Omit<BackupFileV5, 'formatVersion' | 'data'> & {
+  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  data: BackupDataV6;
+};
+
+export type BackupFile =
+  | BackupFileV1
+  | BackupFileV2
+  | BackupFileV3
+  | BackupFileV4
+  | BackupFileV5
+  | BackupFileV6;
 
 export type BackupPreview = {
   fileName: string;
@@ -331,7 +387,7 @@ export type BackupPreview = {
 
 export type RestoreCandidate = {
   file: BackupFile;
-  data: BackupDataV5;
+  data: BackupDataV6;
   preview: BackupPreview;
 };
 

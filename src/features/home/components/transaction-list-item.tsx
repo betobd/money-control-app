@@ -1,7 +1,8 @@
 import { type SymbolViewProps } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { IconChip } from '@/components/icon-chip';
+import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { MoneyText } from '@/features/home/components/money-text';
 import type { FinancialTone } from '@/features/home/home-dashboard.mock';
@@ -57,13 +58,13 @@ export function TransactionListItem({ title, subtitle, amount, tone, icon, onPre
 
   if (onPress) {
     return (
-      <Pressable
+      <PressableScale
         accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
         onPress={onPress}
         style={[styles.row, { backgroundColor: theme.surface }]}>
         {content}
-      </Pressable>
+      </PressableScale>
     );
   }
 

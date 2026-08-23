@@ -48,8 +48,8 @@ def seed(con):
             ('cdt', 'CDT', 'investment', 'COP', 10000000, None, None, None, 0, None, UTC, UTC),
         ],
     )
-    con.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
-    con.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('default-income-investment', 'Investment Income', 'income', 'investment', 0, None, UTC, UTC))
+    con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
+    con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('default-income-investment', 'Investment Income', 'income', 'investment', 0, None, UTC, UTC))
     con.executemany(
         'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
         [

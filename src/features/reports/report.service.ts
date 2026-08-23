@@ -5,10 +5,11 @@ import {
   resolveReportPeriod,
 } from './report-period';
 import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
+import { calculateBasisPoints, roundedIntegerDivision, safeInteger } from './report-math';
+import { cumulativePace, foldCategoryExpenses, savingsRateBasisPoints, weekdaySpending } from './report-insights';
 import type { ReportRepository } from './report.repository';
 import type {
   CashFlowBucket,
-  CategoryExpenseSummary,
   ComparisonDirection,
   ComparisonMetric,
   ComparisonTone,
@@ -19,8 +20,13 @@ import type {
   ReportData,
   ReportPeriod,
   ReportPeriodSelection,
+  ReportBucketAggregate,
   ReportSummaryAggregate,
 } from './report.types';
+
+// Re-exported so existing importers of the service keep a single entry point
+// after the integer helpers moved into report-math.
+export { calculateBasisPoints } from './report-math';
 
 type InvestmentSeriesByAccount = Map<string, { currency: 'COP' | 'USD'; points: { date: string; unrealized: number }[] }>;
 
@@ -59,27 +65,35 @@ export function investmentAdjustmentAsOf(
   return safeInteger(total, 'Investment valuation adjustment');
 }
 
-function safeInteger(value: number, label: string): number {
-  if (!Number.isSafeInteger(value)) {
-    throw new Error(`${label} exceeds the supported safe integer range.`);
-  }
-  return value;
-}
 
-function roundedIntegerDivision(numerator: number, denominator: number): number {
-  if (denominator === 0) return 0;
-  const result = (BigInt(numerator) + BigInt(Math.floor(denominator / 2))) / BigInt(denominator);
-  return safeInteger(Number(result), 'Rounded report value');
-}
 
-export function calculateBasisPoints(numerator: number, denominator: number): number {
-  if (denominator === 0) return 0;
-  const numeratorValue = BigInt(numerator);
-  const denominatorValue = BigInt(Math.abs(denominator));
-  const sign = numeratorValue < 0n ? -1n : 1n;
-  const absoluteNumerator = numeratorValue < 0n ? -numeratorValue : numeratorValue;
-  const rounded = (absoluteNumerator * 10_000n + denominatorValue / 2n) / denominatorValue;
-  return safeInteger(Number(rounded * sign), 'Percentage change');
+
+
+/**
+ * Joins sparse repository aggregates onto the period's complete bucket list, so
+ * a day or month with no activity is an explicit zero rather than a gap. Charts
+ * depend on this: a missing bucket would silently compress the time axis.
+ */
+function fillBuckets(
+  buckets: ReturnType<typeof enumerateReportBuckets>,
+  aggregates: ReportBucketAggregate[],
+): CashFlowBucket[] {
+  const byKey = new Map(aggregates.map((bucket) => [bucket.key, bucket]));
+  return buckets.map((bucket) => {
+    const aggregate = byKey.get(bucket.key);
+    const income = aggregate?.income ?? 0;
+    const grossExpenses = aggregate?.grossExpenses ?? 0;
+    const refunds = aggregate?.refunds ?? 0;
+    const expenses = safeInteger(grossExpenses - refunds, 'Cash-flow net expenses');
+    return {
+      ...bucket,
+      income,
+      grossExpenses,
+      refunds,
+      expenses,
+      net: safeInteger(income - expenses, 'Cash-flow net result'),
+    };
+  });
 }
 
 export function normalizeSummary(aggregate: ReportSummaryAggregate): PeriodSummary {
@@ -93,6 +107,7 @@ export function normalizeSummary(aggregate: ReportSummaryAggregate): PeriodSumma
     expenses,
     net,
     averageExpense: roundedIntegerDivision(aggregate.grossExpenses, aggregate.expenseCount),
+    savingsRateBasisPoints: savingsRateBasisPoints(aggregate.income, net),
   };
 }
 
@@ -143,6 +158,7 @@ export class ReportService {
       summaryAggregate,
       previousSummaryAggregate,
       rawCashFlow,
+      rawPreviousCashFlow,
       rawCategories,
       rawNetWorth,
       valuationRows,
@@ -151,6 +167,7 @@ export class ReportService {
       this.repository.summarize(period),
       this.repository.summarize(previousPeriod),
       this.repository.cashFlow(period),
+      this.repository.cashFlow(previousPeriod),
       this.repository.categoryExpenses(period),
       this.repository.netWorth(period, period.grouping, valuationRate),
       this.repository.investmentValuationSeries(),
@@ -160,25 +177,10 @@ export class ReportService {
 
     const summary = normalizeSummary(summaryAggregate);
     const previousSummary = normalizeSummary(previousSummaryAggregate);
-    const buckets = enumerateReportBuckets(period);
-    const cashFlowByKey = new Map(rawCashFlow.map((bucket) => [bucket.key, bucket]));
-    const cashFlow: CashFlowBucket[] = buckets.map((bucket) => {
-      const aggregate = cashFlowByKey.get(bucket.key);
-      const income = aggregate?.income ?? 0;
-      const grossExpenses = aggregate?.grossExpenses ?? 0;
-      const refunds = aggregate?.refunds ?? 0;
-      const expenses = safeInteger(grossExpenses - refunds, 'Cash-flow net expenses');
-      return {
-        ...bucket,
-        income,
-        grossExpenses,
-        refunds,
-        expenses,
-        net: safeInteger(income - expenses, 'Cash-flow net result'),
-      };
-    });
+    const cashFlow = fillBuckets(enumerateReportBuckets(period), rawCashFlow);
 
-    const categoryExpenses = this.normalizeCategories(rawCategories);
+    const previousCashFlow = fillBuckets(enumerateReportBuckets(previousPeriod), rawPreviousCashFlow);
+    const categoryExpenses = foldCategoryExpenses(rawCategories);
     const netWorth = this.buildNetWorth(
       period,
       rawNetWorth.startingNetWorth,
@@ -192,26 +194,14 @@ export class ReportService {
       period,
       summary,
       cashFlow,
+      // Weekday breakdown needs daily resolution; a month-grouped period has none.
+      weekdaySpending: period.grouping === 'day' ? weekdaySpending(cashFlow) : [],
+      pace: cumulativePace(cashFlow, previousCashFlow),
       categoryExpenses,
       netWorth,
       comparison,
       investments: { incomeCopMinor: investmentIncome.copMinor, incomeCount: investmentIncome.count },
     };
-  }
-
-  private normalizeCategories(
-    categories: Awaited<ReturnType<ReportRepository['categoryExpenses']>>,
-  ): CategoryExpenseSummary[] {
-    const totalExpenses = categories.reduce(
-      (sum, category) => safeInteger(sum + category.total, 'Total category spending'),
-      0,
-    );
-    return categories.map((category) => ({
-      ...category,
-      percentageBasisPoints: totalExpenses === 0
-        ? 0
-        : calculateBasisPoints(category.total, totalExpenses),
-    }));
   }
 
   private buildNetWorth(

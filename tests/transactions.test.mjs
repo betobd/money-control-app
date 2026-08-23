@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  categoryPathLabel,
   groupTransactions,
   signedTransactionAmount,
   transactionAccountLabel,
@@ -25,7 +26,6 @@ import {
   createDefaultTransactionListFilters,
   firstTransactionListPage,
 } from '../src/features/transactions/transaction-list-filters.ts';
-import { subscribeToFinancialDataChanges } from '../src/features/transactions/financial-data-events.ts';
 
 const NOW = '2026-07-12T15:30:00.000Z';
 const LATER = '2026-07-12T16:45:00.000Z';
@@ -42,6 +42,7 @@ class Repo {
       destinationAccountName: value.destinationAccountId,
       categoryName: value.categoryId,
       categoryIcon: value.categoryId ? 'other' : null,
+      subcategoryName: value.subcategoryId,
       originalTransactionDate: null,
       originalTransactionNote: null,
     };
@@ -100,11 +101,24 @@ class Accounts {
   }
 }
 
+function category(id, type, parentCategoryId = null, isArchived = false) {
+  return { id, type, parentCategoryId, isArchived };
+}
+
 class Categories {
   values = new Map([
-    ['expense', { id: 'expense', type: 'expense', isArchived: false }],
-    ['income', { id: 'income', type: 'income', isArchived: false }],
-    ['archived', { id: 'archived', type: 'expense', isArchived: true }],
+    ['expense', category('expense', 'expense')],
+    ['income', category('income', 'income')],
+    ['archived', category('archived', 'expense', null, true)],
+    // Hogar > Mercado and Transporte > Taxi: two trees, so a leaf can be moved
+    // across parents.
+    ['hogar', category('hogar', 'expense')],
+    ['mercado', category('mercado', 'expense', 'hogar')],
+    ['transporte', category('transporte', 'expense')],
+    ['taxi', category('taxi', 'expense', 'transporte')],
+    ['retired-leaf', category('retired-leaf', 'expense', 'hogar', true)],
+    ['salario', category('salario', 'income')],
+    ['bonos', category('bonos', 'income', 'salario')],
   ]);
   async findById(id) { return this.values.get(id) ?? null; }
 }
@@ -113,11 +127,24 @@ function setup(now = () => NOW) {
   const repository = new Repo();
   const accounts = new Accounts();
   const categories = new Categories();
+  // The notifier is injected rather than observed through the module-level
+  // listener set: the test runner resolves './financial-data-events' and
+  // '../src/.../financial-data-events.ts' to two separate module instances, so
+  // a subscription made here would never see the service's notifications.
+  const changes = [];
   return {
     repository,
     accounts,
     categories,
-    service: new TransactionService(repository, accounts, categories, () => 'tx-1', now),
+    changes,
+    service: new TransactionService(
+      repository,
+      accounts,
+      categories,
+      () => 'tx-1',
+      now,
+      (change) => { changes.push(change); },
+    ),
   };
 }
 
@@ -287,12 +314,18 @@ test('groups already-sorted transactions by financial date', () => {
 });
 
 test('notifies financial views only after transfer persistence succeeds', async () => {
-  const { service } = setup();
-  let refreshes = 0;
-  const unsubscribe = subscribeToFinancialDataChanges(() => { refreshes += 1; });
+  const { service, changes } = setup();
   await service.create(validTransfer);
-  unsubscribe();
-  assert.equal(refreshes, 1);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].kind, 'transaction');
+  assert.equal(changes[0].operation, 'create');
+});
+
+test('does not notify financial views when a transfer fails to persist', async () => {
+  const { service, repository, changes } = setup();
+  repository.create = async () => { throw new Error('disk full'); };
+  await assert.rejects(service.create(validTransfer));
+  assert.equal(changes.length, 0);
 });
 
 async function createdSetup(input = valid) {
@@ -326,7 +359,7 @@ test('edits an expense account', async () => {
 
 test('edits an expense category', async () => {
   const { categories, service } = await createdSetup();
-  categories.values.set('expense-2', { id: 'expense-2', type: 'expense', isArchived: false });
+  categories.values.set('expense-2', category('expense-2', 'expense'));
   assert.equal((await service.update('tx-1', { ...valid, categoryId: 'expense-2' })).categoryId, 'expense-2');
 });
 
@@ -426,13 +459,12 @@ test('returns domain errors for missing and already-voided transactions', async 
 });
 
 test('publishes financial invalidation after editing and voiding', async () => {
-  const { service } = await createdSetup();
-  let refreshes = 0;
-  const unsubscribe = subscribeToFinancialDataChanges(() => { refreshes += 1; });
+  const { service, changes } = await createdSetup();
+  changes.length = 0; // drop the create notification recorded by createdSetup
   await service.update('tx-1', { ...valid, amount: 60_000 });
   await service.void('tx-1');
-  unsubscribe();
-  assert.equal(refreshes, 2);
+  assert.equal(changes.length, 2);
+  assert.deepEqual(changes.map((change) => change.operation), ['update', 'void']);
 });
 
 test('normalizes trimmed and empty transaction-list search safely', () => {
@@ -694,4 +726,124 @@ test('cross-currency transfer is excluded from the month summary', async () => {
   const summary = await repository.summarizeMonth('2026-07');
   assert.equal(summary.income, 0);
   assert.equal(summary.grossExpenses, 0);
+});
+
+/* ------------------------------------------------------------ subcategories */
+
+test('picking a subcategory stores it and infers its parent', async () => {
+  const { service } = setup();
+  const value = await service.create({ ...valid, categoryId: 'mercado' });
+  assert.equal(value.categoryId, 'hogar');
+  assert.equal(value.subcategoryId, 'mercado');
+});
+
+test('picking a top-level category stores no subcategory', async () => {
+  const { service } = setup();
+  const value = await service.create({ ...valid, categoryId: 'hogar' });
+  assert.equal(value.categoryId, 'hogar');
+  assert.equal(value.subcategoryId, null);
+});
+
+test('an explicit parent and leaf pair is stored as given', async () => {
+  const { service } = setup();
+  const value = await service.create({ ...valid, categoryId: 'hogar', subcategoryId: 'mercado' });
+  assert.equal(value.categoryId, 'hogar');
+  assert.equal(value.subcategoryId, 'mercado');
+});
+
+test('a leaf from another tree is rejected instead of being stored', async () => {
+  const { service } = setup();
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'transporte', subcategoryId: 'mercado' }))).subcategoryId,
+    'The subcategory must belong to the selected category.',
+  );
+});
+
+test('a leaf cannot be sent as the category alongside a subcategory', async () => {
+  const { service } = setup();
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'mercado', subcategoryId: 'taxi' }))).categoryId,
+    'Select a top-level category.',
+  );
+});
+
+test('an unknown or archived subcategory is rejected', async () => {
+  const { service } = setup();
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'hogar', subcategoryId: 'ghost' }))).subcategoryId,
+    'Select an active subcategory.',
+  );
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'hogar', subcategoryId: 'retired-leaf' }))).subcategoryId,
+    'Select an active subcategory.',
+  );
+});
+
+test('an income subcategory cannot classify an expense', async () => {
+  const { service } = setup();
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'bonos' }))).categoryId,
+    'Select an expense category.',
+  );
+});
+
+test('transfers carry neither a category nor a subcategory', async () => {
+  const { service } = setup();
+  const transfer = await service.create(validTransfer);
+  assert.equal(transfer.categoryId, null);
+  assert.equal(transfer.subcategoryId, null);
+});
+
+test('editing can drop a subcategory while keeping the category', async () => {
+  const { service } = setup();
+  const created = await service.create({ ...valid, categoryId: 'mercado' });
+  const updated = await service.update(created.id, { ...valid, categoryId: 'hogar' });
+  assert.equal(updated.categoryId, 'hogar');
+  assert.equal(updated.subcategoryId, null);
+});
+
+test('moving to a subcategory of another tree reassigns the category too', async () => {
+  const { service } = setup();
+  const created = await service.create({ ...valid, categoryId: 'mercado' });
+  const updated = await service.update(created.id, { ...valid, categoryId: 'taxi' });
+  assert.equal(updated.categoryId, 'transporte');
+  assert.equal(updated.subcategoryId, 'taxi');
+});
+
+test('editing can add a subcategory to a transaction that had none', async () => {
+  const { service } = setup();
+  const created = await service.create({ ...valid, categoryId: 'hogar' });
+  assert.equal(created.subcategoryId, null);
+  const updated = await service.update(created.id, { ...valid, categoryId: 'mercado' });
+  assert.equal(updated.categoryId, 'hogar');
+  assert.equal(updated.subcategoryId, 'mercado');
+});
+
+test('a transaction keeps a subcategory archived after it was recorded', async () => {
+  const { categories, service } = setup();
+  const created = await service.create({ ...valid, categoryId: 'mercado' });
+  categories.values.get('mercado').isArchived = true;
+  const updated = await service.update(created.id, { ...valid, categoryId: 'mercado', amount: 60_000 });
+  assert.equal(updated.subcategoryId, 'mercado');
+  assert.equal(updated.amount, 60_000);
+  // ...but it can no longer be chosen for a new one.
+  assert.equal(
+    (await fields(() => service.create({ ...valid, categoryId: 'hogar', subcategoryId: 'mercado' }))).subcategoryId,
+    'Select an active subcategory.',
+  );
+});
+
+test('a recurring template resolves the hierarchy the same way', async () => {
+  const { service } = setup();
+  const resolved = await service.validateTemplate({ ...valid, categoryId: 'mercado' });
+  assert.equal(resolved.categoryId, 'hogar');
+  assert.equal(resolved.subcategoryId, 'mercado');
+});
+
+test('the category path shows both levels, and only what exists', () => {
+  assert.equal(categoryPathLabel('Hogar', 'Mercado'), 'Hogar › Mercado');
+  assert.equal(categoryPathLabel('Hogar', null), 'Hogar');
+  // The parent is always kept: two categories may each have an "Otros".
+  assert.equal(categoryPathLabel(null, 'Mercado'), 'Mercado');
+  assert.equal(categoryPathLabel(null, null), null);
 });

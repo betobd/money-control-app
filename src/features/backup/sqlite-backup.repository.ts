@@ -12,7 +12,7 @@ import type {
   BackupBudget,
   BackupBudgetRule,
   BackupCategory,
-  BackupDataV5,
+  BackupDataV6,
   BackupExchangeRate,
   BackupInvestmentAccount,
   BackupInvestmentValuation,
@@ -92,7 +92,7 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
   };
 }
 
-async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
+async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV6> {
   const accounts = await database.getAllAsync<SqlAccount>(`
     SELECT id, name, type, currency, opening_balance AS openingBalance,
       credit_limit AS creditLimit, statement_closing_day AS statementClosingDay,
@@ -101,13 +101,15 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
     FROM accounts ORDER BY id
   `);
   const categories = await database.getAllAsync<SqlCategory>(`
-    SELECT id, name, type, icon, is_archived AS isArchived,
+    SELECT id, name, type, icon, parent_category_id AS parentCategoryId,
+      is_archived AS isArchived,
       archived_at AS archivedAt, created_at AS createdAt, updated_at AS updatedAt
     FROM categories ORDER BY id
   `);
   const transactions = await database.getAllAsync<BackupTransaction>(`
     SELECT id, type, status, amount, currency, account_id AS accountId,
       destination_account_id AS destinationAccountId, category_id AS categoryId,
+      subcategory_id AS subcategoryId,
       original_transaction_id AS originalTransactionId,
       base_amount_minor AS baseAmountMinor, exchange_rate_scaled AS exchangeRateScaled,
       exchange_rate_scale AS exchangeRateScale, exchange_rate_date AS exchangeRateDate,
@@ -137,6 +139,7 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
   const recurringTransactions = await database.getAllAsync<SqlRecurring>(`
     SELECT id, type, amount, currency, account_id AS accountId,
       destination_account_id AS destinationAccountId, category_id AS categoryId,
+      subcategory_id AS subcategoryId,
       note, frequency, "interval", start_date AS startDate,
       next_occurrence_date AS nextOccurrenceDate, end_date AS endDate,
       is_active AS isActive, ended_at AS endedAt,
@@ -147,7 +150,8 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
     SELECT id, recurring_transaction_id AS recurringTransactionId,
       scheduled_date AS scheduledDate, status, type, amount, currency,
       account_id AS accountId, destination_account_id AS destinationAccountId,
-      category_id AS categoryId, note, transaction_id AS transactionId,
+      category_id AS categoryId, subcategory_id AS subcategoryId,
+      note, transaction_id AS transactionId,
       created_at AS createdAt, updated_at AS updatedAt
     FROM recurring_occurrences ORDER BY id
   `);
@@ -197,7 +201,7 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV5> {
   };
 }
 
-async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Promise<void> {
+async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV6): Promise<void> {
   await insertRows(database, `
     INSERT INTO accounts (
       id, name, type, currency, opening_balance, credit_limit,
@@ -220,29 +224,37 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Pro
     row.dueDate, row.statementBalance, row.minimumPayment, row.createdAt, row.updatedAt,
   ]));
 
+  // Parents before subcategories: `categories.parent_category_id` is a
+  // self-reference with ON DELETE RESTRICT, so a child inserted first would fail
+  // the foreign-key check. Depth is capped at two, which makes this two-pass
+  // split a complete topological order — the same shape as the refund ordering
+  // below, and the reason no general sort is needed.
   await insertRows(database, `
     INSERT INTO categories (
-      id, name, type, icon, is_archived, archived_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, data.categories.map((row) => [
-    row.id, row.name, row.type, row.icon, row.isArchived ? 1 : 0,
+      id, name, type, icon, parent_category_id, is_archived, archived_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    ...data.categories.filter((row) => row.parentCategoryId === null),
+    ...data.categories.filter((row) => row.parentCategoryId !== null),
+  ].map((row) => [
+    row.id, row.name, row.type, row.icon, row.parentCategoryId, row.isArchived ? 1 : 0,
     row.archivedAt, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `
     INSERT INTO transactions (
       id, type, status, amount, currency, account_id, destination_account_id,
-      category_id, original_transaction_id, base_amount_minor, exchange_rate_scaled,
+      category_id, subcategory_id, original_transaction_id, base_amount_minor, exchange_rate_scaled,
       exchange_rate_scale, exchange_rate_date, exchange_rate_source,
       destination_amount_minor, destination_currency_code,
       note, transaction_date, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     ...data.transactions.filter((row) => row.type !== 'refund'),
     ...data.transactions.filter((row) => row.type === 'refund'),
   ].map((row) => [
     row.id, row.type, row.status, row.amount, row.currency, row.accountId,
-    row.destinationAccountId, row.categoryId, row.originalTransactionId,
+    row.destinationAccountId, row.categoryId, row.subcategoryId, row.originalTransactionId,
     row.baseAmountMinor, row.exchangeRateScaled, row.exchangeRateScale,
     row.exchangeRateDate, row.exchangeRateSource,
     row.destinationAmountMinor, row.destinationCurrencyCode,
@@ -276,12 +288,12 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Pro
   await insertRows(database, `
     INSERT INTO recurring_transactions (
       id, type, amount, currency, account_id, destination_account_id,
-      category_id, note, frequency, "interval", start_date,
+      category_id, subcategory_id, note, frequency, "interval", start_date,
       next_occurrence_date, end_date, is_active, ended_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, data.recurringTransactions.map((row) => [
     row.id, row.type, row.amount, row.currency, row.accountId,
-    row.destinationAccountId, row.categoryId, row.note, row.frequency, row.interval,
+    row.destinationAccountId, row.categoryId, row.subcategoryId, row.note, row.frequency, row.interval,
     row.startDate, row.nextOccurrenceDate, row.endDate, row.isActive ? 1 : 0,
     row.endedAt, row.createdAt, row.updatedAt,
   ]));
@@ -289,13 +301,13 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Pro
   await insertRows(database, `
     INSERT INTO recurring_occurrences (
       id, recurring_transaction_id, scheduled_date, status, type, amount,
-      currency, account_id, destination_account_id, category_id, note,
+      currency, account_id, destination_account_id, category_id, subcategory_id, note,
       transaction_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, data.recurringOccurrences.map((row) => [
     row.id, row.recurringTransactionId, row.scheduledDate, row.status, row.type,
     row.amount, row.currency, row.accountId, row.destinationAccountId,
-    row.categoryId, row.note, row.transactionId, row.createdAt, row.updatedAt,
+    row.categoryId, row.subcategoryId, row.note, row.transactionId, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `
@@ -335,7 +347,7 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV5): Pro
 
 async function runPostRestoreChecks(
   database: SQLiteDatabase,
-  data: BackupDataV5,
+  data: BackupDataV6,
 ): Promise<BackupOverview> {
   const actual = await readOverview(database);
   const expected = createBackupOverview(data);
@@ -368,6 +380,22 @@ async function runPostRestoreChecks(
       + (SELECT count(*) FROM credit_card_statements AS s
         JOIN accounts AS a ON a.id = s.account_id
         WHERE a.type <> 'credit_card')
+      -- Two-level classification: a subcategory must sit under a top-level
+      -- category of the same type, and every stored pair must actually belong
+      -- together. The triggers enforce this on write; this proves it held for
+      -- the whole restored set, including rows the triggers saw one at a time.
+      + (SELECT count(*) FROM categories AS child
+        JOIN categories AS parent ON parent.id = child.parent_category_id
+        WHERE parent.parent_category_id IS NOT NULL OR parent.type <> child.type)
+      + (SELECT count(*) FROM transactions AS t
+        WHERE t.subcategory_id IS NOT NULL
+          AND (SELECT parent_category_id FROM categories WHERE id = t.subcategory_id) IS NOT t.category_id)
+      + (SELECT count(*) FROM recurring_transactions AS r
+        WHERE r.subcategory_id IS NOT NULL
+          AND (SELECT parent_category_id FROM categories WHERE id = r.subcategory_id) IS NOT r.category_id)
+      + (SELECT count(*) FROM recurring_occurrences AS o
+        WHERE o.subcategory_id IS NOT NULL
+          AND (SELECT parent_category_id FROM categories WHERE id = o.subcategory_id) IS NOT o.category_id)
       AS violations
   `);
   if (Number(domain?.violations ?? 0) !== 0) {
@@ -396,8 +424,8 @@ export class SQLiteBackupRepository implements BackupRepository {
     return readOverview(sqlite);
   }
 
-  async readSnapshot(): Promise<BackupDataV5> {
-    let snapshot: BackupDataV5 | undefined;
+  async readSnapshot(): Promise<BackupDataV6> {
+    let snapshot: BackupDataV6 | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       snapshot = await readSnapshot(transaction);
     });
@@ -405,7 +433,7 @@ export class SQLiteBackupRepository implements BackupRepository {
     return snapshot;
   }
 
-  async replaceAll(data: BackupDataV5): Promise<BackupOverview> {
+  async replaceAll(data: BackupDataV6): Promise<BackupOverview> {
     let overview: BackupOverview | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       await transaction.execAsync(`
@@ -424,6 +452,12 @@ export class SQLiteBackupRepository implements BackupRepository {
         -- bulk delete below cannot trip the constraint mid-statement.
         DELETE FROM transactions WHERE type = 'refund';
         DELETE FROM transactions;
+        -- Same hazard, same fix: categories.parent_category_id is a
+        -- self-reference with ON DELETE RESTRICT, enforced per row. A bulk
+        -- delete reaches a parent before its subcategories (parents are
+        -- inserted first, so they hold lower rowids) and fails. Verified
+        -- against SQLite in backup_restore_database_test.py.
+        DELETE FROM categories WHERE parent_category_id IS NOT NULL;
         DELETE FROM categories;
         DELETE FROM accounts;
       `);

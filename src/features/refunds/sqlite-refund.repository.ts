@@ -56,6 +56,7 @@ function mapRefund(row: RefundRow): TransactionRecord {
     accountId: row.account_id,
     destinationAccountId: null,
     categoryId: null,
+    subcategoryId: null,
     originalTransactionId: row.original_transaction_id,
     baseAmountMinor: row.base_amount_minor,
     exchangeRateScaled: row.exchange_rate_scaled,

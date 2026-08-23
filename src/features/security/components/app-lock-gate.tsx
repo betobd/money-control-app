@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -209,17 +210,7 @@ function PrimaryButton({ busy = false, disabled = false, label, onPress, theme }
   theme: Theme;
 }) {
   return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.primaryButton, { backgroundColor: disabled ? theme.disabledSurface : theme.primaryAction }]}>
-      {busy ? <ActivityIndicator color={theme.onPrimaryAction} /> : (
-        <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.onPrimaryAction }]}>{label}</Text>
-      )}
-    </Pressable>
+    <Button busy={busy} disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="primary" />
   );
 }
 

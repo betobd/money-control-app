@@ -7,6 +7,7 @@ import {
   BudgetValidationError,
   calculateBudget,
   calculateBudgetSummary,
+  groupBudgets,
 } from '../src/features/budgets/budget.service.ts';
 import { shiftBudgetMonth } from '../src/features/budgets/budget-month.ts';
 
@@ -170,6 +171,8 @@ const baseRecord = {
   categoryName: 'Food & Dining',
   categoryIcon: 'food',
   categoryIsArchived: false,
+  categoryParentId: null,
+  categoryParentName: null,
   month: '2026-07',
   limitAmount: 1000,
   createdAt: NOW,
@@ -202,6 +205,7 @@ test('calculates monthly summary from budgeted categories without double countin
     totalRemaining: 650000,
     percentageUsed: 35,
     progressWidth: '35%',
+    nestedCount: 0,
   });
 });
 
@@ -273,4 +277,76 @@ test('rejects a second recurring budget for the same category', async () => {
 test('supports deterministic budget month navigation', () => {
   assert.equal(shiftBudgetMonth('2026-12', 1), '2027-01');
   assert.equal(shiftBudgetMonth('2026-01', -1), '2025-12');
+});
+
+/* ------------------------------------------------- nested subcategory budgets */
+
+function budgetFor(id, categoryId, { parentId = null, limitAmount, spent }) {
+  return calculateBudget({
+    ...baseRecord,
+    id,
+    categoryId,
+    categoryName: categoryId,
+    categoryParentId: parentId,
+    categoryParentName: parentId,
+    limitAmount,
+    spent,
+  });
+}
+
+test('a sub-limit inside a budgeted category is counted once, not twice', () => {
+  // Hogar 500k covers its whole subtree, including the 200k of Mercado inside it.
+  const hogar = budgetFor('hogar-july', 'hogar', { limitAmount: 500_000, spent: 300_000 });
+  const mercado = budgetFor('mercado-july', 'mercado', { parentId: 'hogar', limitAmount: 200_000, spent: 120_000 });
+  const summary = calculateBudgetSummary([hogar, mercado]);
+  assert.equal(summary.totalBudget, 500_000);
+  assert.equal(summary.totalSpent, 300_000);
+  assert.equal(summary.nestedCount, 1);
+  // Each budget keeps its own numbers; only the totals collapse.
+  assert.equal(mercado.limitAmount, 200_000);
+  assert.equal(mercado.spent, 120_000);
+});
+
+test('a subcategory budget with no parent budget is a budget in its own right', () => {
+  const mercado = budgetFor('mercado-july', 'mercado', { parentId: 'hogar', limitAmount: 200_000, spent: 120_000 });
+  const travel = budgetFor('travel-july', 'travel', { limitAmount: 300_000, spent: 50_000 });
+  const summary = calculateBudgetSummary([mercado, travel]);
+  assert.equal(summary.totalBudget, 500_000);
+  assert.equal(summary.totalSpent, 170_000);
+  assert.equal(summary.nestedCount, 0);
+});
+
+test('nesting does not distort the overall percentage', () => {
+  const hogar = budgetFor('hogar-july', 'hogar', { limitAmount: 400_000, spent: 200_000 });
+  const mercado = budgetFor('mercado-july', 'mercado', { parentId: 'hogar', limitAmount: 100_000, spent: 100_000 });
+  const summary = calculateBudgetSummary([hogar, mercado]);
+  // 200k of 400k, not 300k of 500k: Mercado's spending is already inside Hogar's.
+  assert.equal(summary.percentageUsed, 50);
+});
+
+test('grouping nests sub-limits under their category and leaves the rest at top level', () => {
+  const hogar = budgetFor('hogar-july', 'hogar', { limitAmount: 500_000, spent: 300_000 });
+  const mercado = budgetFor('mercado-july', 'mercado', { parentId: 'hogar', limitAmount: 200_000, spent: 120_000 });
+  const servicios = budgetFor('servicios-july', 'servicios', { parentId: 'hogar', limitAmount: 100_000, spent: 40_000 });
+  const taxi = budgetFor('taxi-july', 'taxi', { parentId: 'transporte', limitAmount: 80_000, spent: 10_000 });
+
+  const groups = groupBudgets([hogar, mercado, servicios, taxi]);
+  assert.deepEqual(groups.map((group) => group.budget.id), ['hogar-july', 'taxi-july']);
+  assert.deepEqual(groups[0].children.map((child) => child.id), ['mercado-july', 'servicios-july']);
+  // Transporte has no budget, so Taxi is not nested anywhere.
+  assert.deepEqual(groups[1].children, []);
+});
+
+test('grouping and the summary agree on what is nested', () => {
+  const hogar = budgetFor('hogar-july', 'hogar', { limitAmount: 500_000, spent: 300_000 });
+  const mercado = budgetFor('mercado-july', 'mercado', { parentId: 'hogar', limitAmount: 200_000, spent: 120_000 });
+  const taxi = budgetFor('taxi-july', 'taxi', { parentId: 'transporte', limitAmount: 80_000, spent: 10_000 });
+  const all = [hogar, mercado, taxi];
+  const groups = groupBudgets(all);
+  const nested = groups.reduce((count, group) => count + group.children.length, 0);
+  assert.equal(nested, calculateBudgetSummary(all).nestedCount);
+  // Every budget appears exactly once in the grouping.
+  const shown = groups.flatMap((group) => [group.budget.id, ...group.children.map((child) => child.id)]);
+  assert.equal(shown.length, all.length);
+  assert.deepEqual(new Set(shown), new Set(all.map((budget) => budget.id)));
 });

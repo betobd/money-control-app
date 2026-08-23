@@ -106,7 +106,8 @@ Columns:
 18. `created_at`
 19. `updated_at`
 
-Transfer category fields are blank and both accounts are populated. Expense/income destination fields are blank. Posted and voided history are both included unless status is filtered. When no rows match, no headers-only file is created.
+`subcategory_id` and `subcategory_name` follow `category_name`. A refund inherits
+both levels from the expense it refunds. Transfer category fields are blank and both accounts are populated. Expense/income destination fields are blank. Posted and voided history are both included unless status is filtered. When no rows match, no headers-only file is created.
 
 Filename: `money-control-transactions-YYYY-MM-DD-to-YYYY-MM-DD.csv`.
 
@@ -179,6 +180,7 @@ Columns:
 18. `created_at`
 19. `updated_at`
 
+`subcategory_id` and `subcategory_name` follow `category_name` here too.
 Occurrences are not mixed into this table and receive no second file in v1. Filename: `money-control-recurring-rules-YYYY-MM-DD.csv`.
 
 ## Credit-card statement export

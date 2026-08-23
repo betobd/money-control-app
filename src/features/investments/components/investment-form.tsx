@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
+import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
@@ -261,33 +263,24 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
           />
         </FormField>
 
-        <FormField label="Start date (optional)" error={errors.startDate} theme={theme}>
-          <TextInput
-            accessibilityLabel="Start date, year month day"
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-            onChangeText={(value) => { setStartDate(value); clearError('startDate'); }}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={theme.mutedText}
-            style={inputStyle(Boolean(errors.startDate))}
-            value={startDate}
-          />
-        </FormField>
+        <DateField
+          clearable
+          error={errors.startDate}
+          label="Start date (optional)"
+          onChange={(value) => { setStartDate(value); clearError('startDate'); }}
+          placeholder="No start date"
+          value={startDate}
+        />
 
-        <FormField label="Maturity date (optional)" error={errors.maturityDate} theme={theme}>
-          <TextInput
-            accessibilityLabel="Maturity date, year month day"
-            autoCapitalize="none"
-            keyboardType="numbers-and-punctuation"
-            maxLength={10}
-            onChangeText={(value) => { setMaturityDate(value); clearError('maturityDate'); }}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={theme.mutedText}
-            style={inputStyle(Boolean(errors.maturityDate))}
-            value={maturityDate}
-          />
-        </FormField>
+        <DateField
+          clearable
+          error={errors.maturityDate}
+          label="Maturity date (optional)"
+          minDate={startDate || undefined}
+          onChange={(value) => { setMaturityDate(value); clearError('maturityDate'); }}
+          placeholder="No maturity date"
+          value={maturityDate}
+        />
 
         <FormField label="Note (optional)" error={errors.note} theme={theme}>
           <TextInput
@@ -304,15 +297,15 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
       </ScrollView>
 
       <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        <Pressable
+        <Button
           accessibilityLabel={isEditing ? 'Save investment changes' : 'Create investment'}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
+          busy={saving}
+          fullWidth
+          label={isEditing ? 'Save changes' : 'Create investment'}
           onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>{isEditing ? 'Save Changes' : 'Create Investment'}</Text>}
-        </Pressable>
+          size="lg"
+          variant="primary"
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -367,6 +360,4 @@ const styles = StyleSheet.create({
   error: { ...typography.caption },
   help: { ...typography.caption },
   saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
-  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

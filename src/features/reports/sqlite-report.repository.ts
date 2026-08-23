@@ -24,6 +24,9 @@ const UNKNOWN_CATEGORY_NAME = 'Unknown category';
 const UNKNOWN_CATEGORY_ICON = 'other';
 const originalTransactions = alias(transactions, 'report_original_transactions');
 const originalCategories = alias(categories, 'report_original_categories');
+const subcategories = alias(categories, 'report_subcategories');
+const originalSubcategories = alias(categories, 'report_original_subcategories');
+const NO_SUBCATEGORY_NAME = 'No subcategory';
 
 function groupingExpression(grouping: ReportGrouping): SQL<string> {
   return grouping === 'day'
@@ -120,8 +123,18 @@ export class SQLiteReportRepository implements ReportRepository {
     }));
   }
 
+  /**
+   * Expenses grouped by (category, subcategory).
+   *
+   * Both levels resolve refunds through the expense they refund, with the same
+   * coalesce, so a refund lands in exactly the bucket its original expense did.
+   * The caller folds these leaf rows into categories; because the ranking and
+   * the breakdown come from one grouping, a category's total is the sum of its
+   * rows by construction rather than by agreement between two queries.
+   */
   async categoryExpenses(period: ReportPeriod): Promise<CategoryExpenseAggregate[]> {
     const effectiveCategoryId = sql<string>`coalesce(${transactions.categoryId}, ${originalTransactions.categoryId})`;
+    const effectiveSubcategoryId = sql<string | null>`coalesce(${transactions.subcategoryId}, ${originalTransactions.subcategoryId})`;
     const total = sql<number>`coalesce(sum(case
       when ${transactions.type} = 'expense' then coalesce(${transactions.baseAmountMinor}, ${transactions.amount})
       when ${transactions.type} = 'refund' then -coalesce(${transactions.baseAmountMinor}, ${transactions.amount})
@@ -131,26 +144,34 @@ export class SQLiteReportRepository implements ReportRepository {
         categoryId: effectiveCategoryId,
         categoryName: sql<string | null>`coalesce(${categories.name}, ${originalCategories.name})`,
         icon: sql<string | null>`coalesce(${categories.icon}, ${originalCategories.icon})`,
+        subcategoryId: effectiveSubcategoryId,
+        subcategoryName: sql<string | null>`coalesce(${subcategories.name}, ${originalSubcategories.name})`,
         total,
         transactionCount: sql<number>`count(*)`,
       })
       .from(transactions)
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .leftJoin(subcategories, eq(transactions.subcategoryId, subcategories.id))
       .leftJoin(originalTransactions, eq(transactions.originalTransactionId, originalTransactions.id))
       .leftJoin(originalCategories, eq(originalTransactions.categoryId, originalCategories.id))
+      .leftJoin(originalSubcategories, eq(originalTransactions.subcategoryId, originalSubcategories.id))
       .where(and(
         eq(transactions.status, 'posted'),
         inArray(transactions.type, ['expense', 'refund']),
         gte(transactions.transactionDate, period.dateFrom),
         lte(transactions.transactionDate, period.dateTo),
       ))
-      .groupBy(effectiveCategoryId)
+      .groupBy(effectiveCategoryId, effectiveSubcategoryId)
       .orderBy(desc(total), asc(effectiveCategoryId));
 
     return rows.map((row) => ({
       categoryId: row.categoryId ?? UNKNOWN_CATEGORY_ID,
       categoryName: row.categoryName ?? UNKNOWN_CATEGORY_NAME,
       icon: row.icon ?? UNKNOWN_CATEGORY_ICON,
+      subcategoryId: row.subcategoryId ?? null,
+      // A subcategory id with no name means the row was archived and hard-deleted,
+      // which the schema forbids; fall back rather than render an empty label.
+      subcategoryName: row.subcategoryId ? row.subcategoryName ?? NO_SUBCATEGORY_NAME : null,
       total: safeInteger(row.total, 'Category spending'),
       transactionCount: safeInteger(row.transactionCount, 'Category transaction count'),
     }));

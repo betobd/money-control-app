@@ -46,8 +46,8 @@ def seed_pre_investments(con):
             ('old', 'Old Wallet', 'cash', 'COP', 20000, None, None, None, 1, UTC, UTC, UTC),
         ],
     )
-    con.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
-    con.execute("INSERT INTO categories VALUES (?,?,?,?,?,?,?,?)", ('food', 'Food', 'expense', None, 0, None, UTC, UTC))
+    con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
+    con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('food', 'Food', 'expense', None, 0, None, UTC, UTC))
     con.executemany(
         'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,original_transaction_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [

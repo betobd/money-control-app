@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
+import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,17 +15,19 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
 import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { parseMoney, type CurrencyCode } from '@/features/currency/currency';
-import { CategoryGrid } from '@/features/add-transaction/components/category-grid';
+import { CategoryGrid, type CategorySelection } from '@/features/add-transaction/components/category-grid';
+import { CategoryPicker } from '@/features/add-transaction/components/category-picker';
 import { FormFieldButton } from '@/features/add-transaction/components/form-field-button';
 import { TransactionTypeSelector } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
-import { useCategories } from '@/features/categories/use-categories';
+import { useCategoryTree } from '@/features/categories/use-categories';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { RecurringRuleValidationError } from '../recurring-transaction.service';
 import type {
@@ -42,6 +44,7 @@ type EditorInitial = {
   accountId: string;
   destinationAccountId: string | null;
   categoryId: string | null;
+  subcategoryId: string | null;
   note: string | null;
   date: string;
   frequency?: RecurringFrequency;
@@ -73,6 +76,7 @@ const RENDERED_ERROR_FIELDS = new Set<string>([
   'accountId',
   'destinationAccountId',
   'categoryId',
+  'subcategoryId',
   'frequency',
   'interval',
   'startDate',
@@ -97,13 +101,18 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { accounts } = useAccounts();
-  const expenseCategories = useCategories('expense', false).categories;
-  const incomeCategories = useCategories('income', false).categories;
+  const expenseTree = useCategoryTree('expense', false).tree;
+  const incomeTree = useCategoryTree('income', false).tree;
   const [type, setType] = useState(props.initial.type);
   const [digits, setDigits] = useState(String(props.initial.amount || ''));
   const [accountId, setAccountId] = useState(props.initial.accountId);
   const [destinationAccountId, setDestinationAccountId] = useState(props.initial.destinationAccountId ?? '');
-  const [categoryId, setCategoryId] = useState(props.initial.categoryId ?? '');
+  const [selection, setSelection] = useState<CategorySelection | null>(
+    props.initial.categoryId
+      ? { categoryId: props.initial.categoryId, subcategoryId: props.initial.subcategoryId }
+      : null,
+  );
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [date, setDate] = useState(props.initial.date);
   const [endDate, setEndDate] = useState(props.initial.endDate ?? '');
   const [frequency, setFrequency] = useState(props.initial.frequency ?? 'monthly');
@@ -118,7 +127,18 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
   const selectedAccount = accounts.find((account) => account.id === accountId);
   const editorCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
   const selectedDestination = accounts.find((account) => account.id === destinationAccountId);
-  const categories = type === 'income' ? incomeCategories : expenseCategories;
+  const tree = type === 'income' ? incomeTree : expenseTree;
+  // Re-resolved against the live tree so a category archived elsewhere cannot
+  // stay selected, and a subcategory never outlives a change of category.
+  const selectedCategory = tree.find((category) => category.id === selection?.categoryId);
+  const effectiveSelection: CategorySelection | null = selectedCategory
+    ? {
+        categoryId: selectedCategory.id,
+        subcategoryId: selectedCategory.subcategories.some((item) => item.id === selection?.subcategoryId)
+          ? selection?.subcategoryId ?? null
+          : null,
+      }
+    : null;
   const pickerAccounts = picker === 'source'
     ? activeAccounts.filter((account) => account.id !== destinationAccountId)
     : picker === 'destination'
@@ -127,8 +147,13 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   function changeType(next: TransactionFormType) {
     setType(next);
-    setCategoryId('');
+    setSelection(null);
     setErrors({});
+  }
+
+  function selectCategory(next: CategorySelection) {
+    setSelection(next);
+    setErrors((current) => ({ ...current, categoryId: undefined, subcategoryId: undefined }));
   }
 
   function selectAccount(id: string) {
@@ -154,6 +179,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
           accountId,
           destinationAccountId,
           categoryId: null,
+          subcategoryId: null,
           note,
         }
       : {
@@ -161,7 +187,8 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
           amount,
           accountId,
           destinationAccountId: null,
-          categoryId,
+          categoryId: effectiveSelection?.categoryId ?? '',
+          subcategoryId: effectiveSelection?.subcategoryId ?? null,
           note,
         };
     try {
@@ -231,12 +258,22 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         ) : (
           <>
             <CategoryGrid
-              categories={categories}
+              categories={tree}
               error={errors.categoryId}
-              onSelect={setCategoryId}
-              onViewAll={() => router.push({ pathname: '/categories', params: { type } })}
-              selectedId={categoryId}
+              onSelect={selectCategory}
+              onViewAll={() => setCategoryPickerVisible(true)}
+              selection={effectiveSelection}
+              subcategoryError={errors.subcategoryId}
               type={type}
+            />
+            <CategoryPicker
+              categories={tree}
+              onClose={() => setCategoryPickerVisible(false)}
+              onManage={() => router.push({ pathname: '/categories', params: { type } })}
+              onSelect={selectCategory}
+              selection={effectiveSelection}
+              title={type === 'income' ? 'Select income category' : 'Select expense category'}
+              visible={categoryPickerVisible}
             />
             <FormFieldButton
               error={errors.accountId}
@@ -286,7 +323,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
           value={date}
         />
         {props.mode === 'rule' ? (
-          <DateField error={errors.endDate} label="End date (optional)" onChange={setEndDate} value={endDate} />
+          <DateField clearable error={errors.endDate} label="End date (optional)" onChange={setEndDate} value={endDate} />
         ) : null}
 
         <View style={styles.field}>
@@ -307,15 +344,15 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
       </ScrollView>
 
       <View style={[styles.footer, { borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable
+        <Button
           accessibilityLabel="Save recurring transaction"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
+          busy={saving}
+          fullWidth
+          label="Save"
           onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveLabel, { color: theme.onPrimaryAction }]}>Save</Text>}
-        </Pressable>
+          size="lg"
+          variant="primary"
+        />
       </View>
 
       <AccountPicker
@@ -327,37 +364,6 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         visible={picker !== null}
       />
     </KeyboardAvoidingView>
-  );
-}
-
-function DateField({
-  error,
-  label,
-  onChange,
-  value,
-}: {
-  error?: string;
-  label: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  const theme = useAppTheme();
-  return (
-    <View style={styles.field}>
-      <Overline color={theme.mutedText}>{label}</Overline>
-      <TextInput
-        accessibilityLabel={`${label}, YYYY-MM-DD`}
-        autoCapitalize="none"
-        keyboardType="numbers-and-punctuation"
-        maxLength={10}
-        onChangeText={onChange}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor={theme.mutedText}
-        style={[styles.input, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.hairline, color: theme.primaryText }]}
-        value={value}
-      />
-      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
-    </View>
   );
 }
 
@@ -375,6 +381,4 @@ const styles = StyleSheet.create({
   note: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 96, padding: spacing.md },
   error: { ...typography.caption },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
-  saveLabel: { ...typography.body, fontWeight: '700' },
 });

@@ -21,12 +21,14 @@ import type {
 } from './recurring-transaction.types';
 
 const destinationAccounts = alias(accounts, 'recurring_destination_accounts');
+const subcategories = alias(categories, 'recurring_subcategories');
 
 const ruleSelection = {
   rule: recurringTransactions,
   accountName: accounts.name,
   destinationAccountName: destinationAccounts.name,
   categoryName: categories.name,
+  subcategoryName: subcategories.name,
 };
 
 const occurrenceSelection = {
@@ -34,6 +36,7 @@ const occurrenceSelection = {
   accountName: accounts.name,
   destinationAccountName: destinationAccounts.name,
   categoryName: categories.name,
+  subcategoryName: subcategories.name,
 };
 
 function mapRule(row: {
@@ -41,6 +44,7 @@ function mapRule(row: {
   accountName: string;
   destinationAccountName: string | null;
   categoryName: string | null;
+  subcategoryName: string | null;
 }): RecurringRuleListItem {
   return {
     ...row.rule,
@@ -50,6 +54,7 @@ function mapRule(row: {
     accountName: row.accountName,
     destinationAccountName: row.destinationAccountName,
     categoryName: row.categoryName,
+    subcategoryName: row.subcategoryName,
   } as RecurringRuleListItem;
 }
 
@@ -58,6 +63,7 @@ function mapOccurrence(row: {
   accountName: string;
   destinationAccountName: string | null;
   categoryName: string | null;
+  subcategoryName: string | null;
 }): RecurringOccurrenceListItem {
   return {
     ...row.occurrence,
@@ -67,6 +73,7 @@ function mapOccurrence(row: {
     accountName: row.accountName,
     destinationAccountName: row.destinationAccountName,
     categoryName: row.categoryName,
+    subcategoryName: row.subcategoryName,
   } as RecurringOccurrenceListItem;
 }
 
@@ -84,6 +91,7 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
         accountId: rule.accountId,
         destinationAccountId: rule.destinationAccountId,
         categoryId: rule.categoryId,
+        subcategoryId: rule.subcategoryId,
         note: rule.note,
         frequency: rule.frequency,
         interval: rule.interval,
@@ -203,6 +211,7 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
         accountId: occurrence.accountId,
         destinationAccountId: occurrence.destinationAccountId,
         categoryId: occurrence.categoryId,
+        subcategoryId: occurrence.subcategoryId,
         note: occurrence.note,
         scheduledDate: occurrence.scheduledDate,
         updatedAt: occurrence.updatedAt,
@@ -264,6 +273,7 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
       .innerJoin(accounts, eq(recurringTransactions.accountId, accounts.id))
       .leftJoin(destinationAccounts, eq(recurringTransactions.destinationAccountId, destinationAccounts.id))
       .leftJoin(categories, eq(recurringTransactions.categoryId, categories.id))
+      .leftJoin(subcategories, eq(recurringTransactions.subcategoryId, subcategories.id))
       .where(condition)
       .orderBy(
         desc(recurringTransactions.isActive),
@@ -280,6 +290,7 @@ export class SQLiteRecurringTransactionRepository implements RecurringTransactio
       .innerJoin(accounts, eq(recurringOccurrences.accountId, accounts.id))
       .leftJoin(destinationAccounts, eq(recurringOccurrences.destinationAccountId, destinationAccounts.id))
       .leftJoin(categories, eq(recurringOccurrences.categoryId, categories.id))
+      .leftJoin(subcategories, eq(recurringOccurrences.subcategoryId, subcategories.id))
       .where(condition)
       .orderBy(desc(recurringOccurrences.scheduledDate), desc(recurringOccurrences.createdAt));
     return limit === undefined ? query : query.limit(limit);

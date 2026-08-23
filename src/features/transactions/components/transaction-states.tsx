@@ -1,6 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Skeleton } from '@/components/skeleton';
+import { Button } from '@/components/button';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
@@ -57,12 +59,12 @@ export function LoadingTransactionRow() {
       accessibilityLabel="Loading transaction"
       accessibilityRole="progressbar"
       style={[styles.loadingRow, { backgroundColor: theme.surface }]}>
-      <View style={[styles.loadingIcon, { backgroundColor: theme.disabledSurface }]} />
+      <Skeleton style={styles.loadingIcon} />
       <View style={styles.loadingCopy}>
-        <View style={[styles.loadingLineWide, { backgroundColor: theme.disabledSurface }]} />
-        <View style={[styles.loadingLineShort, { backgroundColor: theme.disabledSurface }]} />
+        <Skeleton style={styles.loadingLineWide} />
+        <Skeleton style={styles.loadingLineShort} />
       </View>
-      <View style={[styles.loadingAmount, { backgroundColor: theme.disabledSurface }]} />
+      <Skeleton style={styles.loadingAmount} />
     </View>
   );
 }
@@ -90,15 +92,7 @@ function TransactionState({ title, body, icon, actions }: TransactionStateProps)
 }
 
 function StateButton({ label, onPress }: { label: string; onPress: () => void }) {
-  const theme = useAppTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.stateButton, { backgroundColor: theme.tintPrimary }]}>
-      <Text style={[styles.stateButtonLabel, { color: theme.primaryAction }]}>{label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} onPress={onPress} variant="tonal" />;
 }
 
 const styles = StyleSheet.create({
@@ -124,14 +118,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' },
-  stateButton: {
-    alignItems: 'center',
-    borderRadius: borderRadii.full,
-    justifyContent: 'center',
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-  },
-  stateButtonLabel: { ...typography.caption, fontWeight: '700' },
   loadingRow: {
     alignItems: 'center',
     borderRadius: borderRadii.md,

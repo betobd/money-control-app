@@ -29,7 +29,7 @@ if DATABASE_PATH.exists():
 connection = open_database()
 apply_before_budget_migration(connection)
 connection.executemany(
-    'INSERT INTO categories VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [
         ('food', 'Food & Dining', 'expense', 'food', 0, None, UTC, UTC),
         ('travel', 'Travel', 'expense', 'travel', 0, None, UTC, UTC),
@@ -94,7 +94,7 @@ DATABASE_PATH.unlink()
 connection = open_database()
 apply_before_budget_migration(connection)
 connection.execute(
-    'INSERT INTO categories VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     ('salary', 'Salary', 'income', 'salary', 0, None, UTC, UTC),
 )
 connection.execute(

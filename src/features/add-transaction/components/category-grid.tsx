@@ -1,11 +1,12 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { getCategoryIcon } from '@/features/categories/category-icons';
-import type { Category } from '@/features/categories/category.types';
+import type { Category, CategoryTree } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 function getTypeTint(type: TransactionFormType, theme: ReturnType<typeof useAppTheme>) {
@@ -14,44 +15,73 @@ function getTypeTint(type: TransactionFormType, theme: ReturnType<typeof useAppT
   return theme.tintExpense;
 }
 
-type CategoryGridProps = {
-  categories: readonly Category[];
-  selectedId?: string;
-  type: TransactionFormType;
-  onSelect: (id: string) => void;
-  onViewAll: () => void;
-  error?: string;
+/** The chosen classification: a category, optionally narrowed to one of its subcategories. */
+export type CategorySelection = {
+  categoryId: string;
+  subcategoryId: string | null;
 };
 
-export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll, error }: CategoryGridProps) {
+type CategoryGridProps = {
+  categories: readonly CategoryTree[];
+  selection: CategorySelection | null;
+  type: TransactionFormType;
+  onSelect: (selection: CategorySelection) => void;
+  onViewAll: () => void;
+  error?: string;
+  subcategoryError?: string;
+};
+
+/**
+ * Two-level category chooser: a grid of categories, plus a chip row for the
+ * selected category's subcategories.
+ *
+ * The chip row always offers "None", so a category with subcategories can still
+ * be used on its own — there is deliberately no synthetic "Other" subcategory to
+ * create or maintain.
+ */
+export function CategoryGrid({
+  categories,
+  selection,
+  type,
+  onSelect,
+  onViewAll,
+  error,
+  subcategoryError,
+}: CategoryGridProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
   const tint = getTypeTint(type, theme);
+  const selectedCategory = categories.find((category) => category.id === selection?.categoryId);
+  const subcategories = selectedCategory?.subcategories ?? [];
 
   return (
     <View style={styles.group}>
       <View style={styles.heading}>
         <Text style={[styles.title, { color: theme.secondaryText }]}>Category</Text>
-        <Pressable
+        <PressableScale
           accessibilityLabel="View all categories"
           accessibilityRole="button"
           onPress={onViewAll}
           style={styles.viewAll}>
           <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View All</Text>
-        </Pressable>
+        </PressableScale>
       </View>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.empty, { color: theme.destructive }]}>{error}</Text> : null}
-      <View style={styles.grid}>
+      <View accessibilityRole="radiogroup" style={styles.grid}>
         {categories.map((category) => {
-          const selected = category.id === selectedId;
+          const selected = category.id === selection?.categoryId;
           const icon = getCategoryIcon(category.icon);
+          const childCount = category.subcategories.length;
           return (
-            <Pressable
+            <PressableScale
+              accessibilityHint={childCount > 0 ? `Has ${childCount} subcategories` : undefined}
               accessibilityLabel={`${category.name} category`}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               key={category.id}
-              onPress={() => onSelect(category.id)}
+              // Changing category clears the subcategory: a leaf never survives a
+              // move to another tree, which is what would create Transporte + Mercado.
+              onPress={() => onSelect({ categoryId: category.id, subcategoryId: null })}
               style={[
                 styles.category,
                 { backgroundColor: selected ? tint : theme.surface },
@@ -63,15 +93,85 @@ export function CategoryGrid({ categories, selectedId, type, onSelect, onViewAll
               />
               <Text
                 numberOfLines={1}
-                style={[styles.categoryLabel, { color: selected ? tone : theme.secondaryText }]}> 
+                style={[styles.categoryLabel, { color: selected ? tone : theme.secondaryText }]}>
                 {category.name}
               </Text>
-            </Pressable>
+              {childCount > 0 ? (
+                <View style={styles.childMarker}>
+                  <SymbolView
+                    name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }}
+                    size={11}
+                    tintColor={selected ? tone : theme.mutedText}
+                  />
+                </View>
+              ) : null}
+            </PressableScale>
           );
         })}
         {categories.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No active categories.</Text> : null}
       </View>
+
+      {subcategories.length > 0 && selectedCategory ? (
+        <View style={styles.subcategoryGroup}>
+          <Text style={[styles.title, { color: theme.secondaryText }]}>
+            {selectedCategory.name} detail
+          </Text>
+          <View accessibilityRole="radiogroup" style={styles.chipRow}>
+            <SubcategoryChip
+              label="None"
+              accessibilityLabel={`No subcategory, ${selectedCategory.name} only`}
+              selected={selection?.subcategoryId == null}
+              onPress={() => onSelect({ categoryId: selectedCategory.id, subcategoryId: null })}
+              tint={tint}
+              tone={tone}
+            />
+            {subcategories.map((subcategory: Category) => (
+              <SubcategoryChip
+                key={subcategory.id}
+                label={subcategory.name}
+                accessibilityLabel={`${subcategory.name} subcategory of ${selectedCategory.name}`}
+                selected={selection?.subcategoryId === subcategory.id}
+                onPress={() => onSelect({ categoryId: selectedCategory.id, subcategoryId: subcategory.id })}
+                tint={tint}
+                tone={tone}
+              />
+            ))}
+          </View>
+          {subcategoryError ? (
+            <Text accessibilityLiveRegion="polite" style={[styles.chipError, { color: theme.destructive }]}>
+              {subcategoryError}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+type SubcategoryChipProps = {
+  label: string;
+  accessibilityLabel: string;
+  selected: boolean;
+  onPress: () => void;
+  tint: string;
+  tone: string;
+};
+
+function SubcategoryChip({ label, accessibilityLabel, selected, onPress, tint, tone }: SubcategoryChipProps) {
+  const theme = useAppTheme();
+  return (
+    <PressableScale
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      // The chip is 32pt tall to stay subtle; hitSlop restores a 44pt target.
+      hitSlop={6}
+      onPress={onPress}
+      style={[styles.chip, { backgroundColor: selected ? tint : theme.surface }]}>
+      <Text numberOfLines={1} style={[styles.chipLabel, { color: selected ? tone : theme.secondaryText }]}>
+        {label}
+      </Text>
+    </PressableScale>
   );
 }
 
@@ -116,5 +216,28 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '700',
   },
+  childMarker: {
+    bottom: spacing.xs,
+    position: 'absolute',
+    right: spacing.xs + 2,
+  },
+  subcategoryGroup: { gap: spacing.sm },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
+  },
+  chip: {
+    alignItems: 'center',
+    borderRadius: borderRadii.sm,
+    justifyContent: 'center',
+    minHeight: 32,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  chipLabel: {
+    ...typography.caption,
+    fontWeight: '600',
+  },
+  chipError: { ...typography.caption },
   empty: { ...typography.caption, paddingVertical: spacing.md },
 });

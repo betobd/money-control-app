@@ -1,4 +1,4 @@
-import type { BackupDataV5, BackupOverview } from './backup.types';
+import type { BackupDataV6, BackupOverview } from './backup.types';
 
 export type BackupRestoreErrorCode =
   | 'count_mismatch'
@@ -17,6 +17,6 @@ export class BackupRestoreError extends Error {
 
 export interface BackupRepository {
   readOverview(): Promise<BackupOverview>;
-  readSnapshot(): Promise<BackupDataV5>;
-  replaceAll(data: BackupDataV5): Promise<BackupOverview>;
+  readSnapshot(): Promise<BackupDataV6>;
+  replaceAll(data: BackupDataV6): Promise<BackupOverview>;
 }

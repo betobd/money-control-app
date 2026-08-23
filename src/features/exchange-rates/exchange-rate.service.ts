@@ -15,7 +15,7 @@ import {
 } from '@/features/currency/currency';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
-import { ExchangeRateProviderError, type ExchangeRateProvider } from './frankfurter.provider';
+import { isExchangeRateProviderError, type ExchangeRateProvider } from './frankfurter.provider';
 import type { ExchangeRateRepository } from './exchange-rate.repository';
 import {
   USD_COP_RATE_ID,
@@ -139,7 +139,7 @@ export class ExchangeRateService {
     } catch (cause) {
       this.lastFailureAtMs = this.nowMs();
       const cached = await this.repository.getValuationRate();
-      if (cause instanceof ExchangeRateProviderError) {
+      if (isExchangeRateProviderError(cause)) {
         throw new ExchangeRateServiceError(
           cached ? 'refresh_failed' : 'no_rate_available',
           cached

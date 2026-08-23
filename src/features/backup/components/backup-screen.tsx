@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -156,15 +157,14 @@ export function BackupScreen() {
             onPress={() => void selectBackup()}
             theme={theme}
           />
-          <Pressable
+          <Button
             accessibilityHint="Opens the same readable backup export confirmation"
             accessibilityLabel="Create a current safety backup first"
-            accessibilityRole="button"
             disabled={busy}
+            label="Create current backup first"
             onPress={confirmExport}
-            style={styles.linkButton}>
-            <Text style={[styles.linkLabel, { color: busy ? theme.disabledText : theme.primaryAction }]}>Create current backup first</Text>
-          </Pressable>
+            variant="ghost"
+          />
         </Section>
 
         {candidate ? (
@@ -266,17 +266,7 @@ function PrimaryButton({
     ? theme.disabledSurface
     : destructive ? theme.destructive : theme.primaryAction;
   return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.primaryButton, { backgroundColor }]}>
-      {busy ? <ActivityIndicator color={disabled ? theme.disabledText : theme.onPrimaryAction} /> : (
-        <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.onPrimaryAction }]}>{label}</Text>
-      )}
-    </Pressable>
+    <Button busy={busy} disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" style={{ backgroundColor }} variant="primary" />
   );
 }
 
@@ -288,17 +278,7 @@ function SecondaryButton({ busy, disabled, label, onPress, theme }: {
   theme: Theme;
 }) {
   return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ busy, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.secondaryButton, { backgroundColor: disabled ? theme.disabledSurface : theme.elevatedSurface }]}>
-      {busy ? <ActivityIndicator color={theme.primaryAction} /> : (
-        <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.primaryAction }]}>{label}</Text>
-      )}
-    </Pressable>
+    <Button busy={busy} disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="tonal" />
   );
 }
 

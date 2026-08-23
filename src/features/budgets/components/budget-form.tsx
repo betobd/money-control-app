@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -54,17 +55,23 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
   useEffect(() => {
     Promise.all([
-      categoryService.listSelectable('expense'),
+      categoryService.listTree('expense', false),
       budgetId ? budgetService.getEditModel(budgetId) : Promise.resolve(null),
     ])
-      .then(([activeCategories, budget]) => {
+      .then(([tree, budget]) => {
         if (budgetId && !budget) throw new Error('Budget not found.');
-        const options: BudgetCategoryOption[] = activeCategories.map((category) => ({
-          id: category.id,
-          name: category.name,
-          icon: category.icon,
-          isArchived: category.isArchived,
-        }));
+        // Flattened parent-then-children, so a subcategory is listed next to the
+        // category it belongs to rather than alphabetically somewhere else.
+        const options: BudgetCategoryOption[] = tree.flatMap((category) => [
+          { id: category.id, name: category.name, icon: category.icon, isArchived: category.isArchived, parentName: null },
+          ...category.subcategories.map((subcategory) => ({
+            id: subcategory.id,
+            name: subcategory.name,
+            icon: subcategory.icon,
+            isArchived: subcategory.isArchived,
+            parentName: category.name,
+          })),
+        ]);
         if (budget) {
           if (!options.some((category) => category.id === budget.categoryId)) {
             options.unshift({
@@ -72,6 +79,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
               name: budget.categoryName,
               icon: budget.categoryIcon,
               isArchived: budget.categoryIsArchived,
+              parentName: budget.categoryParentName,
             });
           }
           setCategoryId(budget.categoryId);
@@ -217,22 +225,20 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         </View>
 
         {editing ? (
-          <Pressable accessibilityLabel="Remove budget" accessibilityRole="button" onPress={confirmRemove} style={[styles.remove, { backgroundColor: theme.tintDestructive }]}>
-            <Text style={[styles.removeText, { color: theme.destructive }]}>Remove Budget</Text>
-          </Pressable>
+          <Button accessibilityLabel="Remove budget" fullWidth label="Remove budget" onPress={confirmRemove} size="lg" variant="destructive" />
         ) : null}
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
-        <Pressable
+        <Button
           accessibilityLabel={editing ? 'Save budget changes' : 'Create budget'}
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
+          busy={saving}
+          fullWidth
+          label={editing ? 'Save changes' : 'Create budget'}
           onPress={() => void save()}
-          style={[styles.save, { backgroundColor: saving ? theme.disabledSurface : theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.disabledText} /> : <Text style={[styles.saveText, { color: theme.onPrimaryAction }]}>{editing ? 'Save Changes' : 'Create Budget'}</Text>}
-        </Pressable>
+          size="lg"
+          variant="primary"
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -254,9 +260,5 @@ const styles = StyleSheet.create({
   recurringTitle: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600' },
   recurringHint: { ...typography.caption, fontSize: 12, lineHeight: 16 },
   error: { ...typography.caption },
-  remove: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
-  removeText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
-  save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
-  saveText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
 });

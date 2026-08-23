@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ExpoSecureStorageAdapter } from '../src/features/security/expo-secure-storage.adapter.ts';
-import { AppLockConfigurationError } from '../src/features/security/app-lock.repository.ts';
+import { isAppLockConfigurationError } from '../src/features/security/app-lock.repository.ts';
 import {
   APP_LOCK_CONFIG_KEY,
   APP_LOCK_CONFIG_VERSION,
@@ -91,12 +91,12 @@ test('corrupt and unsupported secure records fail closed', async () => {
   api.values.set(APP_LOCK_CONFIG_KEY, '{bad json');
   await assert.rejects(
     () => repository.readConfig(),
-    (error) => error instanceof AppLockConfigurationError && error.code === 'corrupt_record',
+    (error) => isAppLockConfigurationError(error) && error.code === 'corrupt_record',
   );
   api.values.set(APP_LOCK_CONFIG_KEY, JSON.stringify({ ...config, version: 99 }));
   await assert.rejects(
     () => repository.readConfig(),
-    (error) => error instanceof AppLockConfigurationError && error.code === 'unsupported_version',
+    (error) => isAppLockConfigurationError(error) && error.code === 'unsupported_version',
   );
 });
 
@@ -111,7 +111,7 @@ test('SecureStore availability, read, write, and deletion failures remain distin
     api.failure = failure;
     await assert.rejects(
       () => action(repository),
-      (error) => error instanceof AppLockConfigurationError && error.code === code,
+      (error) => isAppLockConfigurationError(error) && error.code === code,
     );
   }
 });
@@ -121,7 +121,7 @@ test('unavailable SecureStore is never interpreted as disabled App Lock', async 
   api.available = false;
   await assert.rejects(
     () => repository.readConfig(),
-    (error) => error instanceof AppLockConfigurationError && error.code === 'secure_store_unavailable',
+    (error) => isAppLockConfigurationError(error) && error.code === 'secure_store_unavailable',
   );
 });
 

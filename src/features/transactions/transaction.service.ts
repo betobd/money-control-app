@@ -7,7 +7,7 @@ import {
   toBaseCurrencyMinor,
   type CurrencyCode,
 } from '@/features/currency/currency';
-import { notifyFinancialDataChanged } from './financial-data-events';
+import { notifyFinancialDataChanged, type FinancialDataChange } from './financial-data-events';
 import { isValidCalendarDate } from './transaction-date';
 import type { TransactionRepository } from './transaction.repository';
 import {
@@ -135,9 +135,23 @@ export function normalizeTransactionListQuery(
 }
 
 export class TransactionValidationError extends Error {
+  /**
+   * Stable brand. Cross-module `instanceof` compares constructor identity, which
+   * is only reliable while every importer shares one module instance — not
+   * guaranteed once a module is reached through more than one specifier form
+   * (bundler chunking, a duplicated dependency, or the test runner's resolver).
+   * Code in another feature must use `isTransactionValidationError`.
+   */
+  readonly isTransactionValidationError = true;
+
   constructor(public readonly fields: TransactionValidationErrors) {
     super('Transaction validation failed.');
   }
+}
+
+/** Identity-independent check for {@link TransactionValidationError}. */
+export function isTransactionValidationError(value: unknown): value is TransactionValidationError {
+  return value instanceof Error && (value as TransactionValidationError).isTransactionValidationError === true;
 }
 
 export type TransactionPersistence = (transaction: TransactionRecord) => Promise<void>;
@@ -176,6 +190,10 @@ export class TransactionService {
     private readonly categories: CategoryRepository,
     private readonly createId: () => string,
     private readonly now = () => new Date().toISOString(),
+    // Injectable so a caller (and every test) can observe invalidation directly
+    // instead of subscribing to the module-level listener set. BudgetService
+    // takes the same seam for the same reason.
+    private readonly notifyChanged: (change: FinancialDataChange) => void = notifyFinancialDataChanged,
   ) {}
 
   private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
@@ -234,6 +252,7 @@ export class TransactionService {
             ...metadata,
             ...snapshot,
             categoryId: null,
+            subcategoryId: null,
             originalTransactionId: null,
           }
         : {
@@ -245,7 +264,7 @@ export class TransactionService {
           };
 
       await persist(transaction);
-      notifyFinancialDataChanged({ kind: 'transaction', operation: 'create', after: transaction });
+      this.notifyChanged({ kind: 'transaction', operation: 'create', after: transaction });
       return transaction;
     });
   }
@@ -297,6 +316,7 @@ export class TransactionService {
       accountId: resolved.accountId,
       destinationAccountId: resolved.type === 'transfer' ? resolved.destinationAccountId : null,
       categoryId: resolved.type === 'transfer' ? null : resolved.categoryId,
+      subcategoryId: resolved.type === 'transfer' ? null : resolved.subcategoryId,
       transactionDate: resolved.transactionDate,
       note: resolved.note,
       updatedAt,
@@ -306,7 +326,7 @@ export class TransactionService {
       await this.throwFailedWrite(id, 'edit');
     }
     const updated = await this.requireTransaction(id);
-    notifyFinancialDataChanged({ kind: 'transaction', operation: 'update', before: current, after: updated });
+    this.notifyChanged({ kind: 'transaction', operation: 'update', before: current, after: updated });
     return updated;
   }
 
@@ -334,7 +354,7 @@ export class TransactionService {
       await this.throwFailedWrite(id, 'void');
     }
     const voided = await this.requireTransaction(id);
-    notifyFinancialDataChanged({ kind: 'transaction', operation: 'void', before: current, after: voided });
+    this.notifyChanged({ kind: 'transaction', operation: 'void', before: current, after: voided });
     return voided;
   }
 
@@ -387,14 +407,7 @@ export class TransactionService {
       errors.currency = 'The amount currency must match the account currency.';
     }
 
-    const category = input.categoryId ? await this.categories.findById(input.categoryId) : null;
-    if (!input.categoryId) {
-      errors.categoryId = 'Select a category.';
-    } else if (!this.isAllowedHistoricalReference(category, input.categoryId, original?.categoryId)) {
-      errors.categoryId = 'Select an active category.';
-    } else if (category?.type !== input.type) {
-      errors.categoryId = `Select an ${input.type} category.`;
-    }
+    const selection = await this.resolveCategorySelection(input, errors, original);
 
     // The account is the source of truth for currency.
     const currency: CurrencyCode = account?.currency ?? input.currency ?? 'COP';
@@ -409,10 +422,79 @@ export class TransactionService {
     const { exchangeRate, ...rest } = input;
     return {
       ...rest,
+      ...selection,
       currency,
       exchangeRate: exchangeRate ?? null,
       destinationAccountId: null,
     };
+  }
+
+  /**
+   * Settles the (category, subcategory) pair a categorized transaction stores.
+   *
+   * Callers may send the pair explicitly, or just the node the user tapped: when
+   * `categoryId` names a subcategory its parent is inferred, so the stored pair is
+   * always (parent, leaf) and never (leaf, null). Keeping this in the service
+   * means every write path — manual entry, recurring materialization, backup
+   * restore — is protected from mismatched pairs such as Transporte + Mercado,
+   * and no screen has to understand the hierarchy.
+   *
+   * This mirrors the database trigger `transactions_subcategory_insert_guard`;
+   * the trigger is the backstop, this is the readable error.
+   */
+  private async resolveCategorySelection(
+    input: Extract<TransactionInput, { type: 'expense' | 'income' }>,
+    errors: TransactionValidationErrors,
+    original?: TransactionListItem,
+  ): Promise<{ categoryId: string; subcategoryId: string | null }> {
+    const requested = { categoryId: input.categoryId, subcategoryId: input.subcategoryId ?? null };
+    if (!input.categoryId) {
+      errors.categoryId = 'Select a category.';
+      return requested;
+    }
+
+    const selected = await this.categories.findById(input.categoryId);
+    if (!selected) {
+      errors.categoryId = 'Select an active category.';
+      return requested;
+    }
+
+    // A category read from a pre-v6 backup has no parent field at all; treat a
+    // missing parent as top-level rather than as an unresolvable parent id.
+    const selectedParentId = selected.parentCategoryId ?? null;
+    const infersParent = selectedParentId !== null && requested.subcategoryId === null;
+    const categoryId = infersParent ? selectedParentId : selected.id;
+    const subcategoryId = infersParent ? selected.id : requested.subcategoryId;
+    const resolved = { categoryId, subcategoryId };
+
+    const category = infersParent ? await this.categories.findById(categoryId) : selected;
+    if (!category) {
+      errors.categoryId = 'Select an active category.';
+      return resolved;
+    }
+    if ((category.parentCategoryId ?? null) !== null) {
+      // Only reachable when a caller sends both a leaf category and a subcategory.
+      errors.categoryId = 'Select a top-level category.';
+      return resolved;
+    }
+    if (!this.isAllowedHistoricalReference(category, categoryId, original?.categoryId)) {
+      errors.categoryId = 'Select an active category.';
+    } else if (category.type !== input.type) {
+      errors.categoryId = `Select an ${input.type} category.`;
+    }
+
+    if (subcategoryId !== null) {
+      const subcategory = infersParent ? selected : await this.categories.findById(subcategoryId);
+      if (!subcategory) {
+        errors.subcategoryId = 'Select an active subcategory.';
+      } else if ((subcategory.parentCategoryId ?? null) !== categoryId) {
+        errors.subcategoryId = 'The subcategory must belong to the selected category.';
+      } else if (!this.isAllowedHistoricalReference(subcategory, subcategoryId, original?.subcategoryId)) {
+        errors.subcategoryId = 'Select an active subcategory.';
+      }
+    }
+
+    return resolved;
   }
 
   private async validateTransfer(
@@ -439,6 +521,7 @@ export class TransactionService {
       destinationAmountMinor,
       destinationCurrencyCode,
       categoryId: null,
+      subcategoryId: null,
       transactionDate: input.transactionDate,
       note: input.note,
       exchangeRate: input.exchangeRate ?? null,
