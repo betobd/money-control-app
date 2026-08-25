@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
@@ -18,8 +18,10 @@ import { InvestmentValuationError } from '../investment-valuation.service';
 import { investmentValuationService } from '../investments';
 import type { InvestmentValuation } from '../investment.types';
 import { useInvestmentDetails } from '../use-investments';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const router = useRouter();
@@ -27,14 +29,13 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
   const [actionError, setActionError] = useState<string>();
 
   function confirmDeleteValuation(valuation: InvestmentValuation) {
-    Alert.alert(
-      'Delete valuation?',
-      `The valuation from ${formatTransactionDate(valuation.valuationDate)} will be removed. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void deleteValuation(valuation) },
-      ],
-    );
+    dialog.confirm({
+      title: 'Delete valuation?',
+      message: `The valuation from ${formatTransactionDate(valuation.valuationDate)} will be removed. This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'destructive',
+      onConfirm: () => void deleteValuation(valuation),
+    });
   }
 
   async function deleteValuation(valuation: InvestmentValuation) {
@@ -43,21 +44,20 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
       await investmentValuationService.delete(valuation.id);
       await reload();
     } catch (cause) {
-      if (cause instanceof InvestmentValuationError) Alert.alert('Unable to delete valuation', cause.message);
+      if (cause instanceof InvestmentValuationError) dialog.notice({ title: 'Unable to delete valuation', message: cause.message });
       else setActionError(toUserMessage(cause, 'Unable to delete valuation.'));
     }
   }
 
   function confirmArchive() {
     if (!view) return;
-    Alert.alert(
-      'Archive investment?',
-      `${view.account.name} will remain in history and net worth while it has value. It cannot be revalued or used for new transactions.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Archive', style: 'destructive', onPress: () => void archive() },
-      ],
-    );
+    dialog.confirm({
+      title: 'Archive investment?',
+      message: `${view.account.name} will remain in history and net worth while it has value. It cannot be revalued or used for new transactions.`,
+      confirmLabel: 'Archive',
+      tone: 'destructive',
+      onConfirm: () => void archive(),
+    });
   }
 
   async function archive() {
@@ -66,7 +66,7 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
       await accountService.archive(accountId);
       router.back();
     } catch (cause) {
-      if (cause instanceof AccountActionError) Alert.alert('Unable to archive investment', cause.message);
+      if (cause instanceof AccountActionError) dialog.notice({ title: 'Unable to archive investment', message: cause.message });
       else setActionError(toUserMessage(cause, 'Unable to archive investment.'));
     }
   }
@@ -207,6 +207,7 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
           )}
         </Section>
       </ScrollView>
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

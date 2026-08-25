@@ -16,6 +16,12 @@ export type SheetAction = {
   onPress: () => void;
   /** `destructive` tints the row so irreversible actions read as such. */
   tone?: 'default' | 'destructive';
+  /**
+   * Shows the row greyed out and inert. Prefer this over omitting the action:
+   * an option that silently disappears reads as the app being broken, while a
+   * disabled row plus `description` says what would make it available.
+   */
+  disabled?: boolean;
 };
 
 type ActionSheetProps = {
@@ -42,7 +48,10 @@ export function ActionSheet({ visible, onClose, title, description, actions }: A
       <View style={styles.actions}>
         {actions.map((action, index) => {
           const destructive = action.tone === 'destructive';
-          const color = destructive ? theme.destructive : theme.primaryAction;
+          const disabled = action.disabled === true;
+          const color = disabled
+            ? theme.mutedText
+            : destructive ? theme.destructive : theme.primaryAction;
           return (
             <Fragment key={action.label}>
               {index > 0 ? <View style={[styles.separator, { backgroundColor: theme.hairline }]} /> : null}
@@ -50,20 +59,22 @@ export function ActionSheet({ visible, onClose, title, description, actions }: A
                 accessibilityLabel={action.label}
                 accessibilityHint={action.description}
                 accessibilityRole="button"
+                accessibilityState={{ disabled }}
+                disabled={disabled}
                 onPress={() => {
                   onClose();
                   action.onPress();
                 }}
-                style={styles.row}>
+                style={StyleSheet.flatten([styles.row, disabled && styles.disabledRow])}>
                 <IconChip
-                  background={destructive ? theme.tintDestructive : theme.tintPrimary}
+                  background={disabled ? theme.disabledSurface : destructive ? theme.tintDestructive : theme.tintPrimary}
                   color={color}
                   icon={action.icon}
                   iconSize={20}
                   size={40}
                 />
                 <View style={styles.text}>
-                  <Text style={[styles.label, { color: destructive ? theme.destructive : theme.primaryText }]}>
+                  <Text style={[styles.label, { color: disabled ? theme.mutedText : destructive ? theme.destructive : theme.primaryText }]}>
                     {action.label}
                   </Text>
                   {action.description ? (
@@ -105,6 +116,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     minHeight: 64,
   },
+  disabledRow: { opacity: 0.6 },
   text: { flex: 1, gap: 2 },
   label: { ...typography.body, fontSize: 15 },
   description: { ...typography.caption, fontSize: 13, lineHeight: 18 },

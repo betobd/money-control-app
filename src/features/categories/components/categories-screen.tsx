@@ -1,21 +1,52 @@
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View, type AlertButton } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActionSheet, actionIcons, type SheetAction } from '@/components/action-sheet';
+import { DialogHost, useDialog } from '@/components/dialog';
 import { IconChip } from '@/components/icon-chip';
 import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { getCategoryIcon } from '../category-icons';
-import { CategoryActionError } from '../category.service';
+import { CategoryActionError, type CategoryDeletionBlocker } from '../category.service';
 import { categoryService } from '../categories';
 import { buildCategoryTree, type Category, type CategoryType } from '../category.types';
 import { useCategories } from '../use-categories';
 
+/**
+ * Why permanent deletion is unavailable, phrased for the user.
+ *
+ * Archived subcategories are the confusing case: they still belong to the
+ * category but are listed apart from it, so "has subcategories" on its own reads
+ * as wrong. The count says where to look.
+ */
+function deletionReason(
+  blocker: CategoryDeletionBlocker,
+  subcategories: { active: number; archived: number },
+): string | undefined {
+  if (blocker === null) return undefined;
+  if (blocker === 'history') {
+    return 'Used by transactions, budgets or recurring rules. Financial history is never deleted.';
+  }
+  const total = subcategories.active + subcategories.archived;
+  const archivedNote = subcategories.archived > 0
+    ? ` (${subcategories.archived} archived, listed under Archived below)`
+    : '';
+  return `Delete or move its ${total} ${total === 1 ? 'subcategory' : 'subcategories'} first${archivedNote}.`;
+}
+
+type SheetTarget = {
+  category: Category;
+  actions: SheetAction[];
+};
+
 export function CategoriesScreen({ initialType = 'expense' }: { initialType?: CategoryType }) {
   const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme(); const [type, setType] = useState<CategoryType>(initialType); const [showArchived, setShowArchived] = useState(false); const [actionError, setActionError] = useState<string>(); const [busyId, setBusyId] = useState<string | null>(null); const busy = busyId !== null;
+  const dialog = useDialog();
+  const [sheet, setSheet] = useState<SheetTarget | null>(null);
   const { categories, loading, error, reload } = useCategories(type, true);
   const tree = buildCategoryTree(categories.filter((item) => !item.isArchived));
   // Archived rows are shown as a flat list rather than a second tree: archiving a
@@ -26,29 +57,55 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   const accent = type === 'income' ? theme.income : theme.expense;
   const accentTint = type === 'income' ? theme.tintIncome : theme.tintExpense;
 
-  async function actions(category: Category, subcategoryCount = 0) {
+  async function actions(category: Category) {
     if (busy) return;
     setActionError(undefined);
     try {
-      const canDelete = await categoryService.canPermanentlyDelete(category.id);
+      const [blocker, subcategories] = await Promise.all([
+        categoryService.deletionBlocker(category.id),
+        categoryService.countSubcategories(category.id),
+      ]);
       const isSubcategory = category.parentCategoryId !== null;
-      const options: AlertButton[] = [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Edit', onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
+      const options: SheetAction[] = [
+        { label: 'Edit', icon: actionIcons.edit, onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
       ];
       if (!isSubcategory && !category.isArchived) {
-        options.push({ text: 'Add subcategory', onPress: () => router.push({ pathname: '/category-form', params: { parentId: category.id, type } }) });
+        options.push({
+          label: 'Add subcategory',
+          description: 'Adds a second level inside this category.',
+          icon: { ios: 'plus', android: 'add', web: 'add' },
+          onPress: () => router.push({ pathname: '/category-form', params: { parentId: category.id, type } }),
+        });
       }
-      if (category.isArchived) options.push({ text: 'Restore', onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
-      else options.push({ text: 'Archive', onPress: () => confirmArchive(category, subcategoryCount) });
-      if (canDelete) options.push({ text: 'Delete permanently', style: 'destructive', onPress: () => confirmDelete(category) });
-      Alert.alert(category.name, isSubcategory ? 'Choose a subcategory action.' : 'Choose a category action.', options);
+      if (category.isArchived) {
+        options.push({ label: 'Restore', icon: actionIcons.restore, onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
+      } else {
+        options.push({
+          label: 'Archive',
+          description: subcategories.active > 0
+            ? `Also archives ${subcategories.active} ${subcategories.active === 1 ? 'subcategory' : 'subcategories'}.`
+            : 'Keeps history, hides it from new transactions.',
+          icon: actionIcons.archive,
+          onPress: () => confirmArchive(category, subcategories.active),
+        });
+      }
+      // The row is always present. Hiding it left no way to tell "this cannot be
+      // deleted" apart from "this app has no delete".
+      options.push({
+        label: 'Delete permanently',
+        description: deletionReason(blocker, subcategories),
+        disabled: blocker !== null,
+        icon: actionIcons.delete,
+        tone: 'destructive',
+        onPress: () => confirmDelete(category),
+      });
+      setSheet({ category, actions: options });
     } catch (cause) {
       setActionError(toUserMessage(cause, 'Unable to load category actions.'));
     }
   }
 
-  async function run(operation: () => Promise<void>, label: string, id: string) { if (busy) return; setBusyId(id); try { await operation(); await reload(); } catch (cause) { if (cause instanceof CategoryActionError) Alert.alert(`Unable to ${label} category`, cause.message); else setActionError(toUserMessage(cause, `Unable to ${label} category.`)); } finally { setBusyId(null); } }
+  async function run(operation: () => Promise<void>, label: string, id: string) { if (busy) return; setBusyId(id); try { await operation(); await reload(); } catch (cause) { if (cause instanceof CategoryActionError) dialog.notice({ title: `Unable to ${label} category`, message: cause.message }); else setActionError(toUserMessage(cause, `Unable to ${label} category.`)); } finally { setBusyId(null); } }
 
   // Archiving one row needs no confirmation: it is reversible and reversible in
   // one tap. Archiving a parent is different, because it silently takes its
@@ -56,14 +113,24 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   function confirmArchive(category: Category, subcategoryCount: number) {
     const archive = () => void run(() => categoryService.archive(category.id), 'archive', category.id);
     if (subcategoryCount === 0) { archive(); return; }
-    Alert.alert(
-      'Archive this category?',
-      `${category.name} has ${subcategoryCount} active ${subcategoryCount === 1 ? 'subcategory' : 'subcategories'}, which will be archived too. Restoring the category later does not bring them back automatically.`,
-      [{ text: 'Cancel', style: 'cancel' }, { text: 'Archive all', onPress: archive }],
-    );
+    dialog.confirm({
+      title: 'Archive this category?',
+      message: `${category.name} has ${subcategoryCount} active ${subcategoryCount === 1 ? 'subcategory' : 'subcategories'}, which will be archived too. Restoring the category later does not bring them back automatically.`,
+      confirmLabel: 'Archive all',
+      onConfirm: archive,
+    });
   }
 
-  function confirmDelete(category: Category) { if (busy) return; Alert.alert('Delete category permanently?', `${category.name} will be permanently deleted. This cannot be undone.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete permanently', style: 'destructive', onPress: () => void run(() => categoryService.permanentlyDelete(category.id), 'delete', category.id) }]); }
+  function confirmDelete(category: Category) {
+    if (busy) return;
+    dialog.confirm({
+      title: 'Delete category permanently?',
+      message: `${category.name} will be permanently deleted. This cannot be undone.`,
+      confirmLabel: 'Delete permanently',
+      tone: 'destructive',
+      onConfirm: () => void run(() => categoryService.permanentlyDelete(category.id), 'delete', category.id),
+    });
+  }
 
   const dimmed = (id: string) => (busy && busyId !== id ? 0.5 : 1);
 
@@ -103,7 +170,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
               accessibilityRole="button"
               accessibilityState={{ disabled: busy, busy: busyId === category.id }}
               disabled={busy}
-              onPress={() => void actions(category, category.subcategories.length)}
+              onPress={() => void actions(category)}
               style={styles.cardHeader}>
               <IconChip icon={getCategoryIcon(category.icon)} color={accent} background={accentTint} size={44} iconSize={24} />
               <View style={styles.identity}>
@@ -179,6 +246,15 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
           </>
         ) : null}
       </ScrollView>
+
+      <ActionSheet
+        actions={sheet?.actions ?? []}
+        description={sheet?.category.parentCategoryId ? 'Choose a subcategory action.' : 'Choose a category action.'}
+        onClose={() => setSheet(null)}
+        title={sheet?.category.name ?? ''}
+        visible={sheet !== null}
+      />
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

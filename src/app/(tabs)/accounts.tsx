@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { toUserMessage } from '@/errors/user-error';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ActionSheet, actionIcons, type SheetAction } from '@/components/action-sheet';
+import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenContainer } from '@/components/screen-container';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
@@ -25,6 +26,7 @@ import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 type AccountMenu = { account: AccountWithBalance; canDelete: boolean };
 
 export default function AccountsScreen() {
+  const dialog = useDialog();
   const router = useRouter();
   const theme = useAppTheme();
   const [showArchived, setShowArchived] = useState(false);
@@ -110,20 +112,19 @@ export default function AccountsScreen() {
       await accountService.restore(account.id);
       await reload();
     } catch (cause) {
-      if (cause instanceof AccountActionError) Alert.alert('Unable to restore account', cause.message);
+      if (cause instanceof AccountActionError) dialog.notice({ title: 'Unable to restore account', message: cause.message });
       else setActionError(toUserMessage(cause, 'Unable to restore account.'));
     }
   }
 
   function confirmPermanentDelete(account: AccountWithBalance) {
-    Alert.alert(
-      'Delete account permanently?',
-      `${account.name} will be permanently deleted. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete permanently', style: 'destructive', onPress: () => void deletePermanently(account) },
-      ],
-    );
+    dialog.confirm({
+      title: 'Delete account permanently?',
+      message: `${account.name} will be permanently deleted. This cannot be undone.`,
+      confirmLabel: 'Delete permanently',
+      tone: 'destructive',
+      onConfirm: () => void deletePermanently(account),
+    });
   }
 
   async function deletePermanently(account: AccountWithBalance) {
@@ -132,20 +133,19 @@ export default function AccountsScreen() {
       await accountService.permanentlyDelete(account.id);
       await reload();
     } catch (cause) {
-      if (cause instanceof AccountActionError) Alert.alert('Unable to delete account', cause.message);
+      if (cause instanceof AccountActionError) dialog.notice({ title: 'Unable to delete account', message: cause.message });
       else setActionError(toUserMessage(cause, 'Unable to delete account.'));
     }
   }
 
   function confirmArchive(account: AccountWithBalance) {
-    Alert.alert(
-      'Archive account?',
-      `${account.name} will remain in history and net worth while it has a balance. It cannot be used for new transactions.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Archive', style: 'destructive', onPress: () => void accountService.archive(account.id).then(reload) },
-      ],
-    );
+    dialog.confirm({
+      title: 'Archive account?',
+      message: `${account.name} will remain in history and net worth while it has a balance. It cannot be used for new transactions.`,
+      confirmLabel: 'Archive',
+      tone: 'destructive',
+      onConfirm: () => void accountService.archive(account.id).then(reload),
+    });
   }
 
   return (
@@ -231,6 +231,7 @@ export default function AccountsScreen() {
         title={menu?.account.name ?? ''}
         visible={menu !== null}
       />
+      <DialogHost dialog={dialog} />
     </ScreenContainer>
   );
 }

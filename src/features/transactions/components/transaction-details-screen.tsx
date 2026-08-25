@@ -3,7 +3,6 @@ import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -49,10 +48,12 @@ import type {
 } from '@/features/transactions/transaction.types';
 import { useTransactionDetails } from '@/features/transactions/use-transaction-details';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 type AccountPickerField = 'account' | 'source' | 'destination' | null;
 
 export function TransactionDetailsScreen({ transactionId }: { transactionId: string }) {
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { transaction, loading, error, reload } = useTransactionDetails(transactionId);
@@ -70,34 +71,29 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   function confirmVoid() {
     if (!transaction || transaction.status === 'voided' || voiding) return;
     const isRefund = transaction.type === 'refund';
-    Alert.alert(
-      isRefund ? 'Void refund?' : 'Void transaction?',
-      isRefund
+    dialog.confirm({
+      title: isRefund ? 'Void refund?' : 'Void transaction?',
+      message: isRefund
         ? 'This restores the refundable amount and removes the refund from balances, budgets, and reports.'
         : 'This removes the transaction from balances and reports while preserving it in history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isRefund ? 'Void refund' : 'Void transaction',
-          style: 'destructive',
-          onPress: () => {
-            setVoiding(true);
-            setActionError(undefined);
-            const action = isRefund
-              ? refundService.void(transaction.id)
-              : transactionService.void(transaction.id);
-            void action
-              .then(async () => {
-                await Promise.all([reload(), reloadRefunds()]);
-              })
-              .catch((cause: unknown) => {
-                setActionError(actionErrorMessage(cause, 'Unable to void transaction.'));
-              })
-              .finally(() => setVoiding(false));
-          },
-        },
-      ],
-    );
+      confirmLabel: isRefund ? 'Void refund' : 'Void transaction',
+      tone: 'destructive',
+      onConfirm: () => {
+        setVoiding(true);
+        setActionError(undefined);
+        const action = isRefund
+          ? refundService.void(transaction.id)
+          : transactionService.void(transaction.id);
+        void action
+          .then(async () => {
+            await Promise.all([reload(), reloadRefunds()]);
+          })
+          .catch((cause: unknown) => {
+            setActionError(actionErrorMessage(cause, 'Unable to void transaction.'));
+          })
+          .finally(() => setVoiding(false));
+      },
+    });
   }
 
   if (loading && transaction === undefined) {
@@ -324,6 +320,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
           ) : null}
         </ScrollView>
       )}
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

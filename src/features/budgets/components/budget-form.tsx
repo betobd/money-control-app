@@ -5,7 +5,6 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -31,8 +30,10 @@ import { BudgetColorPicker } from '@/features/budgets/components/budget-color-pi
 import { categoryService } from '@/features/categories/categories';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; initialMonth: string }) {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -119,24 +120,19 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
   function confirmRemove() {
     if (!budgetId) return;
-    Alert.alert(
-      'Remove budget?',
-      wasRecurring
+    dialog.confirm({
+      title: 'Remove budget?',
+      message: wasRecurring
         ? 'This stops the recurring budget and removes this month and future months. Past months stay. Categories and transactions are not deleted.'
         : 'This removes only this monthly plan. Categories and transactions are not deleted.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove Budget',
-          style: 'destructive',
-          onPress: () => {
-            void budgetService.remove(budgetId)
-              .then(() => router.back())
-              .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to remove budget.')));
-          },
-        },
-      ],
-    );
+      confirmLabel: 'Remove budget',
+      tone: 'destructive',
+      onConfirm: () => {
+        void budgetService.remove(budgetId)
+          .then(() => router.back())
+          .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to remove budget.')));
+      },
+    });
   }
 
   if (loading) {
@@ -240,6 +236,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           variant="primary"
         />
       </View>
+      <DialogHost dialog={dialog} />
     </KeyboardAvoidingView>
   );
 }

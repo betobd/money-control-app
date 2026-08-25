@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -23,8 +22,10 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import type { NotificationCategory } from '../notification-settings.service';
 import type { NotificationPermissionState } from '../notification.types';
 import { useNotificationSettings } from '../use-notification-settings';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 export function NotificationSettingsScreen() {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -42,14 +43,13 @@ export function NotificationSettingsScreen() {
       void model.setCategory(category, enabled);
       return;
     }
-    Alert.alert(
-      'Allow local reminders?',
-      'Money Control uses Android notifications only for the reminder categories you choose. No financial data leaves this device.',
-      [
-        { text: 'Not now', style: 'cancel' },
-        { text: 'Continue', onPress: () => void model.setCategory(category, true) },
-      ],
-    );
+    dialog.confirm({
+      title: 'Allow local reminders?',
+      message: 'Money Control uses Android notifications only for the reminder categories you choose. No financial data leaves this device.',
+      confirmLabel: 'Continue',
+      cancelLabel: 'Not now',
+      onConfirm: () => void model.setCategory(category, true),
+    });
   }
 
   if (model.loading || !model.settings) {
@@ -76,10 +76,12 @@ export function NotificationSettingsScreen() {
             {model.permission !== 'granted' ? (
               <ActionButton disabled={model.busy} label={model.permission === 'denied-permanent' ? 'Open Android settings' : 'Enable notifications'} onPress={() => {
                 if (model.permission === 'denied-permanent') void model.openSettings();
-                else Alert.alert('Enable local reminders?', 'Android will ask whether Money Control may show the reminders you choose.', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Continue', onPress: () => void model.enable() },
-                ]);
+                else dialog.confirm({
+                  title: 'Enable local reminders?',
+                  message: 'Android will ask whether Money Control may show the reminders you choose.',
+                  confirmLabel: 'Continue',
+                  onConfirm: () => void model.enable(),
+                });
               }} primary theme={theme} />
             ) : settings.notificationsEnabled ? (
               <ActionButton disabled={model.busy} label="Pause all reminders" onPress={() => void model.disable()} theme={theme} />
@@ -155,6 +157,7 @@ export function NotificationSettingsScreen() {
         theme={theme}
         visible={timePicker !== null}
       />
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

@@ -22,6 +22,9 @@ export function isCategoryValidationError(value: unknown): value is CategoryVali
   return value instanceof Error && (value as CategoryValidationError).isCategoryValidationError === true;
 }
 
+/** What stands between a category and permanent deletion. */
+export type CategoryDeletionBlocker = 'subcategories' | 'history' | null;
+
 export type CategoryActionErrorCode =
   | 'not_found'
   | 'not_archived'
@@ -171,6 +174,31 @@ export class CategoryService {
     return this.repository.hasSubcategories(id);
   }
 
+  /**
+   * Active and archived subcategory counts.
+   *
+   * Archived subcategories still count against re-parenting and permanent
+   * deletion, and they are not visible under the category in the active list, so
+   * screens need the split to explain *why* an action is unavailable.
+   */
+  async countSubcategories(id: string): Promise<{ active: number; archived: number }> {
+    const all = await this.repository.listSubcategories(id, true);
+    const archived = all.filter((item) => item.isArchived).length;
+    return { active: all.length - archived, archived };
+  }
+
+  /**
+   * Why this category cannot be permanently deleted, or null when it can.
+   *
+   * Returned instead of a bare boolean so the UI can say what is blocking rather
+   * than silently hiding the action, which reads as the app being broken.
+   */
+  async deletionBlocker(id: string): Promise<CategoryDeletionBlocker> {
+    if (await this.repository.hasSubcategories(id)) return 'subcategories';
+    if (await this.repository.hasFinancialReferences(id)) return 'history';
+    return null;
+  }
+
   /** How many active subcategories archiving this category would take with it. */
   async countActiveSubcategories(id: string): Promise<number> {
     return (await this.repository.listSubcategories(id, false)).length;
@@ -196,8 +224,7 @@ export class CategoryService {
   }
 
   async canPermanentlyDelete(id: string): Promise<boolean> {
-    if (await this.repository.hasSubcategories(id)) return false;
-    return !(await this.repository.hasFinancialReferences(id));
+    return (await this.deletionBlocker(id)) === null;
   }
 
   async permanentlyDelete(id: string): Promise<void> {

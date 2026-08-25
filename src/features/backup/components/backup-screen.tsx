@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { BackupSummary } from '../backup.types';
 import { useBackup } from '../use-backup';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 const countLabels: { key: keyof BackupSummary; label: string }[] = [
   { key: 'accounts', label: 'Accounts' },
@@ -46,6 +46,7 @@ function formatCreatedAt(value: string): string {
 }
 
 export function BackupScreen() {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -67,26 +68,23 @@ export function BackupScreen() {
   }, [notice]);
 
   function confirmExport(): void {
-    Alert.alert(
-      'Create readable backup?',
-      'The JSON file will contain account names, amounts, dates, notes, budgets, and recurring records. It is not encrypted. Anyone with the file can read this financial information.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Create backup', onPress: () => void createBackup() },
-      ],
-    );
+    dialog.confirm({
+      title: 'Create readable backup?',
+      message: 'The JSON file will contain account names, amounts, dates, notes, budgets, and recurring records. It is not encrypted. Anyone with the file can read this financial information.',
+      confirmLabel: 'Create backup',
+      onConfirm: () => void createBackup(),
+    });
   }
 
   function confirmRestore(): void {
     if (!candidate) return;
-    Alert.alert(
-      'Replace all local financial data?',
-      'Existing accounts, categories, transactions, budgets, and recurring records will be deleted and replaced by this backup. The operation may take a moment and cannot be undone unless you create a current backup first.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Replace local data', style: 'destructive', onPress: () => void restore() },
-      ],
-    );
+    dialog.confirm({
+      title: 'Replace all local financial data?',
+      message: 'Existing accounts, categories, transactions, budgets, and recurring records will be deleted and replaced by this backup. The operation may take a moment and cannot be undone unless you create a current backup first.',
+      confirmLabel: 'Replace local data',
+      tone: 'destructive',
+      onConfirm: () => void restore(),
+    });
   }
 
   return (
@@ -199,6 +197,7 @@ export function BackupScreen() {
 
         <Text style={[styles.caption, { color: theme.mutedText }]}>Password-protected encrypted backups are a future enhancement. This feature never uploads backup data and does not request broad storage permission.</Text>
       </ScrollView>
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

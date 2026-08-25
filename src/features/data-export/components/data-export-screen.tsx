@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +30,7 @@ import { TransactionFilterModal } from '@/features/transactions/components/trans
 import type { DataExportKind } from '@/features/data-export/data-export.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDataExport } from '../use-data-export';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 function formatEstimatedSize(bytes: number): string {
   if (bytes < 1024) return `about ${bytes} B`;
@@ -39,6 +39,7 @@ function formatEstimatedSize(bytes: number): string {
 }
 
 export function DataExportScreen() {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -91,14 +92,12 @@ export function DataExportScreen() {
     action: () => Promise<void>,
     detail = '',
   ): void {
-    Alert.alert(
+    dialog.confirm({
       title,
-      `CSV files may contain sensitive financial information. Anyone with access to the file may read it. App Lock does not protect the file after it leaves Money Control.${detail ? `\n\n${detail}` : ''}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', onPress: () => void action() },
-      ],
-    );
+      message: `CSV files may contain sensitive financial information. Anyone with access to the file may read it. App Lock does not protect the file after it leaves Money Control.${detail ? `\n\n${detail}` : ''}`,
+      confirmLabel: 'Continue',
+      onConfirm: () => void action(),
+    });
   }
 
   const transactionCount = overview?.transactions.count ?? 0;
@@ -405,6 +404,7 @@ export function DataExportScreen() {
         onClose={() => setFilterModalVisible(false)}
         visible={filterModalVisible}
       />
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

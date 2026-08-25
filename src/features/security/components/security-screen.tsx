@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +25,7 @@ import {
 } from '../app-lock.types';
 import { PinValidationError } from '../pin-verification.service';
 import { PinInput } from './pin-input';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 type Flow = 'enable' | 'change' | 'biometric' | 'disable' | null;
 
@@ -57,6 +57,7 @@ export function SecurityScreen() {
 }
 
 function SecurityScreenContent() {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -175,14 +176,14 @@ function SecurityScreenContent() {
       setError('Enter your complete 6-digit current PIN.');
       return;
     }
-    Alert.alert(
-      'Disable App Lock?',
-      'Money Control will stop requiring a local unlock. Financial data and backup files will not be deleted.',
-      [
-        { text: 'Cancel', style: 'cancel', onPress: clearPinState },
-        { text: 'Disable App Lock', style: 'destructive', onPress: () => void submitDisable() },
-      ],
-    );
+    dialog.confirm({
+      title: 'Disable App Lock?',
+      message: 'Money Control will stop requiring a local unlock. Financial data and backup files will not be deleted.',
+      confirmLabel: 'Disable App Lock',
+      tone: 'destructive',
+      onConfirm: () => void submitDisable(),
+      onCancel: clearPinState,
+    });
   }
 
   async function submitDisable(): Promise<void> {
@@ -320,6 +321,7 @@ function SecurityScreenContent() {
           <Limit title="Future notifications" text="Future financial notifications must hide sensitive content when App Lock privacy requires it." theme={theme} />
         </Section>
       </ScrollView>
+      <DialogHost dialog={dialog} />
     </View>
   );
 }

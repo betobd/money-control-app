@@ -20,11 +20,26 @@ type CategoryFormProps = {
   initialParentId?: string;
 };
 
-/** Why the parent field is read-only, or undefined when it can be changed. */
-function lockReason(hasHistory: boolean, hasChildren: boolean): string | undefined {
-  if (hasHistory) return 'This category already has financial history, so it cannot move. Archive it and create a new one instead.';
-  if (hasChildren) return 'A category with subcategories cannot become a subcategory itself.';
-  return undefined;
+/**
+ * Why the parent field is read-only, or undefined when it can be changed.
+ *
+ * The subcategory case names the count, and calls out archived ones: they still
+ * block the move but are listed apart from their category, so the bare rule
+ * reads as wrong to anyone looking at an apparently childless category.
+ */
+function lockReason(
+  hasHistory: boolean,
+  subcategories: { active: number; archived: number },
+): string | undefined {
+  if (hasHistory) {
+    return 'This category already has financial history, so it cannot move. Archive it and create a new one instead.';
+  }
+  const total = subcategories.active + subcategories.archived;
+  if (total === 0) return undefined;
+  const archivedNote = subcategories.archived > 0
+    ? ` ${subcategories.archived} of them ${subcategories.archived === 1 ? 'is' : 'are'} archived, under Archived in the categories list.`
+    : '';
+  return `Nesting is limited to two levels, and this category has ${total} ${total === 1 ? 'subcategory' : 'subcategories'}.${archivedNote}`;
 }
 
 export function CategoryForm({ categoryId, initialType = 'expense', initialParentId }: CategoryFormProps) {
@@ -64,9 +79,9 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
     let cancelled = false;
     void Promise.all([
       categoryService.hasFinancialHistory(categoryId),
-      categoryService.hasSubcategories(categoryId),
-    ]).then(([hasHistory, hasChildren]) => {
-      if (!cancelled) setParentLock(lockReason(hasHistory, hasChildren));
+      categoryService.countSubcategories(categoryId),
+    ]).then(([hasHistory, subcategories]) => {
+      if (!cancelled) setParentLock(lockReason(hasHistory, subcategories));
     }, () => undefined);
     return () => { cancelled = true; };
   }, [categoryId]);

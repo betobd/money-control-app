@@ -6,7 +6,6 @@ import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -39,8 +38,10 @@ import type {
   CreditCardPaymentPreview,
 } from '../credit-card.types';
 import { useCreditCard } from '../use-credit-card';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 export function PayCreditCardScreen({ accountId }: { accountId: string }) {
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const { accounts } = useAccounts();
@@ -157,10 +158,15 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     } catch (cause) {
       if (cause instanceof CreditCardOverpaymentConfirmationRequired) {
         setSaving(false);
-        Alert.alert('Confirm card overpayment', cause.message, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Pay anyway', onPress: () => void submit(true) },
-        ]);
+        dialog.confirm({
+          title: 'Confirm card overpayment',
+          message: cause.message,
+          confirmLabel: 'Pay anyway',
+          onConfirm: () => void submit(true),
+          // The submit that raised this left `saving` true; backing out has to
+          // release the button or the form stays stuck.
+          onCancel: () => setSaving(false),
+        });
         return;
       }
       setServiceError(toUserMessage(cause, 'Unable to create card payment.'));
@@ -328,6 +334,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
           variant="primary"
         />
       </ScrollView>
+      <DialogHost dialog={dialog} />
     </KeyboardAvoidingView>
   );
 }

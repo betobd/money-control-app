@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Alert,
   BackHandler,
   Linking,
   Pressable,
@@ -22,6 +21,7 @@ import { canRenderProtectedContent } from '../app-lock-gate-policy';
 import { useAppLock } from '../app-lock-provider';
 import { PIN_LENGTH } from '../app-lock.types';
 import { PinInput, type PinInputHandle } from './pin-input';
+import { DialogHost, useDialog } from '@/components/dialog';
 
 export function AppLockBoundary({ children }: { children: React.ReactNode }) {
   const { sensitiveInputResetToken, state } = useAppLock();
@@ -30,6 +30,7 @@ export function AppLockBoundary({ children }: { children: React.ReactNode }) {
 }
 
 function AppLockGate() {
+  const dialog = useDialog();
   const {
     config,
     retryConfiguration,
@@ -78,24 +79,21 @@ function AppLockGate() {
 
   function forgotPin(): void {
     setPin('');
-    Alert.alert(
-      'Forgot your PIN?',
-      'Money Control has no account or recovery server, so the existing PIN cannot be recovered. The only recovery is to erase all app-private data from Android settings.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => Alert.alert(
-            'All local financial data will be erased',
-            'Clearing app storage removes local accounts, transactions, budgets, reports data, recurring data, settings, and App Lock. Exported backup files outside the app are preserved and can be restored afterward.',
-            [
-              { text: 'Keep my data', style: 'cancel' },
-              { text: 'Open app settings', style: 'destructive', onPress: () => void Linking.openSettings() },
-            ],
-          ),
-        },
-      ],
-    );
+    dialog.confirm({
+      title: 'Forgot your PIN?',
+      message: 'Money Control has no account or recovery server, so the existing PIN cannot be recovered. The only recovery is to erase all app-private data from Android settings.',
+      confirmLabel: 'Continue',
+      // Deliberately two steps: the first explains that nothing can be
+      // recovered, the second states exactly what erasing destroys.
+      onConfirm: () => dialog.confirm({
+        title: 'All local financial data will be erased',
+        message: 'Clearing app storage removes local accounts, transactions, budgets, reports data, recurring data, settings, and App Lock. Exported backup files outside the app are preserved and can be restored afterward.',
+        confirmLabel: 'Open app settings',
+        cancelLabel: 'Keep my data',
+        tone: 'destructive',
+        onConfirm: () => void Linking.openSettings(),
+      }),
+    });
   }
 
   const busy = state.status === 'authenticating';
@@ -196,6 +194,7 @@ function AppLockGate() {
       )}
 
       <Text style={[styles.limit, { color: theme.mutedText }]}>App Lock protects access to this app’s interface. It does not encrypt the SQLite database or exported plaintext backup files.</Text>
+      <DialogHost dialog={dialog} />
     </ScrollView>
   );
 }

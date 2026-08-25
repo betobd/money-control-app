@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DialogHost, useDialog } from '@/components/dialog';
 import { spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { formatMoneyWithSymbol } from '@/features/currency/currency';
@@ -29,6 +29,7 @@ import type {
 } from '../recurring-transaction.types';
 
 export function RecurringTransactionsScreen() {
+  const dialog = useDialog();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -49,10 +50,10 @@ export function RecurringTransactionsScreen() {
       const validationMessage = cause instanceof TransactionValidationError
         ? Object.values(cause.fields).filter(Boolean).join('\n')
         : undefined;
-      Alert.alert(
-        'Unable to confirm',
-        validationMessage || toUserMessage(cause, 'Review the occurrence and try again.'),
-      );
+      dialog.notice({
+        title: 'Unable to confirm',
+        message: validationMessage || toUserMessage(cause, 'Review the occurrence and try again.'),
+      });
     } finally {
       setBusyId(null);
     }
@@ -60,25 +61,20 @@ export function RecurringTransactionsScreen() {
 
   function skip(occurrence: RecurringOccurrenceListItem) {
     if (busy) return;
-    Alert.alert(
-      'Skip this occurrence?',
-      'It will remain in recurring history and will not affect balances or reports.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Skip',
-          style: 'destructive',
-          onPress: () => {
-            if (busy) return;
-            setBusyId(occurrence.id);
-            void recurringTransactionService.skipOccurrence(occurrence.id)
-              .then(load)
-              .catch((cause) => Alert.alert('Unable to skip', toUserMessage(cause, 'Try again.')))
-              .finally(() => setBusyId(null));
-          },
-        },
-      ],
-    );
+    dialog.confirm({
+      title: 'Skip this occurrence?',
+      message: 'It will remain in recurring history and will not affect balances or reports.',
+      confirmLabel: 'Skip',
+      tone: 'destructive',
+      onConfirm: () => {
+        if (busy) return;
+        setBusyId(occurrence.id);
+        void recurringTransactionService.skipOccurrence(occurrence.id)
+          .then(load)
+          .catch((cause) => dialog.notice({ title: 'Unable to skip', message: toUserMessage(cause, 'Try again.') }))
+          .finally(() => setBusyId(null));
+      },
+    });
   }
 
   async function toggleRule(rule: RecurringRuleListItem) {
@@ -89,7 +85,7 @@ export function RecurringTransactionsScreen() {
       else await recurringTransactionService.resumeRule(rule.id);
       await load();
     } catch (cause) {
-      Alert.alert('Unable to update rule', toUserMessage(cause, 'Try again.'));
+      dialog.notice({ title: 'Unable to update rule', message: toUserMessage(cause, 'Try again.') });
     } finally {
       setBusyId(null);
     }
@@ -97,25 +93,20 @@ export function RecurringTransactionsScreen() {
 
   function endRule(rule: RecurringRuleListItem) {
     if (busy) return;
-    Alert.alert(
-      'End recurring transaction?',
-      'No future occurrences will be generated. Existing history and pending items are preserved.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'End',
-          style: 'destructive',
-          onPress: () => {
-            if (busy) return;
-            setBusyId(rule.id);
-            void recurringTransactionService.endRule(rule.id)
+    dialog.confirm({
+      title: 'End recurring transaction?',
+      message: 'No future occurrences will be generated. Existing history and pending items are preserved.',
+      confirmLabel: 'End',
+      tone: 'destructive',
+      onConfirm: () => {
+        if (busy) return;
+        setBusyId(rule.id);
+        void recurringTransactionService.endRule(rule.id)
               .then(load)
-              .catch((cause) => Alert.alert('Unable to end rule', toUserMessage(cause, 'Try again.')))
-              .finally(() => setBusyId(null));
-          },
-        },
-      ],
-    );
+          .catch((cause) => dialog.notice({ title: 'Unable to end rule', message: toUserMessage(cause, 'Try again.') }))
+          .finally(() => setBusyId(null));
+      },
+    });
   }
 
   return (
@@ -268,6 +259,7 @@ export function RecurringTransactionsScreen() {
           ))}
         </ScrollView>
       )}
+      <DialogHost dialog={dialog} />
     </View>
   );
 }
