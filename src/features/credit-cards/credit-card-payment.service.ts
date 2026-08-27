@@ -1,5 +1,5 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
-import { deriveCrossCurrencyRate } from '@/features/currency/currency';
+import { deriveEffectiveRate } from '@/features/currency/currency';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type { TransactionRecord } from '@/features/transactions/transaction.types';
@@ -154,9 +154,12 @@ export class CreditCardPaymentService {
     }
     if (preview.crossCurrency) {
       // Store both actual amounts and the effective rate; attribution uses the card leg.
-      const copMinor = preview.sourceCurrency === 'COP' ? preview.sourceAmount : preview.amount;
-      const usdMinor = preview.sourceCurrency === 'USD' ? preview.sourceAmount : preview.amount;
-      const rate = deriveCrossCurrencyRate(copMinor, usdMinor);
+      const rate = deriveEffectiveRate(
+        preview.sourceAmount,
+        preview.sourceCurrency,
+        preview.amount,
+        preview.cardCurrency,
+      );
       return this.transactions.create({
         type: 'transfer',
         amount: preview.sourceAmount,
@@ -169,6 +172,8 @@ export class CreditCardPaymentService {
         exchangeRate: {
           rateScaled: rate.rateScaled,
           rateScale: rate.rateScale,
+          baseCurrencyCode: rate.baseCurrencyCode,
+          quoteCurrencyCode: rate.quoteCurrencyCode,
           effectiveDate: input.transactionDate,
           source: 'transfer_effective',
         },

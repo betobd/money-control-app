@@ -51,7 +51,7 @@ def seed(con):
     con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
     con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('default-income-investment', 'Investment Income', 'income', 'investment', 0, None, UTC, UTC))
     con.executemany(
-        'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
         [
             # Reinvested income into the investment account (counts: account is investment).
             ('i1', 'income', 'posted', 50000, 'COP', 'cdt', None, 'default-income-investment', None, '2026-07-10', UTC, UTC),

@@ -8,7 +8,10 @@ import {
   roundHalfAwayFromZero,
 } from '../src/features/investments/investment-portfolio.service.ts';
 
-const RATE = { rateScaled: 41_000_000, rateScale: 10_000 }; // USD 1 = COP 4,100
+import { noRates, usdCopRates } from './support/valuation-rates.mjs';
+
+
+const RATE = usdCopRates(41_000_000, 10_000); // USD 1 = COP 4,100
 
 function valuation(accountId, valueMinor, basisMinor, valuationDate = '2026-03-31') {
   return { id: `v-${accountId}`, investmentAccountId: accountId, valueMinor, basisMinor, currencyCode: 'COP', valuationDate, note: null, createdAt: 'x', updatedAt: 'x' };
@@ -89,12 +92,12 @@ test('portfolio consolidates COP and USD current values at the valuation rate', 
 
   const summary = await service.getPortfolio(RATE);
   assert.equal(summary.investmentAccountCount, 2); // the checking account is excluded
-  assert.equal(summary.totalCurrentValueCopMinor, 59_750_000); // 8,500,000 + 51,250,000
-  assert.equal(summary.netContributionsCopMinor, 49_000_000); // 8,000,000 + 41,000,000
-  assert.equal(summary.estimatedGainLossCopMinor, 10_750_000);
+  assert.equal(summary.totalCurrentValueBaseMinor, 59_750_000); // 8,500,000 + 51,250,000
+  assert.equal(summary.netContributionsBaseMinor, 49_000_000); // 8,000,000 + 41,000,000
+  assert.equal(summary.estimatedGainLossBaseMinor, 10_750_000);
   assert.deepEqual(summary.estimatedReturn, { available: true, basisPoints: 2194 });
   assert.equal(summary.incomplete, false);
-  assert.equal(summary.lockedOrRestrictedValueCopMinor, 0);
+  assert.equal(summary.lockedOrRestrictedValueBaseMinor, 0);
 });
 
 test('portfolio is incomplete (null totals) when a USD account has no rate', async () => {
@@ -106,10 +109,10 @@ test('portfolio is incomplete (null totals) when a USD account has no rate', asy
     new FakeInvestmentRepo({ metadata: [metadata('trii'), metadata('ibkr')], latest: [] }),
   );
 
-  const summary = await service.getPortfolio(null);
+  const summary = await service.getPortfolio(noRates());
   assert.equal(summary.incomplete, true);
-  assert.equal(summary.totalCurrentValueCopMinor, null);
-  assert.equal(summary.netContributionsCopMinor, null);
+  assert.equal(summary.totalCurrentValueBaseMinor, null);
+  assert.equal(summary.netContributionsBaseMinor, null);
   assert.deepEqual(summary.estimatedReturn, { available: false });
   assert.deepEqual(summary.allocationByType, []);
 });
@@ -124,11 +127,11 @@ test('an internal transfer between two investment accounts is portfolio neutral'
     new FakeInvestmentRepo({ metadata: [metadata('a'), metadata('b')], latest: [] }),
   );
 
-  const summary = await service.getPortfolio(null);
+  const summary = await service.getPortfolio(noRates());
   // Net contributions and total value are unchanged at 20,000,000 regardless of the split.
-  assert.equal(summary.netContributionsCopMinor, 20_000_000);
-  assert.equal(summary.totalCurrentValueCopMinor, 20_000_000);
-  assert.equal(summary.estimatedGainLossCopMinor, 0);
+  assert.equal(summary.netContributionsBaseMinor, 20_000_000);
+  assert.equal(summary.totalCurrentValueBaseMinor, 20_000_000);
+  assert.equal(summary.estimatedGainLossBaseMinor, 0);
 });
 
 test('locked and restricted current value is subtotaled separately', async () => {
@@ -143,7 +146,7 @@ test('locked and restricted current value is subtotaled separately', async () =>
     }),
   );
 
-  const summary = await service.getPortfolio(null);
-  assert.equal(summary.lockedOrRestrictedValueCopMinor, 10_500_000); // only the CDT
-  assert.equal(summary.totalCurrentValueCopMinor, 18_500_000);
+  const summary = await service.getPortfolio(noRates());
+  assert.equal(summary.lockedOrRestrictedValueBaseMinor, 10_500_000); // only the CDT
+  assert.equal(summary.totalCurrentValueBaseMinor, 18_500_000);
 });

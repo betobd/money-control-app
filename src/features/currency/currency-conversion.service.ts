@@ -2,14 +2,21 @@
  * Centralized currency conversion and exchange-rate arithmetic.
  *
  * Exchange rates are never floating-point. A rate is a scaled integer:
- * `rate = rateScaled / rateScale`. Multi-Currency v1 uses `rateScale = 10000`
- * (four decimal places), so `COP 4,102.3456 per USD` is `rateScaled = 41023456`,
- * `rateScale = 10000`.
+ * `rate = rateScaled / rateScale`, with `rateScale = 10000` (four decimal places),
+ * so `COP 4,102.3456 per USD` is `rateScaled = 41023456, rateScale = 10000`.
+ *
+ * A bare scaled number is not a rate: 4102.3456 is meaningless without knowing it
+ * is COP per USD rather than the reverse. Every rate that crosses a module
+ * boundary is a {@link DirectedRate}, read as **1 base = rate quote**.
  *
  * Conversion uses BigInt intermediates and one deterministic rounding policy —
  * round half away from zero — everywhere, then asserts a safe-integer result.
  * No screen, component, repository, report, budget, or export duplicates these
- * formulas. See docs/decisions/0005-multi-currency-cop-usd.md.
+ * formulas.
+ *
+ * Nothing here knows which currency is the base. That is a user setting; these
+ * functions take it as an argument so the arithmetic stays pure and testable.
+ * See docs/decisions/0008-configurable-base-currency.md.
  */
 import { getCurrency, type CurrencyCode } from './currency-registry';
 
@@ -23,6 +30,12 @@ export class CurrencyConversionError extends Error {}
 export type ScaledRate = {
   rateScaled: number;
   rateScale: number;
+};
+
+/** A rate that knows which way round it goes: 1 `base` = rate `quote`. */
+export type DirectedRate = ScaledRate & {
+  baseCurrencyCode: CurrencyCode;
+  quoteCurrencyCode: CurrencyCode;
 };
 
 export type RateParseResult =
@@ -62,64 +75,123 @@ function assertValidRate(rate: ScaledRate): void {
   }
 }
 
+/** The same rate stated the other way round: 1 quote = (1/rate) base. */
+export function invertRate(rate: DirectedRate): DirectedRate {
+  assertValidRate(rate);
+  return {
+    baseCurrencyCode: rate.quoteCurrencyCode,
+    quoteCurrencyCode: rate.baseCurrencyCode,
+    // Keep the scale and move the ratio, so an inverted rate is still an exact
+    // scaled integer rather than a re-rounded decimal.
+    rateScaled: toSafeNumber(
+      roundedDivide(BigInt(rate.rateScale) * BigInt(rate.rateScale), BigInt(rate.rateScaled)),
+    ),
+    rateScale: rate.rateScale,
+  };
+}
+
 /**
- * Convert a native minor-unit amount to COP base-currency minor units.
- * COP is returned unchanged (it is the base currency); USD requires a rate.
+ * Convert an amount in `from` minor units into `to` minor units.
+ *
+ * The rate may be given in either direction; it is applied as written or
+ * inverted, whichever matches. A rate for an unrelated pair is an error rather
+ * than a silent no-op — passing the wrong rate should not quietly produce a
+ * plausible number.
+ */
+export function convertMinor(
+  amountMinor: number,
+  from: CurrencyCode,
+  to: CurrencyCode,
+  rate: DirectedRate,
+): number {
+  if (!Number.isSafeInteger(amountMinor)) {
+    throw new CurrencyConversionError('Amount must be a safe integer.');
+  }
+  if (from === to) return amountMinor;
+  assertValidRate(rate);
+
+  const fromFactor = BigInt(getCurrency(from).minorUnitFactor);
+  const toFactor = BigInt(getCurrency(to).minorUnitFactor);
+  const amount = BigInt(amountMinor);
+  const scaled = BigInt(rate.rateScaled);
+  const scale = BigInt(rate.rateScale);
+
+  if (rate.baseCurrencyCode === from && rate.quoteCurrencyCode === to) {
+    // 1 from = rate to  ->  multiply.
+    return toSafeNumber(roundedDivide(amount * scaled * toFactor, fromFactor * scale));
+  }
+  if (rate.baseCurrencyCode === to && rate.quoteCurrencyCode === from) {
+    // 1 to = rate from  ->  divide.
+    return toSafeNumber(roundedDivide(amount * scale * toFactor, fromFactor * scaled));
+  }
+  throw new CurrencyConversionError(
+    `A ${rate.baseCurrencyCode}/${rate.quoteCurrencyCode} rate cannot convert ${from} to ${to}.`,
+  );
+}
+
+/**
+ * Convert a native minor-unit amount into the base currency's minor units.
+ * An amount already in the base currency is returned unchanged and needs no rate.
  */
 export function toBaseCurrencyMinor(
   nativeMinor: number,
   code: CurrencyCode,
-  rate?: ScaledRate,
+  baseCode: CurrencyCode,
+  rate?: DirectedRate,
 ): number {
   if (!Number.isSafeInteger(nativeMinor)) {
     throw new CurrencyConversionError('Native amount must be a safe integer.');
   }
-  if (code === 'COP') return nativeMinor;
-  if (!rate) throw new CurrencyConversionError('A USD/COP exchange rate is required to convert USD.');
-  return convertUsdMinorToCopMinor(nativeMinor, rate);
-}
-
-/** USD minor (cents) -> COP minor (pesos) using the given rate. */
-export function convertUsdMinorToCopMinor(usdMinor: number, rate: ScaledRate): number {
-  assertValidRate(rate);
-  if (!Number.isSafeInteger(usdMinor)) {
-    throw new CurrencyConversionError('USD amount must be a safe integer.');
+  if (code === baseCode) return nativeMinor;
+  if (!rate) {
+    throw new CurrencyConversionError(`A ${code}/${baseCode} exchange rate is required to convert ${code}.`);
   }
-  const usdFactor = BigInt(getCurrency('USD').minorUnitFactor); // 100
-  const num = BigInt(usdMinor) * BigInt(rate.rateScaled);
-  const den = usdFactor * BigInt(rate.rateScale);
-  return toSafeNumber(roundedDivide(num, den));
-}
-
-/** COP minor (pesos) -> USD minor (cents) using the given rate. Used for prefill. */
-export function convertCopMinorToUsdMinor(copMinor: number, rate: ScaledRate): number {
-  assertValidRate(rate);
-  if (!Number.isSafeInteger(copMinor)) {
-    throw new CurrencyConversionError('COP amount must be a safe integer.');
-  }
-  const usdFactor = BigInt(getCurrency('USD').minorUnitFactor); // 100
-  const num = BigInt(copMinor) * BigInt(rate.rateScale) * usdFactor;
-  const den = BigInt(rate.rateScaled);
-  return toSafeNumber(roundedDivide(num, den));
+  return convertMinor(nativeMinor, code, baseCode, rate);
 }
 
 /**
- * Derive the effective COP-per-USD rate for a cross-currency transfer from its
- * actual source and destination amounts. Exactly one side is COP and one is USD.
+ * Derive the effective rate a cross-currency transfer actually settled at, from
+ * its two authoritative leg amounts. Returned as 1 `from` = rate `to`.
  */
-export function deriveCrossCurrencyRate(copMinor: number, usdMinor: number): ScaledRate {
-  if (!Number.isSafeInteger(copMinor) || !Number.isSafeInteger(usdMinor)) {
+export function deriveEffectiveRate(
+  fromMinor: number,
+  from: CurrencyCode,
+  toMinor: number,
+  to: CurrencyCode,
+): DirectedRate {
+  if (!Number.isSafeInteger(fromMinor) || !Number.isSafeInteger(toMinor)) {
     throw new CurrencyConversionError('Transfer amounts must be safe integers.');
   }
-  if (copMinor <= 0 || usdMinor <= 0) {
+  if (fromMinor <= 0 || toMinor <= 0) {
     throw new CurrencyConversionError('Transfer amounts must be positive to derive a rate.');
   }
-  const usdFactor = BigInt(getCurrency('USD').minorUnitFactor); // 100
-  // rate = copMajor / usdMajor = copMinor / (usdMinor / 100) = copMinor * 100 / usdMinor
-  const num = BigInt(copMinor) * usdFactor * BigInt(DEFAULT_RATE_SCALE);
-  const den = BigInt(usdMinor);
-  const rateScaled = toSafeNumber(roundedDivide(num, den));
-  return { rateScaled, rateScale: DEFAULT_RATE_SCALE };
+  if (from === to) {
+    throw new CurrencyConversionError('A same-currency transfer has no exchange rate.');
+  }
+  const fromFactor = BigInt(getCurrency(from).minorUnitFactor);
+  const toFactor = BigInt(getCurrency(to).minorUnitFactor);
+  const scale = BigInt(DEFAULT_RATE_SCALE);
+  // rate = toMajor / fromMajor = (toMinor / toFactor) / (fromMinor / fromFactor)
+  const forward = roundedDivide(BigInt(toMinor) * fromFactor * scale, toFactor * BigInt(fromMinor));
+
+  // State the rate in whichever direction gives a value of at least 1. A fixed
+  // four-decimal scale keeps barely three digits of a rate like 0.00024, and the
+  // pair travels with the rate, so the inverted form is exactly as usable and far
+  // more precise.
+  if (forward < scale) {
+    const inverse = roundedDivide(BigInt(fromMinor) * toFactor * scale, fromFactor * BigInt(toMinor));
+    const rateScaled = toSafeNumber(inverse);
+    if (rateScaled <= 0) {
+      throw new CurrencyConversionError('The derived exchange rate is outside the supported range.');
+    }
+    return { baseCurrencyCode: to, quoteCurrencyCode: from, rateScaled, rateScale: DEFAULT_RATE_SCALE };
+  }
+
+  const rateScaled = toSafeNumber(forward);
+  if (rateScaled <= 0) {
+    throw new CurrencyConversionError('The derived exchange rate is outside the supported range.');
+  }
+  return { baseCurrencyCode: from, quoteCurrencyCode: to, rateScaled, rateScale: DEFAULT_RATE_SCALE };
 }
 
 /** Parse a decimal rate string (e.g. "4102.3456") into a scaled integer. */
@@ -152,4 +224,13 @@ export function formatExchangeRate(rate: ScaledRate): string {
     if (fractionText) text = `${text}.${fractionText}`;
   }
   return negative ? `-${text}` : text;
+}
+
+/**
+ * A rate written so it cannot be read backwards, e.g. `COP 4,102.3456 / USD`.
+ * Screens must not assemble this themselves: the pair is what makes the number
+ * mean anything.
+ */
+export function describeRate(rate: DirectedRate): string {
+  return `${rate.quoteCurrencyCode} ${formatExchangeRate(rate)} / ${rate.baseCurrencyCode}`;
 }

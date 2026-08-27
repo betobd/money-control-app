@@ -160,8 +160,8 @@ export class SQLiteDataExportRepository implements DataExportRepository {
           type: transaction.type as TransactionExportRow['type'],
           status: transaction.status as TransactionExportRow['status'],
           currencyCode: transaction.currency,
-          amountCop: transaction.amount,
-          baseCurrencyAmountCop: transaction.baseAmountMinor,
+          amountBaseMinor: transaction.amount,
+          baseCurrencyAmountMinor: transaction.baseAmountMinor,
           exchangeRate: transaction.exchangeRateScaled !== null && transaction.exchangeRateScale
             ? transaction.exchangeRateScaled / transaction.exchangeRateScale
             : null,
@@ -175,7 +175,7 @@ export class SQLiteDataExportRepository implements DataExportRepository {
           subcategoryName: transaction.type === 'transfer' ? null : row.subcategoryName,
           originalTransactionId: transaction.originalTransactionId,
           originalTransactionDate: row.originalTransactionDate,
-          originalTransactionAmountCop: row.originalTransactionAmount,
+          originalTransactionAmountMinor: row.originalTransactionAmount,
           originalTransactionNote: row.originalTransactionNote,
           sourceAccountId: transaction.accountId!,
           sourceAccountName: row.sourceAccountName,

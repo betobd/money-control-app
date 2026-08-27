@@ -12,16 +12,16 @@ Restoring uses the native document picker with cache copying enabled. The app re
 
 ## Version 6 (Subcategories)
 
-Two-level categories advance the logical format to **v6** ([ADR 0007](decisions/0007-category-subcategories.md)).
+Two-level categories advanced the logical format to **v6** ([ADR 0007](decisions/0007-category-subcategories.md)); a configurable base currency advances it to **v7** ([ADR 0008](decisions/0008-configurable-base-currency.md)).
 No collection is added. `categories` gains `parentCategoryId`, and `transactions`,
 `recurringTransactions` and `recurringOccurrences` each gain `subcategoryId`.
 `categoryId` keeps its meaning and always holds the parent, so every count,
 aggregate and CSV built on it reads the same before and after.
 
-The importer accepts v1–v6 and rejects future versions. **A v1–v5 backup upgrades
+The importer accepts v1–v7 and rejects future versions. **A v1–v6 backup upgrades
 by filling nulls, never by inferring a hierarchy**: a null parent means "this was
 already a top-level category" and a null subcategory means "classified exactly as
-before" — the same statement migration `0013` makes about the database, so a
+before" — the same statement migrations `0013` and `0014` make about the database, so a
 restored legacy backup and an upgraded database agree.
 
 Restore validation adds the hierarchy rules: a parent must exist, be top-level,
@@ -65,7 +65,7 @@ gates cover both tables.
 ## Version 4 (Multi-Currency)
 
 Multi-Currency v1 advances the logical format to **v4**. Accounts carry `currency`
-(`COP | USD`); transactions carry the COP `baseAmountMinor` snapshot, the
+(any supported currency as of v7); transactions carry the `baseAmountMinor` snapshot, the
 exchange-rate snapshot fields, and the transfer destination leg
 (`destinationAmountMinor`, `destinationCurrencyCode`); a portable `exchangeRate`
 (the latest valuation rate, non-secret) is included. The importer accepts v1–v4 and
@@ -83,15 +83,16 @@ shared contract; v4 extends the collections and adds the `exchangeRate` field.
 Top-level fields are:
 
 - `format`: literal `money-control-backup`.
-- `formatVersion`: integer `3`, independent from the database schema version.
+- `formatVersion`: integer `7`, independent from the database schema version.
 - `appVersion`, `schemaVersion`, and UTC `createdAt` provenance.
-- `timezone`: literal `America/Bogota`; `currency`: literal `COP`.
+- `timezone`: literal `America/Bogota`; `currency`: the base currency this file was
+  written with (v7; earlier formats always wrote `COP`).
 - `summary`: counts for every collection.
 - `transactionDateRange`: oldest/newest financial dates, or `null` for no transactions.
 - `data`: all portable user data collections.
 - `integrity`: `SHA-256` plus a lowercase hexadecimal checksum.
 
-All monetary values remain safe integers in the same whole-COP representation used by the database. UTC audit timestamps, Bogotá-local `YYYY-MM-DD` financial dates, notes, IDs, archived state, status, and foreign-key IDs are preserved.
+All monetary values remain safe integers in the same minor-unit representation used by the database. UTC audit timestamps, Bogotá-local `YYYY-MM-DD` financial dates, notes, IDs, archived state, status, and foreign-key IDs are preserved.
 
 ### Included collections and fields
 
@@ -138,7 +139,8 @@ Validation occurs before the confirmation can write anything, and relationships/
 - maximum UTF-8 file size of 25 MiB and JSON nesting depth of 8;
 - maximum lengths: IDs 200 characters, general strings 512, notes 200;
 - maximum counts: 10,000 each for accounts, categories, budgets, and recurring rules; 50,000 each for transactions, splits, and occurrences;
-- required collections/fields, enums, booleans, nullability, COP currency, safe-integer money, positive/non-zero constraints, UTC timestamps, and real calendar dates/months;
+- required collections/fields, enums, booleans, nullability, currency codes valid for the
+  file's own format version, safe-integer money, positive/non-zero constraints, UTC timestamps, and real calendar dates/months;
 - duplicate primary IDs and current partial-unique account/category name rules;
 - transaction, transfer, recurring-rule, and occurrence row shapes;
 - every account/category/transaction/rule relationship, including archived referenced records;
@@ -183,7 +185,8 @@ Only after commit does the service publish one global financial-data invalidatio
 - Temporary export and picker copies live only in the app cache and are deleted on the best-effort cleanup path after use. Backup files are written to a dedicated `money-control-backups` cache subdirectory; before each new backup, any plaintext file left behind by a previously interrupted share (older than 24 hours) is swept, mirroring the Data Export cleanup so an interrupted share cannot leave financial data lingering indefinitely.
 - The feature requests no broad storage permission and has no cloud/network component. The user chooses the destination/provider through Android system UI.
 - There is no password protection, encryption, signature/authenticity, cloud sync, scheduled backup, merge import, partial restore, or cross-currency conversion.
-- Version 3 supports only COP and the current Money Control logical model.
+- Restoring adopts the backup's base currency: its stored `baseAmountMinor` values make
+  sense in no other currency.
 - Encryption can be added later with a new format version and an authenticated-encryption envelope; it should not silently reinterpret existing plaintext files.
 - Restoring a financial backup never reads or writes SecureStore. It therefore cannot enable, disable, or alter the current device's App Lock, biometric preference, PIN verifier, or failed-attempt state. Restored financial data remains behind the current device lock when that lock is enabled.
 - Restore preserves the current device's notification preferences. After the financial replacement commits, it cancels known local schedules, clears device-specific schedule/threshold metadata, rebuilds allowed recurring and daily work, and baselines restored budgets without historical alerts. It never requests notification permission or enables a reminder category. Notification cleanup failure cannot roll back the already committed financial restore.

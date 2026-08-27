@@ -2,8 +2,8 @@ import type { BudgetColorKey } from '@/constants/theme';
 import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
-export const CURRENT_BACKUP_FORMAT_VERSION = 6 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0013' as const;
+export const CURRENT_BACKUP_FORMAT_VERSION = 7 as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0014' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
@@ -118,12 +118,25 @@ export type BackupTransactionV5 = Omit<BackupTransactionV3, 'currency'> & {
 };
 
 /**
- * Format v6 canonical transaction: adds the optional subcategory. `categoryId`
- * keeps its meaning and always holds the parent, so every aggregate built on it
- * reads the same before and after the upgrade.
+ * Format v6 transaction: adds the optional subcategory. `categoryId` keeps its
+ * meaning and always holds the parent, so every aggregate built on it reads the
+ * same before and after the upgrade.
  */
-export type BackupTransaction = BackupTransactionV5 & {
+export type BackupTransactionV6 = BackupTransactionV5 & {
   subcategoryId: string | null;
+};
+
+/**
+ * Format v7 canonical transaction: the snapshot says which currencies it is in.
+ *
+ * Up to v6 a `baseAmountMinor` meant COP and an `exchangeRateScaled` meant COP
+ * per USD, because those were the only possibilities. With a configurable base
+ * currency neither is inferable from the row, so both are written down.
+ */
+export type BackupTransaction = BackupTransactionV6 & {
+  baseCurrencyCode: CurrencyCode | null;
+  exchangeRateBaseCode: CurrencyCode | null;
+  exchangeRateQuoteCode: CurrencyCode | null;
 };
 
 export type BackupTransactionSplit = {
@@ -285,9 +298,22 @@ export type BackupDataV6 = Omit<
   'categories' | 'transactions' | 'recurringTransactions' | 'recurringOccurrences'
 > & {
   categories: BackupCategory[];
-  transactions: BackupTransaction[];
+  transactions: BackupTransactionV6[];
   recurringTransactions: BackupRecurringTransaction[];
   recurringOccurrences: BackupRecurringOccurrence[];
+};
+
+/**
+ * Canonical current data shape (format v7): configurable base currency.
+ *
+ * `exchangeRate` (one USD/COP pair) becomes `exchangeRates` (one row per pair),
+ * and the device's base currency is written down rather than assumed to be COP.
+ */
+export type BackupDataV7 = Omit<BackupDataV6, 'transactions' | 'exchangeRate'> & {
+  transactions: BackupTransaction[];
+  /** The base currency every `baseAmountMinor` in this file is denominated in. */
+  baseCurrencyCode: CurrencyCode;
+  exchangeRates: BackupExchangeRate[];
 };
 
 export type BackupSummary = {
@@ -359,8 +385,19 @@ export type BackupFileV5 = Omit<BackupFileV4, 'formatVersion' | 'data' | 'summar
 };
 
 export type BackupFileV6 = Omit<BackupFileV5, 'formatVersion' | 'data'> & {
-  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  formatVersion: 6;
   data: BackupDataV6;
+};
+
+/**
+ * Format v7. `currency` stops being the literal 'COP': it names the base
+ * currency this file was written with, which restore uses to keep every stored
+ * `baseAmountMinor` meaningful.
+ */
+export type BackupFileV7 = Omit<BackupFileV6, 'formatVersion' | 'data' | 'currency'> & {
+  formatVersion: typeof CURRENT_BACKUP_FORMAT_VERSION;
+  currency: CurrencyCode;
+  data: BackupDataV7;
 };
 
 export type BackupFile =
@@ -369,7 +406,8 @@ export type BackupFile =
   | BackupFileV3
   | BackupFileV4
   | BackupFileV5
-  | BackupFileV6;
+  | BackupFileV6
+  | BackupFileV7;
 
 export type BackupPreview = {
   fileName: string;
@@ -387,7 +425,7 @@ export type BackupPreview = {
 
 export type RestoreCandidate = {
   file: BackupFile;
-  data: BackupDataV6;
+  data: BackupDataV7;
   preview: BackupPreview;
 };
 

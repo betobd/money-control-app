@@ -1,18 +1,25 @@
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import { database } from '@/database/client';
 import { exchangeRates } from '@/database/schema';
-import type { CurrencyCode } from '@/features/currency/currency';
+import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import type { ExchangeRateRepository } from './exchange-rate.repository';
-import { USD_COP_RATE_ID, type ExchangeRateRecord, type ExchangeRateSource } from './exchange-rate.types';
+import { rateId, type ExchangeRateRecord, type ExchangeRateSource } from './exchange-rate.types';
 
 type ExchangeRateRow = typeof exchangeRates.$inferSelect;
 
-function mapRow(row: ExchangeRateRow): ExchangeRateRecord {
+function mapRow(row: ExchangeRateRow): ExchangeRateRecord | null {
+  // The currency columns are shape-checked, not enumerated, so a code the registry
+  // no longer knows can reach here after a downgrade. Dropping the row is right:
+  // an unusable rate should read as "no rate", which the app already handles, not
+  // as a crash on a screen that merely lists rates.
+  if (!isSupportedCurrency(row.baseCurrencyCode) || !isSupportedCurrency(row.quoteCurrencyCode)) {
+    return null;
+  }
   return {
     id: row.id,
-    baseCurrencyCode: row.baseCurrencyCode as CurrencyCode,
-    quoteCurrencyCode: row.quoteCurrencyCode as CurrencyCode,
+    baseCurrencyCode: row.baseCurrencyCode,
+    quoteCurrencyCode: row.quoteCurrencyCode,
     rateScaled: row.rateScaled,
     rateScale: row.rateScale,
     effectiveDate: row.effectiveDate,
@@ -25,14 +32,34 @@ function mapRow(row: ExchangeRateRow): ExchangeRateRecord {
 }
 
 export class SQLiteExchangeRateRepository implements ExchangeRateRepository {
-  async getValuationRate(): Promise<ExchangeRateRecord | null> {
-    const row = await database.query.exchangeRates.findFirst({
-      where: eq(exchangeRates.id, USD_COP_RATE_ID),
+  async find(base: CurrencyCode, quote: CurrencyCode): Promise<ExchangeRateRecord | null> {
+    // Either orientation answers the question: a stored USD/COP rate converts COP
+    // to USD just as well. Looking up only one would refetch a rate already held.
+    // The requested orientation wins when both exist, so the answer does not depend
+    // on row order.
+    const preferred = rateId(base, quote);
+    const rows = await database.query.exchangeRates.findMany({
+      where: inArray(exchangeRates.id, [preferred, rateId(quote, base)]),
     });
-    return row ? mapRow(row) : null;
+    const ordered = [...rows].sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+    for (const row of ordered) {
+      const mapped = mapRow(row);
+      if (mapped) return mapped;
+    }
+    return null;
   }
 
-  async saveValuationRate(record: ExchangeRateRecord): Promise<void> {
+  async list(): Promise<ExchangeRateRecord[]> {
+    const rows = await database.query.exchangeRates.findMany();
+    return rows.map(mapRow).filter((record): record is ExchangeRateRecord => record !== null);
+  }
+
+  async save(record: ExchangeRateRecord): Promise<void> {
+    // Drop the same pair stored the other way round, so a pair never ends up with
+    // two rows that can disagree after one of them is refreshed.
+    await database
+      .delete(exchangeRates)
+      .where(eq(exchangeRates.id, rateId(record.quoteCurrencyCode, record.baseCurrencyCode)));
     await database
       .insert(exchangeRates)
       .values(record)

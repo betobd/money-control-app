@@ -17,9 +17,13 @@ import {
 // the module and every `instanceof TransactionValidationError` inside the
 // recurring service would silently be false.
 import {
+
   TransactionService,
   isTransactionValidationError,
 } from '@/features/transactions/transaction.service';
+
+import { testBaseCurrency } from './support/base-currency.mjs';
+
 
 const NOW = '2026-07-16T15:00:00.000Z';
 
@@ -176,6 +180,7 @@ function setup(today = '2026-07-16') {
     () => `tx-${++sequence}`,
     () => NOW,
     (change) => { changes.push(change); },
+    testBaseCurrency,
   );
   const service = new RecurringTransactionService(
     recurring,
@@ -183,6 +188,8 @@ function setup(today = '2026-07-16') {
     () => `id-${++sequence}`,
     () => NOW,
     () => today,
+    undefined,
+    testBaseCurrency,
   );
   return { accounts, categories, changes, recurring, service, transactionRepo };
 }

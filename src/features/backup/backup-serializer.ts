@@ -1,4 +1,4 @@
-import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_CURRENCY, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV6, type BackupFileV6, type BackupOverview } from './backup.types';
+import { BACKUP_CHECKSUM_ALGORITHM, BACKUP_FORMAT, BACKUP_TIMEZONE, CURRENT_BACKUP_FORMAT_VERSION, type BackupDataV7, type BackupFileV7, type BackupOverview } from './backup.types';
 import type { BackupChecksumService } from './backup-checksum.service';
 
 type BackupMetadata = {
@@ -18,7 +18,7 @@ function compareInvestmentAccounts(
   return left.accountId < right.accountId ? -1 : left.accountId > right.accountId ? 1 : 0;
 }
 
-export function sortBackupData(data: BackupDataV6): BackupDataV6 {
+export function sortBackupData(data: BackupDataV7): BackupDataV7 {
   return {
     accounts: [...data.accounts].sort(compareIds),
     categories: [...data.categories].sort(compareIds),
@@ -31,11 +31,12 @@ export function sortBackupData(data: BackupDataV6): BackupDataV6 {
     creditCardStatements: [...data.creditCardStatements].sort(compareIds),
     investmentAccounts: [...data.investmentAccounts].sort(compareInvestmentAccounts),
     investmentValuations: [...data.investmentValuations].sort(compareIds),
-    exchangeRate: data.exchangeRate,
+    baseCurrencyCode: data.baseCurrencyCode,
+    exchangeRates: [...data.exchangeRates].sort(compareIds),
   };
 }
 
-export function createBackupOverview(data: BackupDataV6): BackupOverview {
+export function createBackupOverview(data: BackupDataV7): BackupOverview {
   let oldest: string | null = null;
   let newest: string | null = null;
   for (const transaction of data.transactions) {
@@ -62,16 +63,18 @@ export function createBackupOverview(data: BackupDataV6): BackupOverview {
 export class BackupSerializer {
   constructor(private readonly checksum: BackupChecksumService) {}
 
-  async create(data: BackupDataV6, metadata: BackupMetadata): Promise<BackupFileV6> {
+  async create(data: BackupDataV7, metadata: BackupMetadata): Promise<BackupFileV7> {
     const orderedData = sortBackupData(data);
     const overview = createBackupOverview(orderedData);
-    const draft: BackupFileV6 = {
+    const draft: BackupFileV7 = {
       format: BACKUP_FORMAT,
       formatVersion: CURRENT_BACKUP_FORMAT_VERSION,
       appVersion: metadata.appVersion,
       createdAt: metadata.createdAt,
       timezone: BACKUP_TIMEZONE,
-      currency: BACKUP_CURRENCY,
+      // Names the base currency this file was written with, instead of the
+      // fixed 'COP' every earlier format assumed.
+      currency: orderedData.baseCurrencyCode,
       schemaVersion: metadata.schemaVersion,
       ...overview,
       data: orderedData,
@@ -89,7 +92,7 @@ export class BackupSerializer {
     };
   }
 
-  stringify(file: BackupFileV6): string {
+  stringify(file: BackupFileV7): string {
     return `${JSON.stringify(file, null, 2)}\n`;
   }
 }

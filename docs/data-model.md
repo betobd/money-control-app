@@ -18,7 +18,7 @@ The portable backup model mirrors all eight application-owned financial/statemen
 - `is_archived`, `archived_at`
 - UTC `created_at`, `updated_at`
 
-As of Multi-Currency v1 (migration `0009`, [ADR 0005](decisions/0005-multi-currency-cop-usd.md)) `currency` is constrained to `COP` or `USD`. All existing integer money columns (`opening_balance`, `credit_limit`, and every transaction/statement amount) are **minor-unit** values — COP has `minorUnitFactor = 1` (whole pesos) so existing values are unchanged, and USD has `minorUnitFactor = 100` (cents). Physical column names are kept; `*Minor` naming is used in TypeScript models and newly added columns. An account's currency is immutable once it has financial history. Referenced accounts cannot be physically deleted. Opening balance is editable only before the account has any posted transaction; future service logic enforces that history-dependent rule.
+As of migration `0014` ([ADR 0008](decisions/0008-configurable-base-currency.md)) `currency` is constrained by *shape* — a three-letter uppercase code — rather than by an enumerated list; the supported set lives in the TypeScript currency registry and is enforced by the repositories, so adding a currency is not a migration. All existing integer money columns (`opening_balance`, `credit_limit`, and every transaction/statement amount) are **minor-unit** values — COP has `minorUnitFactor = 1` (whole pesos) so existing values are unchanged, and USD has `minorUnitFactor = 100` (cents). Physical column names are kept; `*Minor` naming is used in TypeScript models and newly added columns. An account's currency is immutable once it has financial history. Referenced accounts cannot be physically deleted. Opening balance is editable only before the account has any posted transaction; future service logic enforces that history-dependent rule.
 
 The Accounts service trims names and enforces case-insensitive uniqueness among active accounts. Migration 002 adds a partial unique index on `lower(trim(name))` for active rows as database defense in depth. Archived rows are outside that index and may retain historical duplicate names. Restoration clears the archive fields without changing the account ID and revalidates the name against active accounts.
 
@@ -51,13 +51,13 @@ One card has at most one statement per closing date. Statement rows are non-fina
 - `id`
 - `type` (`income | expense | transfer | refund`)
 - `status` (`posted | voided`), default `posted`
-- positive integer `amount` in the account's currency minor units; `currency` is `COP` or `USD`
+- positive integer `amount` in the account's currency minor units; `currency` is any supported code
 - `account_id`; transfer-only `destination_account_id`
 - category for income/expense and no category for transfers
 - optional `note`
 - local `transaction_date` in `YYYY-MM-DD`
 - UTC `created_at`, `updated_at`
-- Multi-Currency v1 (migration `0009`) adds nullable `base_amount_minor` (COP snapshot for income/expense/refund), the exchange-rate snapshot (`exchange_rate_scaled`, `exchange_rate_scale`, `exchange_rate_date`, `exchange_rate_source`), and the transfer destination leg (`destination_amount_minor`, `destination_currency_code`). USD income/expense/refund require the base amount + rate snapshot; cross-currency transfers require both leg amounts + a rate. Reports/Budgets/Home aggregate `coalesce(base_amount_minor, amount)`. See [currency-and-rates.md](currency-and-rates.md).
+- Multi-Currency v1 (migration `0009`) adds nullable `base_amount_minor` (base-currency snapshot for income/expense/refund), the exchange-rate snapshot (`exchange_rate_scaled`, `exchange_rate_scale`, `exchange_rate_date`, `exchange_rate_source`), and the transfer destination leg (`destination_amount_minor`, `destination_currency_code`). Migration `0014` adds `base_currency_code` and the rate's own pair (`exchange_rate_base_code`, `exchange_rate_quote_code`) so a snapshot is readable without knowing the current setting. A non-base-currency income/expense/refund requires the base amount + rate snapshot; cross-currency transfers require both leg amounts + a rate. Reports/Budgets/Home aggregate `coalesce(base_amount_minor, amount)`. See [currency-and-rates.md](currency-and-rates.md).
 
 Persisted transactions are never hard-deleted. Voided transactions remain visible in history and are excluded from every balance and report. Posted transactions may be edited in place while preserving `id` and `created_at`; edits and voiding advance `updated_at`. Voided transactions cannot be edited or restored to posted. The schema validates row shape, while services validate category compatibility and archive state.
 
@@ -76,7 +76,7 @@ This table is schema foundation only. Split creation and validation are not impl
 - `id`, `category_id`, `month`, positive safe-integer `limit_amount`
 - UTC `created_at`, `updated_at`
 
-Each budget belongs to exactly one category through a restrictive foreign key. `UNIQUE(category_id, month)` prevents two budgets for the same category and month while allowing that category to have a different budget in another month. The category name and icon are the visible label; a separate budget name is not stored. There is no archive column because monthly records are already historical and no separate lifecycle is justified. Removing a Budget deletes only that monthly plan and never its category or transactions. Currency is omitted because the current product supports only COP.
+Each budget belongs to exactly one category through a restrictive foreign key. `UNIQUE(category_id, month)` prevents two budgets for the same category and month while allowing that category to have a different budget in another month. The category name and icon are the visible label; a separate budget name is not stored. There is no archive column because monthly records are already historical and no separate lifecycle is justified. Removing a Budget deletes only that monthly plan and never its category or transactions. Currency is omitted because a budget limit is always an amount in the base currency.
 
 Income-category rejection and active-category eligibility are enforced by `BudgetService` because SQLite cannot express category type or archive state through a normal cross-table `CHECK`. Archived expense categories already referenced remain valid historical relationships, while creation UI lists only active expense categories. Renaming a category preserves the relationship because references use the stable category ID.
 
@@ -108,10 +108,19 @@ Drizzle's `__drizzle_migrations` journal is the sole migration authority. Applie
 
 Migrations are **hand-authored** `.sql` files (several include triggers and guard constraints Drizzle Kit does not model). `drizzle-kit generate` is therefore not the source of truth and must not be used to author new migrations — add new ordered files by hand following the existing pattern. The `meta/` snapshot files are complete only for the earliest migrations, so `drizzle-kit generate` diffs against them would be misleading; ignore them when authoring migrations. The runtime migrator uses `_journal.json` plus the bundled `.sql` files and is unaffected. See [known-limitations.md](known-limitations.md).
 
+### `app_settings`
+
+Migration `0014` adds `app_settings`, a singleton row (`id = 'device'`) holding
+`base_currency_code`: the currency every consolidated total and every
+`base_amount_minor` snapshot is denominated in. It is seeded from the data — an
+install that already has accounts was COP and stays COP; an empty one gets a
+neutral default — and is changeable only while no transaction or budget exists.
+See [ADR 0008](decisions/0008-configurable-base-currency.md).
+
 ### `exchange_rates`
 
-Migration `0009` adds `exchange_rates`, a single-row-per-pair cache of the latest
-valid USD/COP valuation rate: scaled integer `rate_scaled` / `rate_scale`,
+Migration `0009` adds `exchange_rates`, one row per ordered currency pair holding the
+latest valid valuation rate: scaled integer `rate_scaled` / `rate_scale`,
 `effective_date`, UTC `fetched_at`, `provider`, and `source` (`frankfurter | manual`).
 It holds no personal or financial data and is portable application data (included in
 backup v4). See [currency-and-rates.md](currency-and-rates.md).
@@ -127,7 +136,7 @@ and audit timestamps (CHECKs enforce the enums, valid dates, and
 `maturity_date >= start_date`). `investment_valuations` is the manual market-value
 history: `id`, `investment_account_id` (FK to `accounts`), non-negative
 `value_minor`, `basis_minor` (a net-contributions snapshot, may be negative),
-`currency_code` (COP/USD, validated to match the account), `valuation_date`,
+`currency_code` (any supported code, validated to match the account), `valuation_date`,
 optional `note`, audit timestamps, and a unique index on
 `(investment_account_id, valuation_date)`. `0012` relaxes the `accounts` type
 CHECK to include `investment` via the create-copy-swap pattern (rebuilding

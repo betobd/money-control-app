@@ -50,8 +50,8 @@ transactions = [
 database.executemany(
     '''INSERT INTO transactions
        (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,
-        transaction_date,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+        transaction_date,created_at,updated_at,base_currency_code)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = 'transfer' THEN NULL ELSE 'COP' END)''',
     transactions,
 )
 database.execute(
@@ -165,8 +165,8 @@ large_rows = [
 database.executemany(
     '''INSERT INTO transactions
        (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,
-        transaction_date,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+        transaction_date,created_at,updated_at,base_currency_code)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = 'transfer' THEN NULL ELSE 'COP' END)''',
     large_rows,
 )
 count = database.execute(

@@ -139,9 +139,10 @@ is labeled **"Simple estimated return"** (never Annual return, APY, IRR, TWR).
 
 ## Multi-currency
 
-Each investment has one native currency (COP or USD), immutable after activity.
+Each investment has one native currency (any supported code), immutable after activity.
 Valuations must use the account's currency (a USD account cannot be valued in
-COP). Consolidated COP uses the saved USD/COP valuation rate; refreshing
+COP). Consolidated totals use the saved valuation rates for each held currency;
+refreshing
 Frankfurter changes estimated consolidated value and net worth but never creates
 Income/Expense and never rewrites transfers, income, reports, budgets, or
 valuation history. Cross-currency contributions are ordinary cross-currency

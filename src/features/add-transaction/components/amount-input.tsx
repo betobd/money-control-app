@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { getBaseCurrency } from '@/features/settings/settings';
 
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
@@ -38,7 +39,7 @@ function formatAmountEntry(value: string, currency: CurrencyCode): string {
   return `${grouped}${definition.decimalSeparator}${fraction}`;
 }
 
-export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigitsChange, type, currency = 'COP', error }: AmountInputProps) {
+export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigitsChange, type, currency = getBaseCurrency(), error }: AmountInputProps) {
   const theme = useAppTheme();
   const tone = getTypeTone(type, theme);
   const definition = getCurrency(currency);

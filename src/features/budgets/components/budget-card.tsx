@@ -4,7 +4,7 @@ import { PressableScale } from '@/components/pressable-scale';
 
 import { IconChip } from '@/components/icon-chip';
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import { useBudgetColor } from '@/features/budgets/budget-color';
@@ -27,12 +27,12 @@ export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps)
   const accentColor = resolveColor(budget.color, presentation.accent);
   const overBudget = budget.remaining < 0;
   const remainingLabel = overBudget ? 'Over by' : 'Remaining';
-  const remainingValue = overBudget ? formatCop(Math.abs(budget.remaining)) : formatCop(budget.remaining);
+  const remainingValue = overBudget ? formatBase(Math.abs(budget.remaining)) : formatBase(budget.remaining);
 
   return (
     <PressableScale
       accessibilityHint="Opens budget editing"
-      accessibilityLabel={`${budget.categoryName}${budget.categoryIsArchived ? ', archived category' : ''}, ${presentation.label}, spent ${formatCop(budget.spent)} of ${formatCop(budget.limitAmount)}, ${remainingLabel.toLowerCase()} ${remainingValue}, ${budget.percentageUsed}% used`}
+      accessibilityLabel={`${budget.categoryName}${budget.categoryIsArchived ? ', archived category' : ''}, ${presentation.label}, spent ${formatBase(budget.spent)} of ${formatBase(budget.limitAmount)}, ${remainingLabel.toLowerCase()} ${remainingValue}, ${budget.percentageUsed}% used`}
       accessibilityRole="button"
       onPress={onPress}
       style={[styles.card, nested && styles.nestedCard, { backgroundColor: nested ? theme.elevatedSurface : theme.surface }]}>
@@ -56,7 +56,7 @@ export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps)
         <View style={styles.spentColumn}>
           <Text style={[styles.metaLabel, { color: theme.mutedText }]}>Spent</Text>
           <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.spent, { color: theme.primaryText }]}>
-            {formatCop(budget.spent)} of {formatCop(budget.limitAmount)}
+            {formatBase(budget.spent)} of {formatBase(budget.limitAmount)}
           </Text>
         </View>
         <View style={styles.remainingColumn}>

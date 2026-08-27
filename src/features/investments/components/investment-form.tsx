@@ -19,7 +19,9 @@ import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { getCurrency, listCurrencies, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { CurrencyPicker } from '@/features/currency/components/currency-picker';
+import { getBaseCurrency } from '@/features/settings/settings';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { investmentLiquidityLabels, investmentTypeLabels } from '../investment-format';
 import { InvestmentValidationError } from '../investment.service';
@@ -63,7 +65,8 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
   const isEditing = Boolean(accountId);
 
   const [name, setName] = useState('');
-  const [currency, setCurrency] = useState<CurrencyCode>('COP');
+  const [currency, setCurrency] = useState<CurrencyCode>(getBaseCurrency);
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [investmentType, setInvestmentType] = useState<InvestmentType>('brokerage');
   const [liquidity, setLiquidity] = useState<InvestmentLiquidity>('liquid');
   const [liquidityTouched, setLiquidityTouched] = useState(false);
@@ -220,22 +223,15 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
         </FormField>
 
         <FormField label="Currency" error={errors.currency} theme={theme}>
-          <View style={styles.segment}>
-            {listCurrencies().map((option) => {
-              const selected = currency === option.code;
-              return (
-                <Pressable
-                  accessibilityLabel={`${option.code} ${option.name}`}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  key={option.code}
-                  onPress={() => { setCurrency(option.code); clearError('currency'); clearError('openingBalance'); }}
-                  style={[styles.segmentCell, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent' }]}>
-                  <Text style={[styles.segmentText, { color: selected ? theme.primaryText : theme.secondaryText }]}>{option.code}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Pressable
+            accessibilityLabel={`Currency, ${currency}, ${getCurrency(currency).name}`}
+            accessibilityRole="button"
+            onPress={() => setCurrencyPickerOpen(true)}
+            style={[styles.segmentCell, { backgroundColor: theme.surface, borderColor: 'transparent' }]}>
+            <Text style={[styles.segmentText, { color: theme.primaryText }]}>
+              {currency} · {getCurrency(currency).name}
+            </Text>
+          </Pressable>
         </FormField>
 
         <FormField label={`Initial value (${currency})`} error={errors.openingBalance} theme={theme}>
@@ -307,6 +303,14 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
           variant="primary"
         />
       </View>
+      <CurrencyPicker
+        onClose={() => setCurrencyPickerOpen(false)}
+        onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); }}
+        selected={currency}
+        suggested={[getBaseCurrency()]}
+        title="Investment currency"
+        visible={currencyPickerOpen}
+      />
     </KeyboardAvoidingView>
   );
 }

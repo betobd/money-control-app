@@ -120,7 +120,9 @@ export class BackupService {
             ? this.validator.validateV4(envelope.raw)
             : envelope.formatVersion === 5
               ? this.validator.validateV5(envelope.raw)
-              : this.validator.validateV6(envelope.raw);
+              : envelope.formatVersion === 6
+                ? this.validator.validateV6(envelope.raw)
+                : this.validator.validateV7(envelope.raw);
     return this.validateFile(file);
   }
 

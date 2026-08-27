@@ -1,5 +1,5 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
-import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import type { InvestmentRepository } from './investment.repository';
 import type {
   EstimatedReturn,
@@ -58,21 +58,15 @@ export function computeEstimatedReturn(
   return { available: true, basisPoints };
 }
 
-function toCopMinor(nativeMinor: number, currency: string, rate: ScaledRate | null): number | null {
-  if (currency === 'COP') return nativeMinor;
-  if (!rate) return null;
-  return convertUsdMinorToCopMinor(nativeMinor, rate);
-}
-
 export function buildInvestmentAccountView(params: {
   account: AccountWithBalance;
   metadata: InvestmentAccountMetadata;
   latestValuation: InvestmentValuation | null;
   totalContributionsMinor: number;
   totalWithdrawalsMinor: number;
-  rate: ScaledRate | null;
+  rates: ValuationRates;
 }): InvestmentAccountView {
-  const { account, metadata, latestValuation, totalContributionsMinor, totalWithdrawalsMinor, rate } = params;
+  const { account, metadata, latestValuation, totalContributionsMinor, totalWithdrawalsMinor, rates } = params;
   const netContributionsMinor = account.balance;
   const currentValueMinor = computeCurrentValueMinor(netContributionsMinor, latestValuation);
   const estimatedGainLossMinor = currentValueMinor - netContributionsMinor;
@@ -86,7 +80,7 @@ export function buildInvestmentAccountView(params: {
     currentValueMinor,
     estimatedGainLossMinor,
     estimatedReturn: computeEstimatedReturn(estimatedGainLossMinor, netContributionsMinor),
-    estimatedValueCopMinor: toCopMinor(currentValueMinor, account.currency, rate),
+    estimatedValueBaseMinor: rates.toBase(currentValueMinor, account.currency),
   };
 }
 
@@ -98,63 +92,66 @@ function assertSafe(total: number): number {
 }
 
 function allocation(entries: Map<string, number>): InvestmentAllocationSlice[] {
-  return [...entries.entries()].map(([key, valueCopMinor]) => ({ key, valueCopMinor }));
+  return [...entries.entries()].map(([key, valueBaseMinor]) => ({ key, valueBaseMinor }));
 }
 
 /**
- * Consolidate account views into a COP portfolio summary. When any USD account
- * lacks a valuation rate the consolidated totals are reported as null and marked
- * incomplete (never a silent partial figure), mirroring estimated net worth.
+ * Consolidate account views into a base-currency portfolio summary. When any
+ * account's currency lacks a valuation rate the consolidated totals are reported
+ * as null and marked incomplete (never a silent partial figure), mirroring
+ * estimated net worth.
  */
 export function summarizePortfolio(
   views: InvestmentAccountView[],
-  rate: ScaledRate | null,
+  rates: ValuationRates,
 ): InvestmentPortfolioSummary {
-  let totalValueCop = 0;
-  let totalNetContribCop = 0;
-  let lockedRestrictedCop = 0;
+  let totalValueBase = 0;
+  let totalNetContribBase = 0;
+  let lockedRestrictedBase = 0;
   let incomplete = false;
   const byType = new Map<string, number>();
   const byCurrency = new Map<string, number>();
 
   for (const view of views) {
-    const valueCop = view.estimatedValueCopMinor;
-    const netContribCop = toCopMinor(view.netContributionsMinor, view.account.currency, rate);
-    if (valueCop === null || netContribCop === null) {
+    const valueBase = view.estimatedValueBaseMinor;
+    const netContribBase = rates.toBase(view.netContributionsMinor, view.account.currency);
+    if (valueBase === null || netContribBase === null) {
       incomplete = true;
       continue;
     }
-    totalValueCop += valueCop;
-    totalNetContribCop += netContribCop;
-    if (view.metadata.liquidity !== 'liquid') lockedRestrictedCop += valueCop;
-    byType.set(view.metadata.investmentType, (byType.get(view.metadata.investmentType) ?? 0) + valueCop);
-    byCurrency.set(view.account.currency, (byCurrency.get(view.account.currency) ?? 0) + valueCop);
+    totalValueBase += valueBase;
+    totalNetContribBase += netContribBase;
+    if (view.metadata.liquidity !== 'liquid') lockedRestrictedBase += valueBase;
+    byType.set(view.metadata.investmentType, (byType.get(view.metadata.investmentType) ?? 0) + valueBase);
+    byCurrency.set(view.account.currency, (byCurrency.get(view.account.currency) ?? 0) + valueBase);
   }
 
   if (incomplete) {
     return {
       accounts: views,
       investmentAccountCount: views.length,
-      totalCurrentValueCopMinor: null,
-      netContributionsCopMinor: null,
-      estimatedGainLossCopMinor: null,
+      baseCurrency: rates.baseCurrency,
+      totalCurrentValueBaseMinor: null,
+      netContributionsBaseMinor: null,
+      estimatedGainLossBaseMinor: null,
       estimatedReturn: { available: false },
-      lockedOrRestrictedValueCopMinor: null,
+      lockedOrRestrictedValueBaseMinor: null,
       incomplete: true,
       allocationByType: [],
       allocationByCurrency: [],
     };
   }
 
-  const gainCop = assertSafe(totalValueCop) - totalNetContribCop;
+  const gainBase = assertSafe(totalValueBase) - totalNetContribBase;
   return {
     accounts: views,
     investmentAccountCount: views.length,
-    totalCurrentValueCopMinor: assertSafe(totalValueCop),
-    netContributionsCopMinor: assertSafe(totalNetContribCop),
-    estimatedGainLossCopMinor: gainCop,
-    estimatedReturn: computeEstimatedReturn(gainCop, totalNetContribCop),
-    lockedOrRestrictedValueCopMinor: lockedRestrictedCop,
+    baseCurrency: rates.baseCurrency,
+    totalCurrentValueBaseMinor: assertSafe(totalValueBase),
+    netContributionsBaseMinor: assertSafe(totalNetContribBase),
+    estimatedGainLossBaseMinor: gainBase,
+    estimatedReturn: computeEstimatedReturn(gainBase, totalNetContribBase),
+    lockedOrRestrictedValueBaseMinor: lockedRestrictedBase,
     incomplete: false,
     allocationByType: allocation(byType),
     allocationByCurrency: allocation(byCurrency),
@@ -189,7 +186,7 @@ export class InvestmentPortfolioService {
     private readonly investmentRepository: InvestmentRepository,
   ) {}
 
-  async getPortfolio(rate: ScaledRate | null): Promise<InvestmentPortfolioSummary> {
+  async getPortfolio(rates: ValuationRates): Promise<InvestmentPortfolioSummary> {
     const accountsWithBalances = await this.accountRepository.list(true);
     const investmentAccounts = accountsWithBalances.filter((account) => account.type === 'investment');
 
@@ -216,15 +213,15 @@ export class InvestmentPortfolioService {
           latestValuation: latestById.get(account.id) ?? null,
           totalContributionsMinor: contrib?.totalContributionsMinor ?? account.balance,
           totalWithdrawalsMinor: contrib?.totalWithdrawalsMinor ?? 0,
-          rate,
+          rates,
         }),
       );
     }
 
-    return summarizePortfolio(views, rate);
+    return summarizePortfolio(views, rates);
   }
 
-  async getAccountView(accountId: string, rate: ScaledRate | null): Promise<InvestmentAccountView | null> {
+  async getAccountView(accountId: string, rates: ValuationRates): Promise<InvestmentAccountView | null> {
     const accountsWithBalances = await this.accountRepository.list(true);
     const account = accountsWithBalances.find((candidate) => candidate.id === accountId);
     if (!account || account.type !== 'investment') return null;
@@ -240,7 +237,7 @@ export class InvestmentPortfolioService {
       latestValuation,
       totalContributionsMinor: contrib.totalContributionsMinor,
       totalWithdrawalsMinor: contrib.totalWithdrawalsMinor,
-      rate,
+      rates,
     });
   }
 }

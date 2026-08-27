@@ -1,4 +1,5 @@
 import { budgetColorKeys, type BudgetColorKey } from '@/constants/theme';
+import { isSupportedCurrency } from '@/features/currency/currency';
 import { backupLimits, utf8ByteLength } from './backup-limits';
 import {
   BACKUP_CHECKSUM_ALGORITHM,
@@ -12,7 +13,7 @@ import {
   type BackupFileV4,
   type BackupFileV5,
   type BackupFileV6,
-  CURRENT_BACKUP_FORMAT_VERSION,
+  type BackupFileV7,
 } from './backup.types';
 
 export type BackupValidationIssueCode =
@@ -34,6 +35,9 @@ export type BackupValidationIssue = {
   path: string;
   message: string;
 };
+
+/** Every format version this validator knows how to read. */
+type BackupFormatVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export class BackupValidationError extends Error {
   constructor(public readonly issues: BackupValidationIssue[]) {
@@ -230,9 +234,31 @@ function validateBoolean(value: unknown, path: string, issues: ValidationIssues)
   return true;
 }
 
-function validateCurrency(value: unknown, path: string, issues: ValidationIssues, allowUsd = false): void {
-  const allowed = allowUsd ? ['COP', 'USD'] : ['COP'];
-  if (typeof value !== 'string' || !allowed.includes(value)) {
+/**
+ * Which currencies a given format version was allowed to contain.
+ *
+ * Not a single "is it supported now" check: a v3 file claiming USD, or a v5 file
+ * claiming EUR, was not writable by the app that produced it and is a sign the
+ * file was edited. Each version is held to what it could legitimately hold.
+ */
+function validateCurrency(
+  value: unknown,
+  path: string,
+  issues: ValidationIssues,
+  version: BackupFormatVersion = 1,
+): void {
+  if (typeof value !== 'string') {
+    issue(issues, 'domain_mismatch', path, `${path} must be a currency code.`);
+    return;
+  }
+  if (version >= 7) {
+    if (!isSupportedCurrency(value)) {
+      issue(issues, 'domain_mismatch', path, `${path} must be a supported currency code.`);
+    }
+    return;
+  }
+  const allowed = version >= 4 ? ['COP', 'USD'] : ['COP'];
+  if (!allowed.includes(value)) {
     issue(issues, 'domain_mismatch', path, `${path} must be ${allowed.join(' or ')}.`);
   }
 }
@@ -288,7 +314,7 @@ function validateTransactionShape(
   }
 }
 
-function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6): void {
+function validateAccountRows(rows: unknown[], issues: ValidationIssues, version: BackupFormatVersion): void {
   const accountTypes = version >= 5
     ? ['checking', 'savings', 'credit_card', 'cash', 'investment', 'other']
     : ['checking', 'savings', 'credit_card', 'cash', 'other'];
@@ -299,7 +325,7 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues, version:
     validateId(row.id, `${path}.id`, issues);
     validateString(row.name, `${path}.name`, issues, { nonBlank: true });
     validateEnum(row.type, accountTypes, `${path}.type`, issues);
-    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
+    validateCurrency(row.currency, `${path}.currency`, issues, version);
     validateSafeInteger(row.openingBalance, `${path}.openingBalance`, issues);
     if (row.creditLimit !== null) {
       validateSafeInteger(row.creditLimit, `${path}.creditLimit`, issues, { nonNegative: true });
@@ -358,9 +384,13 @@ function validateCreditCardStatementRows(rows: unknown[], issues: ValidationIssu
   });
 }
 
-/** Narrows to the current format, so v6-only fields are typed rather than cast. */
-function isCurrentFormat(file: BackupFile): file is BackupFileV6 {
-  return file.formatVersion === CURRENT_BACKUP_FORMAT_VERSION;
+/**
+ * Two-level categories exist from v6 on. Expressed as `>=` for the same reason as
+ * {@link supportsRefunds}: an equality check against "the current version" stops
+ * applying the moment a new version is added.
+ */
+function supportsCategoryHierarchy(file: BackupFile): file is BackupFileV6 | BackupFileV7 {
+  return file.formatVersion >= 6;
 }
 
 /**
@@ -370,14 +400,14 @@ function isCurrentFormat(file: BackupFile): file is BackupFileV6 {
  */
 function supportsRefunds(
   file: BackupFile,
-): file is BackupFileV3 | BackupFileV4 | BackupFileV5 | BackupFileV6 {
+): file is BackupFileV3 | BackupFileV4 | BackupFileV5 | BackupFileV6 | BackupFileV7 {
   return file.formatVersion >= 3;
 }
 
 function validateCategoryRows(
   rows: unknown[],
   issues: ValidationIssues,
-  version: 1 | 2 | 3 | 4 | 5 | 6 = 1,
+  version: BackupFormatVersion = 1,
 ): void {
   rows.forEach((value, index) => {
     const path = `data.categories[${index}]`;
@@ -418,7 +448,33 @@ function validateInvestmentAccountRows(rows: unknown[], issues: ValidationIssues
   });
 }
 
-function validateInvestmentValuationRows(rows: unknown[], issues: ValidationIssues): void {
+/** Portable valuation rates, one per ordered pair. */
+function validateExchangeRateRows(
+  rows: unknown[],
+  issues: ValidationIssues,
+  version: BackupFormatVersion,
+): void {
+  rows.forEach((value, index) => {
+    const path = `data.exchangeRates[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.id, `${path}.id`, issues);
+    validateCurrency(row.baseCurrencyCode, `${path}.baseCurrencyCode`, issues, version);
+    validateCurrency(row.quoteCurrencyCode, `${path}.quoteCurrencyCode`, issues, version);
+    if (row.baseCurrencyCode === row.quoteCurrencyCode) {
+      issue(issues, 'domain_mismatch', path, 'An exchange rate must be between two different currencies.');
+    }
+    validateSafeInteger(row.rateScaled, `${path}.rateScaled`, issues, { positive: true });
+    validateSafeInteger(row.rateScale, `${path}.rateScale`, issues, { positive: true });
+    validateCalendarDate(row.effectiveDate, `${path}.effectiveDate`, issues);
+    validateUtcTimestamp(row.fetchedAt, `${path}.fetchedAt`, issues);
+    validateNullableString(row.provider, `${path}.provider`, issues);
+    validateEnum(row.source, ['frankfurter', 'manual'], `${path}.source`, issues);
+    validateAuditFields(row, path, issues);
+  });
+}
+
+function validateInvestmentValuationRows(rows: unknown[], issues: ValidationIssues, version: BackupFormatVersion): void {
   rows.forEach((value, index) => {
     const path = `data.investmentValuations[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -427,7 +483,7 @@ function validateInvestmentValuationRows(rows: unknown[], issues: ValidationIssu
     validateId(row.investmentAccountId, `${path}.investmentAccountId`, issues);
     validateSafeInteger(row.valueMinor, `${path}.valueMinor`, issues, { nonNegative: true });
     validateSafeInteger(row.basisMinor, `${path}.basisMinor`, issues);
-    validateCurrency(row.currencyCode, `${path}.currencyCode`, issues, true);
+    validateCurrency(row.currencyCode, `${path}.currencyCode`, issues, version);
     validateCalendarDate(row.valuationDate, `${path}.valuationDate`, issues);
     validateNullableString(row.note, `${path}.note`, issues);
     validateAuditFields(row, path, issues);
@@ -437,9 +493,17 @@ function validateInvestmentValuationRows(rows: unknown[], issues: ValidationIssu
 const EXCHANGE_RATE_SOURCES = ['frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill'];
 
 /** Format-v4 transaction currency snapshot: base COP amount, rate, and transfer legs. */
-function validateTransactionCurrencyV4(row: Record<string, unknown>, path: string, issues: ValidationIssues): void {
+function validateTransactionCurrencyV4(
+  row: Record<string, unknown>,
+  path: string,
+  issues: ValidationIssues,
+  version: BackupFormatVersion,
+  baseCurrency: string,
+): void {
   const isTransfer = row.type === 'transfer';
-  const isForeign = row.currency === 'USD';
+  // "Foreign" means "not this file's base currency". Before v7 that was always
+  // COP, so USD was the only foreign option; from v7 the file says which.
+  const isForeign = row.currency !== baseCurrency;
   // Base COP snapshot: null for transfers; present (positive) for foreign income/expense/refund.
   if (isTransfer) {
     if (row.baseAmountMinor !== null) {
@@ -466,7 +530,7 @@ function validateTransactionCurrencyV4(row: Record<string, unknown>, path: strin
   // Destination leg: present for transfers, absent otherwise.
   if (isTransfer) {
     validateSafeInteger(row.destinationAmountMinor, `${path}.destinationAmountMinor`, issues, { positive: true });
-    validateCurrency(row.destinationCurrencyCode, `${path}.destinationCurrencyCode`, issues, true);
+    validateCurrency(row.destinationCurrencyCode, `${path}.destinationCurrencyCode`, issues, version);
     const crossCurrency = row.destinationCurrencyCode !== row.currency;
     if (crossCurrency && !hasRate) {
       issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, 'A cross-currency transfer requires a rate snapshot.');
@@ -484,7 +548,8 @@ function validateTransactionCurrencyV4(row: Record<string, unknown>, path: strin
 function validateTransactionRows(
   rows: unknown[],
   issues: ValidationIssues,
-  version: 1 | 2 | 3 | 4 | 5 | 6,
+  version: BackupFormatVersion,
+  baseCurrency: string,
 ): void {
   rows.forEach((value, index) => {
     const path = `data.transactions[${index}]`;
@@ -499,7 +564,7 @@ function validateTransactionRows(
     );
     validateEnum(row.status, ['posted', 'voided'], `${path}.status`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
+    validateCurrency(row.currency, `${path}.currency`, issues, version);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
@@ -518,7 +583,7 @@ function validateTransactionRows(
     validateCalendarDate(row.transactionDate, `${path}.transactionDate`, issues);
     validateAuditFields(row, path, issues);
     validateTransactionShape(row, path, issues, version >= 3, version >= 6);
-    if (version >= 4) validateTransactionCurrencyV4(row, path, issues);
+    if (version >= 4) validateTransactionCurrencyV4(row, path, issues, version, baseCurrency);
   });
 }
 
@@ -585,7 +650,7 @@ function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void
   });
 }
 
-function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6 = 1): void {
+function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: BackupFormatVersion = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringTransactions[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -593,7 +658,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
     validateId(row.id, `${path}.id`, issues);
     validateEnum(row.type, ['income', 'expense', 'transfer'], `${path}.type`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
+    validateCurrency(row.currency, `${path}.currency`, issues, version);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
@@ -619,7 +684,7 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
   });
 }
 
-function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: 1 | 2 | 3 | 4 | 5 | 6 = 1): void {
+function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, version: BackupFormatVersion = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringOccurrences[${index}]`;
     const row = requireRecord(value, path, issues);
@@ -630,7 +695,7 @@ function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, versi
     validateEnum(row.status, ['pending', 'posted', 'skipped'], `${path}.status`, issues);
     validateEnum(row.type, ['income', 'expense', 'transfer'], `${path}.type`, issues);
     validateSafeInteger(row.amount, `${path}.amount`, issues, { positive: true });
-    validateCurrency(row.currency, `${path}.currency`, issues, version >= 4);
+    validateCurrency(row.currency, `${path}.currency`, issues, version);
     validateId(row.accountId, `${path}.accountId`, issues);
     validateNullableString(row.destinationAccountId, `${path}.destinationAccountId`, issues, backupLimits.maxIdLength);
     validateNullableString(row.categoryId, `${path}.categoryId`, issues, backupLimits.maxIdLength);
@@ -783,7 +848,11 @@ export class BackupValidator {
     return this.validateVersion(raw, 6) as BackupFileV6;
   }
 
-  private validateVersion(raw: Record<string, unknown>, version: 1 | 2 | 3 | 4 | 5 | 6): BackupFile {
+  validateV7(raw: Record<string, unknown>): BackupFileV7 {
+    return this.validateVersion(raw, 7) as BackupFileV7;
+  }
+
+  private validateVersion(raw: Record<string, unknown>, version: BackupFormatVersion): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
       issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
@@ -793,7 +862,7 @@ export class BackupValidator {
     if (raw.timezone !== BACKUP_TIMEZONE) {
       issue(issues, 'domain_mismatch', 'timezone', `Backup timezone must be ${BACKUP_TIMEZONE}.`);
     }
-    validateCurrency(raw.currency, 'currency', issues);
+    validateCurrency(raw.currency, 'currency', issues, version);
     validateString(raw.schemaVersion, 'schemaVersion', issues, { nonBlank: true });
 
     const summary = requireRecord(raw.summary, 'summary', issues);
@@ -825,6 +894,18 @@ export class BackupValidator {
 
     const data = requireRecord(raw.data, 'data', issues);
     if (data) {
+      // Every file before v7 was written by an app whose base currency could only
+      // be COP; from v7 the file states it, and every per-row currency rule is
+      // measured against it.
+      let baseCurrency = 'COP';
+      if (version >= 7) {
+        validateCurrency(data.baseCurrencyCode, 'data.baseCurrencyCode', issues, version);
+        if (typeof data.baseCurrencyCode === 'string') baseCurrency = data.baseCurrencyCode;
+        const exchangeRates = requireArray(
+          data, 'exchangeRates', 'data.exchangeRates', backupLimits.collections.accounts, issues,
+        );
+        validateExchangeRateRows(exchangeRates, issues, version);
+      }
       const accounts = requireArray(data, 'accounts', 'data.accounts', backupLimits.collections.accounts, issues);
       const categories = requireArray(data, 'categories', 'data.categories', backupLimits.collections.categories, issues);
       const transactions = requireArray(data, 'transactions', 'data.transactions', backupLimits.collections.transactions, issues);
@@ -837,7 +918,7 @@ export class BackupValidator {
         : [];
       validateAccountRows(accounts, issues, version);
       validateCategoryRows(categories, issues, version);
-      validateTransactionRows(transactions, issues, version);
+      validateTransactionRows(transactions, issues, version, baseCurrency);
       validateSplitRows(splits, issues);
       validateBudgetRows(budgets, issues);
       if (data.budgetRules !== undefined) {
@@ -851,7 +932,7 @@ export class BackupValidator {
         const investmentAccounts = requireArray(data, 'investmentAccounts', 'data.investmentAccounts', backupLimits.collections.investmentAccounts, issues);
         const investmentValuations = requireArray(data, 'investmentValuations', 'data.investmentValuations', backupLimits.collections.investmentValuations, issues);
         validateInvestmentAccountRows(investmentAccounts, issues);
-        validateInvestmentValuationRows(investmentValuations, issues);
+        validateInvestmentValuationRows(investmentValuations, issues, version);
       }
     }
     if (issues.length) throw new BackupValidationError(issues);
@@ -1144,7 +1225,7 @@ export class BackupValidator {
    * has to walk the graph.
    */
   private validateCategoryHierarchy(file: BackupFile, issues: ValidationIssues): void {
-    if (!isCurrentFormat(file)) return;
+    if (!supportsCategoryHierarchy(file)) return;
     const categories = new Map(file.data.categories.map((row) => [row.id, row]));
     for (const category of file.data.categories) {
       const parentId = category.parentCategoryId;
@@ -1179,7 +1260,7 @@ export class BackupValidator {
     source: string,
     issues: ValidationIssues,
   ): void {
-    if (!isCurrentFormat(file)) return;
+    if (!supportsCategoryHierarchy(file)) return;
     const subcategoryId = row.subcategoryId ?? null;
     if (subcategoryId === null) return;
     const subcategory = file.data.categories.find((category) => category.id === subcategoryId);

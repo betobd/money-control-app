@@ -14,12 +14,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DialogHost, useDialog } from '@/components/dialog';
 import { borderRadii, spacing, typography } from '@/constants/theme';
+import { toUserMessage } from '@/errors/user-error';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { formatExchangeRate } from '@/features/currency/currency';
+import { describeRate, getCurrency, type CurrencyCode } from '@/features/currency/currency';
+import { CurrencyPicker } from '@/features/currency/components/currency-picker';
+import { baseCurrencyLockMessage, settingsService } from '@/features/settings/settings';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
-import { useExchangeRate } from '../use-exchange-rate';
-import type { ExchangeRateRecord } from '../exchange-rate.types';
+import { useExchangeRates } from '../use-exchange-rate';
+import { toDirectedRate, type ExchangeRateRecord, type ExchangeRateStatus } from '../exchange-rate.types';
 
 function formatFetchedAt(value: string): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -37,23 +41,49 @@ export function ExchangeRateSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
-  const { status, loading, busy, error, refresh, setManualRate } = useExchangeRate();
-  const [manualInput, setManualInput] = useState('');
-  const [manualNotice, setManualNotice] = useState<string>();
+  const dialog = useDialog();
+  const { baseCurrency, baseCurrencyLock: lock, statuses, loading, busyCurrency, error, reload, refresh, setManualRate } = useExchangeRates();
+  const [manualInputs, setManualInputs] = useState<Partial<Record<CurrencyCode, string>>>({});
+  const [notice, setNotice] = useState<string>();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const busy = busyCurrency !== null;
 
-  const rate = status?.rate ?? null;
-  const freshness = status?.freshness ?? 'none';
-
-  async function saveManualRate(): Promise<void> {
-    setManualNotice(undefined);
+  async function saveManualRate(currency: CurrencyCode): Promise<void> {
+    setNotice(undefined);
     try {
-      await setManualRate(manualInput);
-      setManualInput('');
-      setManualNotice('Saved the USD/COP rate.');
+      await setManualRate(currency, manualInputs[currency] ?? '');
+      setManualInputs((current) => ({ ...current, [currency]: '' }));
+      setNotice(`Saved the ${currency}/${baseCurrency} rate.`);
     } catch {
-      // error surfaced via hook `error`
+      // Surfaced through the hook's `error`.
     }
   }
+
+  async function chooseBaseCurrency(code: CurrencyCode): Promise<void> {
+    setNotice(undefined);
+    try {
+      await settingsService.setBaseCurrency(code);
+      await reload();
+      setNotice(`Base currency is now ${code}.`);
+    } catch (cause) {
+      dialog.notice({
+        title: 'Cannot change the base currency',
+        message: toUserMessage(cause, 'Unable to change the base currency.'),
+      });
+    }
+  }
+
+  function confirmBaseCurrency(code: CurrencyCode): void {
+    if (code === baseCurrency) return;
+    dialog.confirm({
+      title: `Use ${code} as the base currency?`,
+      message: `Every consolidated total — net worth, Home, Reports and Budgets — will be shown in ${code}. You can change this freely until you record your first transaction or budget.`,
+      confirmLabel: `Use ${code}`,
+      onConfirm: () => void chooseBaseCurrency(code),
+    });
+  }
+
+  const locked = lock.reason !== null;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
@@ -86,99 +116,182 @@ export function ExchangeRateSettingsScreen() {
             {error}
           </Text>
         ) : null}
-        {manualNotice ? (
+        {notice ? (
           <Text
             accessibilityLiveRegion="polite"
             style={[styles.feedback, { backgroundColor: theme.tintIncome, color: theme.income }]}>
-            {manualNotice}
+            {notice}
           </Text>
         ) : null}
 
         <Card>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Base currency</Text>
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Base currency</Text>
-            <Text style={[styles.value, { color: theme.primaryText }]}>COP · Colombian peso</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Foreign currency</Text>
-            <Text style={[styles.value, { color: theme.primaryText }]}>USD · US dollar</Text>
-          </View>
-          <Text style={[styles.caption, { color: theme.mutedText }]}>
-            All consolidated totals (net worth, Home, Reports, Budgets) are shown in COP. Each account keeps its own
-            currency.
-          </Text>
-        </Card>
-
-        <Card>
-          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>USD/COP reference rate</Text>
-          {loading ? (
-            <ActivityIndicator color={theme.primaryAction} />
-          ) : rate ? (
-            <>
-              <Text style={[styles.rateValue, { color: theme.primaryText }]}>
-                COP {formatExchangeRate({ rateScaled: rate.rateScaled, rateScale: rate.rateScale })} per USD
-              </Text>
-              {freshness === 'stale' ? (
-                <View style={[styles.badge, { backgroundColor: theme.tintWarning }]}>
-                  <Text style={[styles.badgeText, { color: theme.warning }]}>Rate may be out of date</Text>
-                </View>
-              ) : (
-                <View style={[styles.badge, { backgroundColor: theme.tintIncome }]}>
-                  <Text style={[styles.badgeText, { color: theme.income }]}>Up to date</Text>
-                </View>
-              )}
-              <View style={styles.row}>
-                <Text style={[styles.label, { color: theme.secondaryText }]}>Source</Text>
-                <Text style={[styles.value, { color: theme.primaryText }]}>{sourceLabel(rate)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={[styles.label, { color: theme.secondaryText }]}>Rate date</Text>
-                <Text style={[styles.value, { color: theme.primaryText }]}>{formatTransactionDate(rate.effectiveDate)}</Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={[styles.label, { color: theme.secondaryText }]}>Last updated</Text>
-                <Text style={[styles.value, { color: theme.primaryText }]}>{formatFetchedAt(rate.fetchedAt)}</Text>
-              </View>
-            </>
-          ) : (
-            <Text style={[styles.body, { color: theme.secondaryText }]}>
-              No exchange rate is available. Refresh from Frankfurter or enter a USD/COP rate manually.
-            </Text>
-          )}
-
-          <Button busy={busy} fullWidth label="Refresh from Frankfurter" onPress={() => void refresh()} size="lg" variant="primary" />
-          <Text style={[styles.caption, { color: theme.mutedText }]}>
-            Frankfurter provides reference exchange rates from official sources. Your bank may use a different rate.
-          </Text>
-        </Card>
-
-        <Card>
-          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Enter a manual rate</Text>
+          <Text style={[styles.rateValue, { color: theme.primaryText }]}>{baseCurrency}</Text>
           <Text style={[styles.body, { color: theme.secondaryText }]}>
-            Enter how many Colombian pesos equal one US dollar. Up to four decimal places.
+            {getCurrency(baseCurrency).name}. All consolidated totals — net worth, Home, Reports and Budgets — are
+            shown in {baseCurrency}. Each account keeps its own currency.
           </Text>
-          <TextInput
-            accessibilityLabel="Manual USD to COP rate"
-            keyboardType="decimal-pad"
-            value={manualInput}
-            onChangeText={setManualInput}
-            placeholder="e.g. 4100"
-            placeholderTextColor={theme.mutedText}
-            editable={!busy}
-            style={[styles.input, { backgroundColor: theme.elevatedSurface, borderColor: theme.border, color: theme.primaryText }]}
-          />
           <Button
-            disabled={busy || manualInput.trim().length === 0}
+            disabled={locked || busy}
             fullWidth
-            label="Save manual rate"
-            onPress={() => void saveManualRate()}
+            label="Change base currency"
+            onPress={() => setPickerOpen(true)}
             size="lg"
             variant="tonal"
           />
+          {/* The reason is always shown rather than the button silently doing
+              nothing: "why is this greyed out" is the whole question here. */}
+          {locked ? (
+            <Text style={[styles.caption, { color: theme.warning }]}>{baseCurrencyLockMessage(lock)}</Text>
+          ) : (
+            <Text style={[styles.caption, { color: theme.mutedText }]}>
+              This can be changed freely until you record your first transaction or budget. After that it is fixed,
+              because every stored amount is measured against it.
+            </Text>
+          )}
         </Card>
+
+        {loading ? (
+          <Card>
+            <ActivityIndicator color={theme.primaryAction} />
+          </Card>
+        ) : statuses.length === 0 ? (
+          <Card>
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Exchange rates</Text>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>
+              All of your accounts are in {baseCurrency}, so no exchange rate is needed. Add an account in another
+              currency and its rate will appear here.
+            </Text>
+          </Card>
+        ) : (
+          statuses.map((status) => (
+            <RateCard
+              baseCurrency={baseCurrency}
+              busy={busyCurrency === status.currencyCode}
+              disabled={busy}
+              key={status.currencyCode}
+              manualInput={manualInputs[status.currencyCode] ?? ''}
+              onManualInputChange={(value) =>
+                setManualInputs((current) => ({ ...current, [status.currencyCode]: value }))}
+              onRefresh={() => void refresh(status.currencyCode)}
+              onSaveManual={() => void saveManualRate(status.currencyCode)}
+              status={status}
+            />
+          ))
+        )}
+
+        <Text style={[styles.caption, { color: theme.mutedText }]}>
+          Frankfurter provides reference exchange rates from official sources. Your bank may use a different rate.
+        </Text>
       </ScrollView>
+
+      <CurrencyPicker
+        disabledCodes={{ [baseCurrency]: 'Already the base currency' }}
+        onClose={() => setPickerOpen(false)}
+        onSelect={confirmBaseCurrency}
+        selected={baseCurrency}
+        suggested={[baseCurrency, ...statuses.map((status) => status.currencyCode)]}
+        title="Base currency"
+        visible={pickerOpen}
+      />
+      <DialogHost dialog={dialog} />
     </View>
+  );
+}
+
+function RateCard({
+  baseCurrency,
+  busy,
+  disabled,
+  manualInput,
+  onManualInputChange,
+  onRefresh,
+  onSaveManual,
+  status,
+}: {
+  baseCurrency: CurrencyCode;
+  busy: boolean;
+  disabled: boolean;
+  manualInput: string;
+  onManualInputChange: (value: string) => void;
+  onRefresh: () => void;
+  onSaveManual: () => void;
+  status: ExchangeRateStatus;
+}) {
+  const theme = useAppTheme();
+  const { currencyCode, rate, freshness } = status;
+
+  return (
+    <Card>
+      <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>
+        {currencyCode} · {getCurrency(currencyCode).name}
+      </Text>
+      {rate ? (
+        <>
+          <Text style={[styles.rateValue, { color: theme.primaryText }]}>
+            {describeRate(toDirectedRate(rate))}
+          </Text>
+          {freshness === 'stale' ? (
+            <View style={[styles.badge, { backgroundColor: theme.tintWarning }]}>
+              <Text style={[styles.badgeText, { color: theme.warning }]}>Rate may be out of date</Text>
+            </View>
+          ) : (
+            <View style={[styles.badge, { backgroundColor: theme.tintIncome }]}>
+              <Text style={[styles.badgeText, { color: theme.income }]}>Up to date</Text>
+            </View>
+          )}
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Source</Text>
+            <Text style={[styles.value, { color: theme.primaryText }]}>{sourceLabel(rate)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Rate date</Text>
+            <Text style={[styles.value, { color: theme.primaryText }]}>{formatTransactionDate(rate.effectiveDate)}</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>Last updated</Text>
+            <Text style={[styles.value, { color: theme.primaryText }]}>{formatFetchedAt(rate.fetchedAt)}</Text>
+          </View>
+        </>
+      ) : (
+        <Text style={[styles.body, { color: theme.secondaryText }]}>
+          No exchange rate is available. Accounts in {currencyCode} are left out of consolidated totals until one is
+          saved.
+        </Text>
+      )}
+
+      <Button
+        busy={busy}
+        disabled={disabled && !busy}
+        fullWidth
+        label="Refresh from Frankfurter"
+        onPress={onRefresh}
+        size="lg"
+        variant="primary"
+      />
+
+      <Text style={[styles.body, { color: theme.secondaryText, marginTop: spacing.md }]}>
+        Or enter how many {baseCurrency} equal one {currencyCode}. Up to four decimal places.
+      </Text>
+      <TextInput
+        accessibilityLabel={`Manual ${currencyCode} to ${baseCurrency} rate`}
+        editable={!disabled}
+        keyboardType="decimal-pad"
+        onChangeText={onManualInputChange}
+        placeholder="e.g. 4100"
+        placeholderTextColor={theme.mutedText}
+        style={[styles.input, { backgroundColor: theme.elevatedSurface, borderColor: theme.border, color: theme.primaryText }]}
+        value={manualInput}
+      />
+      <Button
+        disabled={disabled || manualInput.trim().length === 0}
+        fullWidth
+        label="Save manual rate"
+        onPress={onSaveManual}
+        size="lg"
+        variant="tonal"
+      />
+    </Card>
   );
 }
 
@@ -198,9 +311,5 @@ const styles = StyleSheet.create({
   badgeText: { ...typography.label },
   body: { ...typography.body, marginBottom: spacing.sm },
   caption: { ...typography.caption, marginTop: spacing.sm },
-  primaryButton: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', marginTop: spacing.md, minHeight: 48 },
-  primaryButtonLabel: { ...typography.body, fontFamily: typography.heading.fontFamily },
-  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.full, borderWidth: 1, justifyContent: 'center', marginTop: spacing.md, minHeight: 48 },
-  secondaryButtonLabel: { ...typography.body },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: 1, marginTop: spacing.sm, minHeight: 48, paddingHorizontal: spacing.md },
 });

@@ -51,7 +51,7 @@ connection.execute("DELETE FROM categories WHERE id = 'unused'")
 assert connection.execute("SELECT count(*) FROM categories WHERE id = 'unused'").fetchone()[0] == 0
 
 connection.execute('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', ('account', 'Checking', 'checking', 'COP', 0, None, 0, None, utc, utc))
-connection.execute('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', ('history', 'expense', 'voided', 100, 'COP', 'account', None, 'custom-expense', None, '2026-07-12', utc, utc))
+connection.execute('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)', ('history', 'expense', 'voided', 100, 'COP', 'account', None, 'custom-expense', None, '2026-07-12', utc, utc))
 try:
     connection.execute("DELETE FROM categories WHERE id = 'custom-expense'")
     raise AssertionError('foreign key allowed historical category deletion')

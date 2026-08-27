@@ -17,6 +17,9 @@ import {
   ReportService,
 } from '../src/features/reports/report.service.ts';
 
+import { noRates, usdCopRates } from './support/valuation-rates.mjs';
+
+
 const TODAY = '2026-07-16';
 
 test('resolves current and previous calendar month boundaries', () => {
@@ -167,7 +170,7 @@ class FakeReportRepository {
   categories = [];
   netWorthResult = { startingNetWorth: 0, changes: [] };
   valuationSeries = [];
-  investmentIncomeResult = { copMinor: 0, count: 0 };
+  investmentIncomeResult = { baseMinor: 0, count: 0 };
 
   async summarize(period) {
     return this.summaries.get(period.dateFrom) ?? {
@@ -193,7 +196,7 @@ test('fills missing cash-flow buckets chronologically and excludes absent data',
     { key: '2026-07-03', income: 50_000, grossExpenses: 0, refunds: 0 },
     { key: '2026-07-01', income: 0, grossExpenses: 15_000, refunds: 5_000 },
   ];
-  const service = new ReportService(repository);
+  const service = new ReportService(repository, async () => noRates());
   const data = await service.load({
     preset: 'custom',
     customDateFrom: '2026-07-01',
@@ -221,7 +224,7 @@ test('normalizes category percentages, archived/unknown rows, and zero totals', 
     { categoryId: 'archived', categoryName: 'Old utilities', icon: 'bills', subcategoryId: null, subcategoryName: null, total: 300, transactionCount: 2 },
     { categoryId: 'unknown-category', categoryName: 'Unknown category', icon: 'other', subcategoryId: null, subcategoryName: null, total: 100, transactionCount: 1 },
   ];
-  const service = new ReportService(repository);
+  const service = new ReportService(repository, async () => noRates());
   const data = await service.load({ preset: 'current-month' }, TODAY);
   assert.deepEqual(data.categoryExpenses.map((category) => category.percentageBasisPoints), [7500, 2500]);
   assert.equal(data.categoryExpenses[0].categoryName, 'Old utilities');
@@ -238,7 +241,7 @@ test('builds net worth from a starting balance and period changes, including zer
       { key: '2026-07-03', amount: -200_000 },
     ],
   };
-  const data = await new ReportService(repository).load({
+  const data = await new ReportService(repository, async () => noRates()).load({
     preset: 'custom',
     customDateFrom: '2026-07-01',
     customDateTo: '2026-07-03',
@@ -254,7 +257,7 @@ test('uses month-end net-worth points for long periods', async () => {
     startingNetWorth: 1_000_000,
     changes: [{ key: '2026-06', amount: -50_000 }],
   };
-  const data = await new ReportService(repository).load({ preset: 'last-3-months' }, TODAY);
+  const data = await new ReportService(repository, async () => noRates()).load({ preset: 'last-3-months' }, TODAY);
   assert.deepEqual(data.netWorth.map((point) => point.date), [
     '2026-04-30', '2026-05-31', '2026-06-30', '2026-07-31',
   ]);
@@ -283,7 +286,7 @@ test('compares income, expenses, net, average, and count with metric-aware seman
     refundCount: 0,
     largestExpense: null,
   });
-  const comparison = (await new ReportService(repository).load({ preset: 'current-month' }, TODAY)).comparison;
+  const comparison = (await new ReportService(repository, async () => noRates()).load({ preset: 'current-month' }, TODAY)).comparison;
   assert.equal(comparison.income.difference, 100);
   assert.equal(comparison.income.percentageChangeBasisPoints, 5000);
   assert.equal(comparison.income.tone, 'positive');
@@ -304,14 +307,14 @@ test('investmentAdjustmentAsOf uses the latest valuation on or before the date',
     { accountId: 'ibkr', currency: 'USD', valuationDate: '2026-03-31', unrealizedNativeMinor: 250_000 },
   ]);
   // Before any valuation.
-  assert.equal(investmentAdjustmentAsOf(series, '2026-01-31', null), 0);
+  assert.equal(investmentAdjustmentAsOf(series, '2026-01-31', noRates()), 0);
   // Between the two Trii valuations; IBKR not yet valued.
-  assert.equal(investmentAdjustmentAsOf(series, '2026-03-01', null), 100_000);
+  assert.equal(investmentAdjustmentAsOf(series, '2026-03-01', noRates()), 100_000);
   // COP-only when no rate: USD IBKR contributes 0.
-  assert.equal(investmentAdjustmentAsOf(series, '2026-03-31', null), 500_000);
+  assert.equal(investmentAdjustmentAsOf(series, '2026-03-31', noRates()), 500_000);
   // With a rate, USD 2,500.00 unrealized converts at 4,100 -> COP 10,250,000.
   assert.equal(
-    investmentAdjustmentAsOf(series, '2026-03-31', { rateScaled: 41_000_000, rateScale: 10_000 }),
+    investmentAdjustmentAsOf(series, '2026-03-31', usdCopRates(41_000_000, 10_000)),
     500_000 + 10_250_000,
   );
 });
@@ -326,7 +329,7 @@ test('net-worth timeline overlays the investment valuation adjustment per point'
   repository.valuationSeries = [
     { accountId: 'trii', currency: 'COP', valuationDate: '2026-07-01', unrealizedNativeMinor: 300_000 },
   ];
-  const data = await new ReportService(repository).load(
+  const data = await new ReportService(repository, async () => noRates()).load(
     { preset: 'custom', customDateFrom: '2026-07-01', customDateTo: '2026-07-01' },
     TODAY,
   );
@@ -338,7 +341,7 @@ test('net-worth timeline overlays the investment valuation adjustment per point'
 
 test('report exposes realized investment income for the period', async () => {
   const repository = new FakeReportRepository();
-  repository.investmentIncomeResult = { copMinor: 1_050_000, count: 2 };
-  const data = await new ReportService(repository).load({ preset: 'current-month' }, TODAY);
-  assert.deepEqual(data.investments, { incomeCopMinor: 1_050_000, incomeCount: 2 });
+  repository.investmentIncomeResult = { baseMinor: 1_050_000, count: 2 };
+  const data = await new ReportService(repository, async () => noRates()).load({ preset: 'current-month' }, TODAY);
+  assert.deepEqual(data.investments, { incomeBaseMinor: 1_050_000, incomeCount: 2 });
 });

@@ -252,7 +252,9 @@ history across all investment accounts: `valuation_id`, `investment_account_id`,
 
 Account/provider names and notes get formula-injection protection; numeric columns
 stay numeric. Both refuse to create a file when there are no investments (or no
-valuations). Estimated COP uses the current saved USD/COP rate.
+valuations). Estimated base-currency values use the current saved rates. Column names
+keep their historical `_cop` suffixes; they hold the base currency, which
+`currency_code` and the export metadata name.
 
 ## Limits, privacy, and application interactions
 

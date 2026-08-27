@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { getBaseCurrency } from '@/features/settings/settings';
 import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { SymbolView } from 'expo-symbols';
@@ -40,7 +41,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const [dates, setDates] = useState<CreditCardStatementDefaults>();
-  const [cardCurrency, setCardCurrency] = useState<CurrencyCode>('COP');
+  const [cardCurrency, setCardCurrency] = useState<CurrencyCode>(getBaseCurrency);
   const [statementBalance, setStatementBalance] = useState('');
   const [minimumPayment, setMinimumPayment] = useState('');
   const [errors, setErrors] = useState<CreditCardStatementErrors>({});
@@ -53,7 +54,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       creditCardService.getDetails(accountId),
     ]).then(([defaults, details]) => {
       const latest = details?.latestStatement;
-      const currency = details?.account.currency ?? 'COP';
+      const currency = details?.account.currency ?? getBaseCurrency();
       setCardCurrency(currency);
       setDates(latest?.closingDate === defaults.closingDate ? latest : defaults);
       setStatementBalance(latest?.closingDate === defaults.closingDate ? editStringFromMinor(latest.statementBalance, currency) : '');
@@ -150,9 +151,9 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
           Copy these values from your latest bank statement. Updating a statement does not create a transaction or change your card balance.
         </Text>
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.help, { color: theme.destructive }]}>{generalError}</Text> : null}
-        <MoneyField error={errors.statementBalance} label="Statement balance" onChange={(text) => changeMoney('statementBalance', text)} value={statementBalance} />
+        <MoneyField currency={cardCurrency} error={errors.statementBalance} label="Statement balance" onChange={(text) => changeMoney('statementBalance', text)} value={statementBalance} />
         <Text style={[styles.help, { color: theme.mutedText }]}>The amount billed on the latest statement from your bank. Enter 0 only for an actual zero-balance statement.</Text>
-        <MoneyField error={errors.minimumPayment} label="Minimum payment" onChange={(text) => changeMoney('minimumPayment', text)} value={minimumPayment} />
+        <MoneyField currency={cardCurrency} error={errors.minimumPayment} label="Minimum payment" onChange={(text) => changeMoney('minimumPayment', text)} value={minimumPayment} />
         <Text style={[styles.help, { color: theme.mutedText }]}>The minimum shown by your bank. Money Control does not calculate this value; enter 0 only when no minimum is due.</Text>
         <DateField error={errors.periodStart} label="Statement period start" onChange={(text) => changeDate('periodStart', text)} value={dates.periodStart} />
         <DateField error={errors.periodEnd} label="Statement period end" onChange={(text) => changeDate('periodEnd', text)} value={dates.periodEnd} />
@@ -165,8 +166,8 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
   );
 }
 
-function MoneyField({ error, label, onChange, value }: { error?: string; label: string; onChange: (value: string) => void; value: string }) {
-  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in whole Colombian pesos`} invalid={Boolean(error)} keyboardType="number-pad" onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={value} /></Field>;
+function MoneyField({ currency, error, label, onChange, value }: { currency: CurrencyCode; error?: string; label: string; onChange: (value: string) => void; value: string }) {
+  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in ${getCurrency(currency).name}`} invalid={Boolean(error)} keyboardType={getCurrency(currency).fractionDigits === 0 ? 'number-pad' : 'decimal-pad'} onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={value} /></Field>;
 }
 
 function Field({ children, error, label }: { children: React.ReactNode; error?: string; label: string }) {

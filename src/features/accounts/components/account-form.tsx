@@ -23,9 +23,10 @@ import { AccountValidationError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { accountTypes, type AccountField, type AccountType, type AccountValidationErrors } from '@/features/accounts/account.types';
+import { CurrencyPicker } from '@/features/currency/components/currency-picker';
+import { getBaseCurrency } from '@/features/settings/settings';
 import {
   getCurrency,
-  listCurrencies,
   parseMoney,
   type CurrencyCode,
 } from '@/features/currency/currency';
@@ -55,7 +56,8 @@ export function AccountForm({ accountId }: { accountId?: string }) {
   const theme = useAppTheme();
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('checking');
-  const [currency, setCurrency] = useState<CurrencyCode>('COP');
+  const [currency, setCurrency] = useState<CurrencyCode>(getBaseCurrency);
+  const [currencyPickerOpen, setCurrencyPickerOpen] = useState(false);
   const [currencyEditable, setCurrencyEditable] = useState(true);
   const [openingBalance, setOpeningBalance] = useState('0');
   const [creditLimit, setCreditLimit] = useState('');
@@ -215,29 +217,15 @@ export function AccountForm({ accountId }: { accountId?: string }) {
 
         <FormField label="Currency" error={errors.currency} theme={theme}>
           {currencyEditable ? (
-            <View style={styles.currencyRow}>
-              {listCurrencies().map((option) => {
-                const selected = currency === option.code;
-                return (
-                  <Pressable
-                    accessibilityLabel={`${option.code} ${option.name}`}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    key={option.code}
-                    onPress={() => { setCurrency(option.code); clearError('currency'); clearError('openingBalance'); clearError('creditLimit'); }}
-                    style={[
-                      styles.currencyChip,
-                      {
-                        backgroundColor: selected ? theme.tintPrimary : theme.surface,
-                        borderColor: selected ? theme.primaryAction : 'transparent',
-                      },
-                    ]}>
-                    <Text style={[styles.currencyCode, { color: selected ? theme.primaryText : theme.secondaryText }]}>{option.code}</Text>
-                    <Text style={[styles.currencyName, { color: selected ? theme.primaryText : theme.mutedText }]}>{option.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Pressable
+              accessibilityLabel={`Currency, ${currency}, ${getCurrency(currency).name}`}
+              accessibilityRole="button"
+              onPress={() => setCurrencyPickerOpen(true)}
+              style={[styles.readOnly, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.inputText, { color: theme.primaryText }]}>
+                {currency} · {getCurrency(currency).name}
+              </Text>
+            </Pressable>
           ) : (
             <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface }]}>
               <Text style={[styles.inputText, { color: theme.secondaryText }]}>{currency} · {getCurrency(currency).name}</Text>
@@ -321,6 +309,14 @@ export function AccountForm({ accountId }: { accountId?: string }) {
           variant="primary"
         />
       </View>
+      <CurrencyPicker
+        onClose={() => setCurrencyPickerOpen(false)}
+        onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); clearError('creditLimit'); }}
+        selected={currency}
+        suggested={[getBaseCurrency()]}
+        title="Account currency"
+        visible={currencyPickerOpen}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -362,20 +358,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   typeText: { ...typography.caption, flexShrink: 1, fontFamily: fonts.sans.bold, fontWeight: '700' },
-  currencyRow: { flexDirection: 'row', gap: spacing.sm },
-  currencyChip: {
-    alignItems: 'flex-start',
-    borderRadius: borderRadii.card,
-    borderWidth: borderWidths.thin,
-    flex: 1,
-    gap: spacing.xs,
-    minHeight: 60,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  currencyCode: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
-  currencyName: { ...typography.caption },
   error: { ...typography.caption },
   help: { ...typography.caption },
   saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },

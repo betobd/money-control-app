@@ -8,6 +8,10 @@ import {
 } from '../src/features/refunds/refund.service.ts';
 import { subscribeToFinancialDataChanges } from '../src/features/transactions/financial-data-events.ts';
 
+import { testBaseCurrency } from './support/base-currency.mjs';
+
+
+
 const NOW = '2026-07-24T12:00:00.000Z';
 
 function expense(overrides = {}) {
@@ -89,6 +93,7 @@ function setup() {
       () => 'refund-1',
       () => NOW,
       () => '2026-07-24',
+      testBaseCurrency,
     ),
   };
 }
@@ -109,6 +114,7 @@ test('creates through the atomic repository with normalized input', async () => 
       amount: 25_000,
       currency: 'COP',
       baseAmountMinor: 25_000,
+      baseCurrencyCode: 'COP',
       exchangeRate: null,
       transactionDate: '2026-07-24',
       note: 'merchant credit',

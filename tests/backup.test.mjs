@@ -66,8 +66,11 @@ const transaction = (id, overrides = {}) => {
   return {
     ...base,
     baseAmountMinor: base.baseAmountMinor ?? (isTransfer ? null : base.amount),
+    baseCurrencyCode: base.baseCurrencyCode ?? (isTransfer ? null : 'COP'),
     exchangeRateScaled: base.exchangeRateScaled ?? null,
     exchangeRateScale: base.exchangeRateScale ?? null,
+    exchangeRateBaseCode: base.exchangeRateScaled ? base.exchangeRateBaseCode ?? 'USD' : null,
+    exchangeRateQuoteCode: base.exchangeRateScaled ? base.exchangeRateQuoteCode ?? 'COP' : null,
     exchangeRateDate: base.exchangeRateDate ?? null,
     exchangeRateSource: base.exchangeRateSource ?? null,
     destinationAmountMinor: base.destinationAmountMinor ?? (isTransfer ? base.amount : null),
@@ -126,10 +129,11 @@ function representativeData() {
     creditCardStatements: [
       { id: 'statement', accountId: 'card', periodStart: '2026-06-16', periodEnd: '2026-07-15', closingDate: '2026-07-15', dueDate: '2026-08-05', statementBalance: 200_000, minimumPayment: 20_000, createdAt: NOW, updatedAt: NOW },
     ],
-    exchangeRate: {
+    baseCurrencyCode: 'COP',
+    exchangeRates: [{
       id: 'USD-COP', baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', rateScaled: 41_000_000, rateScale: 10_000,
       effectiveDate: '2026-07-16', fetchedAt: NOW, provider: 'frankfurter', source: 'frankfurter', createdAt: NOW, updatedAt: NOW,
-    },
+    }],
     investmentAccounts: [
       { accountId: 'trii', investmentType: 'brokerage', trackingMode: 'balance', liquidity: 'liquid', providerName: 'Trii', startDate: null, maturityDate: null, note: null, createdAt: NOW, updatedAt: NOW },
     ],
@@ -144,7 +148,8 @@ const emptyData = () => ({
   recurringTransactions: [], recurringOccurrences: [],
   creditCardStatements: [],
   investmentAccounts: [], investmentValuations: [],
-  exchangeRate: null,
+  baseCurrencyCode: 'COP',
+  exchangeRates: [],
 });
 
 async function createFile(data = representativeData()) {
@@ -170,7 +175,9 @@ async function validate(file, declaredSize = 0) {
           ? validator.validateV4(envelope.raw)
           : envelope.formatVersion === 5
             ? validator.validateV5(envelope.raw)
-            : validator.validateV6(envelope.raw);
+            : envelope.formatVersion === 6
+              ? validator.validateV6(envelope.raw)
+              : validator.validateV7(envelope.raw);
   validator.validateRelationships(typed);
   if (!(await checksum.verify(typed))) throw validator.checksumMismatch();
   return migrator.migrate(typed);
@@ -190,7 +197,7 @@ async function invalid(mutator, expectedCode) {
 test('generates the versioned format, UTC/Bogotá/COP metadata, all collections, counts, and archived rows', async () => {
   const file = await createFile();
   assert.equal(file.format, 'money-control-backup');
-  assert.equal(file.formatVersion, 6);
+  assert.equal(file.formatVersion, 7);
   assert.equal(file.createdAt, NOW);
   assert.equal(file.timezone, 'America/Bogota');
   assert.equal(file.currency, 'COP');
@@ -268,7 +275,7 @@ test('rejects invalid JSON, wrong format, unsupported future format, and oversiz
   file.format = 'other-format';
   assert.throws(() => validator.parseEnvelope(JSON.stringify(file), 0), (error) => error instanceof BackupValidationError && error.issues[0].code === 'wrong_format');
   const future = await createFile();
-  future.formatVersion = 7;
+  future.formatVersion = 8;
   const envelope = validator.parseEnvelope(JSON.stringify(future), 0);
   assert.throws(() => migrator.assertSupported(envelope.formatVersion), UnsupportedBackupVersionError);
   assert.throws(() => validator.parseEnvelope('{}', backupLimits.maxFileBytes + 1), (error) => error instanceof BackupValidationError && error.issues[0].code === 'file_too_large');
@@ -542,4 +549,68 @@ test('rows that cannot carry a category cannot carry a subcategory either', asyn
   await invalid((file) => {
     file.data.transactions.find((row) => row.id === 'transfer').subcategoryId = 'groceries';
   }, 'domain_mismatch');
+});
+
+test('a v6 backup upgrades by naming what it used to leave implied', async () => {
+  const legacy = structuredClone(await createFile());
+  legacy.formatVersion = 6;
+  legacy.currency = 'COP';
+  // Roll the payload back to the v6 shape: one rate, no base currency, and rows
+  // whose snapshot currencies were inferable only because COP/USD was the only
+  // possible pair.
+  legacy.data.exchangeRate = legacy.data.exchangeRates[0] ?? null;
+  delete legacy.data.exchangeRates;
+  delete legacy.data.baseCurrencyCode;
+  for (const row of legacy.data.transactions) {
+    delete row.baseCurrencyCode;
+    delete row.exchangeRateBaseCode;
+    delete row.exchangeRateQuoteCode;
+  }
+  await resign(legacy);
+
+  const data = await validate(legacy);
+
+  assert.equal(data.baseCurrencyCode, 'COP');
+  assert.equal(data.exchangeRates.length, 1);
+  assert.equal(data.exchangeRates[0].id, 'USD-COP');
+  for (const row of data.transactions) {
+    assert.equal(row.baseCurrencyCode, row.type === 'transfer' ? null : 'COP');
+    // Amounts are labelled, never converted.
+    if (row.exchangeRateScaled === null) {
+      assert.equal(row.exchangeRateBaseCode, null);
+      assert.equal(row.exchangeRateQuoteCode, null);
+    } else {
+      assert.equal(row.exchangeRateBaseCode, 'USD');
+      assert.equal(row.exchangeRateQuoteCode, 'COP');
+    }
+  }
+});
+
+test('a v7 backup carries its own base currency through validation', async () => {
+  const data = representativeData();
+  data.baseCurrencyCode = 'EUR';
+  // With EUR as the base, a COP row is the foreign one and needs a snapshot.
+  data.accounts = data.accounts.map((account) => ({ ...account, currency: 'EUR' }));
+  data.transactions = data.transactions.map((row) => ({
+    ...row,
+    currency: 'EUR',
+    baseCurrencyCode: row.type === 'transfer' ? null : 'EUR',
+    destinationCurrencyCode: row.type === 'transfer' ? 'EUR' : null,
+    exchangeRateScaled: null,
+    exchangeRateScale: null,
+    exchangeRateBaseCode: null,
+    exchangeRateQuoteCode: null,
+    exchangeRateDate: null,
+    exchangeRateSource: null,
+  }));
+  data.recurringTransactions = data.recurringTransactions.map((row) => ({ ...row, currency: 'EUR' }));
+  data.recurringOccurrences = data.recurringOccurrences.map((row) => ({ ...row, currency: 'EUR' }));
+  data.investmentValuations = data.investmentValuations.map((row) => ({ ...row, currencyCode: 'EUR' }));
+  data.exchangeRates = [];
+
+  const file = await createFile(data);
+
+  assert.equal(file.currency, 'EUR', 'the envelope names the base currency, not a fixed COP');
+  const restored = await validate(file);
+  assert.equal(restored.baseCurrencyCode, 'EUR');
 });

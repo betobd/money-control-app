@@ -1,7 +1,8 @@
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import type { BudgetMonthView } from '@/features/budgets/budget.types';
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
-import { convertUsdMinorToCopMinor, formatMoneyWithSymbol, type ScaledRate } from '@/features/currency/currency';
+import { formatMoneyWithSymbol, isSupportedCurrency } from '@/features/currency/currency';
+import { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import type { InvestmentAccountView, InvestmentPortfolioSummary, InvestmentValuation } from '@/features/investments/investment.types';
 import { calculateCreditCardStatementView } from '@/features/credit-cards/credit-card-statement.service';
 import type { RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
@@ -52,16 +53,19 @@ type TransactionFilterService = {
 };
 
 type InvestmentExportService = {
-  getPortfolio(rate: ScaledRate | null): Promise<InvestmentPortfolioSummary>;
+  getPortfolio(rates: ValuationRates): Promise<InvestmentPortfolioSummary>;
   listValuations(accountId: string): Promise<InvestmentValuation[]>;
 };
 
-type ExportValuationRate = { rateScaled: number; rateScale: number; effectiveDate: string; source: string } | null;
-
 type DataExportServiceOptions = {
   today?: () => string;
-  /** Resolves the current USD/COP valuation rate for estimated-COP account columns. */
-  resolveValuationRate?: () => Promise<ExportValuationRate>;
+  /**
+   * Resolves the saved valuation rates for the estimated base-currency columns.
+   * Required: there is no safe default. Any placeholder has to name *some* base
+   * currency, and the wrong one silently blanks the estimated column for every
+   * account in the user's own currency.
+   */
+  resolveValuationRates: () => Promise<ValuationRates>;
 };
 
 export type DataExportErrorCode = 'no_data' | 'row_limit_exceeded';
@@ -74,7 +78,7 @@ export class DataExportError extends Error {
 
 type AccountCsvRow = AccountExportSource & {
   status: 'active' | 'archived';
-  estimatedBaseCurrencyCop: number | null;
+  estimatedBaseCurrencyMinor: number | null;
   currentDebt: number | null;
   availableCredit: number | null;
   utilizationPercentage: number | null;
@@ -167,13 +171,13 @@ export class DataExportService {
     private readonly investments: InvestmentExportService,
     private readonly serializer: CsvSerializer,
     private readonly files: ExportFileAdapter,
-    options: DataExportServiceOptions = {},
+    options: DataExportServiceOptions,
   ) {
     this.today = options.today ?? (() => bogotaToday());
-    this.resolveValuationRate = options.resolveValuationRate ?? (async () => null);
+    this.resolveValuationRates = options.resolveValuationRates;
   }
 
-  private readonly resolveValuationRate: () => Promise<ExportValuationRate>;
+  private readonly resolveValuationRates: () => Promise<ValuationRates>;
 
   cleanupStaleFiles(): Promise<void> {
     return this.files.cleanupStaleFiles();
@@ -198,7 +202,7 @@ export class DataExportService {
       this.repository.countCreditCardStatements(),
       this.transactionFilters.listFilterOptions(),
       this.previewTransactions(transactionOptions),
-      this.investments.getPortfolio(null),
+      this.resolveValuationRates().then((rates) => this.investments.getPortfolio(rates)),
     ]);
     return {
       accounts: accountRows.length,
@@ -245,8 +249,8 @@ export class DataExportService {
       { header: 'type', value: (row) => row.type },
       { header: 'status', value: (row) => row.status },
       { header: 'currency_code', value: (row) => row.currencyCode },
-      { header: 'amount_minor', value: (row) => row.amountCop },
-      { header: 'base_currency_amount_cop', value: (row) => row.baseCurrencyAmountCop },
+      { header: 'amount_minor', value: (row) => row.amountBaseMinor },
+      { header: 'base_currency_amount_cop', value: (row) => row.baseCurrencyAmountMinor },
       { header: 'exchange_rate', value: (row) => row.exchangeRate },
       { header: 'exchange_rate_date', value: (row) => row.exchangeRateDate },
       { header: 'exchange_rate_source', value: (row) => row.exchangeRateSource },
@@ -258,7 +262,7 @@ export class DataExportService {
       { header: 'subcategory_name', value: (row) => row.subcategoryName, protectFormula: true },
       { header: 'original_transaction_id', value: (row) => row.originalTransactionId },
       { header: 'original_transaction_date', value: (row) => row.originalTransactionDate },
-      { header: 'original_transaction_amount_cop', value: (row) => row.originalTransactionAmountCop },
+      { header: 'original_transaction_amount_cop', value: (row) => row.originalTransactionAmountMinor },
       { header: 'original_transaction_note', value: (row) => options.includeNotes ? row.originalTransactionNote : null, protectFormula: true },
       { header: 'source_account_id', value: (row) => row.sourceAccountId },
       { header: 'source_account_name', value: (row) => row.sourceAccountName, protectFormula: true },
@@ -279,23 +283,18 @@ export class DataExportService {
   }
 
   async exportAccounts(): Promise<ExportResult> {
-    const rate = await this.resolveValuationRate();
-    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
+    const rates = await this.resolveValuationRates();
     const rows = (await this.accounts.list(true))
       .sort(compareAuditRows)
       .map((account): AccountCsvRow => {
         const utilization = account.type === 'credit_card'
           ? calculateCreditCardUtilization(account.balance, account.creditLimit)
           : null;
-        const estimatedCop = account.currency === 'COP'
-          ? account.balance
-          : scaledRate
-            ? convertUsdMinorToCopMinor(account.balance, scaledRate)
-            : null;
+        const estimatedBase = rates.toBase(account.balance, account.currency);
         return {
           ...account,
           status: account.isArchived ? 'archived' : 'active',
-          estimatedBaseCurrencyCop: estimatedCop,
+          estimatedBaseCurrencyMinor: estimatedBase,
           currentDebt: utilization?.currentDebt ?? null,
           availableCredit: utilization?.availableCredit ?? null,
           utilizationPercentage: utilization?.utilizationBasisPoints === null
@@ -305,7 +304,15 @@ export class DataExportService {
         };
       });
     this.requireRows('accounts', rows.length, exportLimits.otherRows);
-    const valuationRate = rate ? rate.rateScaled / rate.rateScale : null;
+    // Columns keep their `_cop` names for compatibility with spreadsheets built
+    // against earlier exports; they hold the base currency, which `base_currency`
+    // in the export metadata names.
+    const rateFor = (currency: string) => {
+      const snapshot = isSupportedCurrency(currency) ? rates.snapshotFor(currency) : null;
+      return snapshot ? snapshot.rate.rateScaled / snapshot.rate.rateScale : null;
+    };
+    const snapshotFor = (currency: string) =>
+      (isSupportedCurrency(currency) ? rates.snapshotFor(currency) : null);
     const columns: CsvColumn<AccountCsvRow>[] = [
       { header: 'account_id', value: (row) => row.id },
       { header: 'name', value: (row) => row.name, protectFormula: true },
@@ -314,10 +321,10 @@ export class DataExportService {
       { header: 'currency_code', value: (row) => row.currency },
       { header: 'opening_balance_minor', value: (row) => row.openingBalance },
       { header: 'current_balance_minor', value: (row) => row.balance },
-      { header: 'estimated_base_currency_balance_cop', value: (row) => row.estimatedBaseCurrencyCop },
-      { header: 'valuation_rate', value: (row) => row.currency === 'COP' ? null : valuationRate },
-      { header: 'valuation_rate_date', value: (row) => row.currency === 'COP' ? null : rate?.effectiveDate ?? null },
-      { header: 'valuation_rate_source', value: (row) => row.currency === 'COP' ? null : rate?.source ?? null },
+      { header: 'estimated_base_currency_balance_cop', value: (row) => row.estimatedBaseCurrencyMinor },
+      { header: 'valuation_rate', value: (row) => rateFor(row.currency) },
+      { header: 'valuation_rate_date', value: (row) => snapshotFor(row.currency)?.effectiveDate ?? null },
+      { header: 'valuation_rate_source', value: (row) => snapshotFor(row.currency)?.source ?? null },
       { header: 'credit_limit_minor', value: (row) => row.type === 'credit_card' ? row.creditLimit : null },
       { header: 'current_debt_minor', value: (row) => row.currentDebt },
       { header: 'available_credit_minor', value: (row) => row.availableCredit },
@@ -445,9 +452,8 @@ export class DataExportService {
   }
 
   async exportInvestments(): Promise<ExportResult> {
-    const rate = await this.resolveValuationRate();
-    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
-    const portfolio = await this.investments.getPortfolio(scaledRate);
+    const rates = await this.resolveValuationRates();
+    const portfolio = await this.investments.getPortfolio(rates);
     const rows = [...portfolio.accounts].sort((left, right) =>
       left.account.id < right.account.id ? -1 : left.account.id > right.account.id ? 1 : 0,
     );
@@ -462,7 +468,7 @@ export class DataExportService {
       { header: 'currency_code', value: (row) => row.account.currency },
       { header: 'current_value_minor', value: (row) => row.currentValueMinor },
       { header: 'current_value_display', value: (row) => formatMoneyWithSymbol(row.currentValueMinor, row.account.currency) },
-      { header: 'estimated_value_cop', value: (row) => row.estimatedValueCopMinor },
+      { header: 'estimated_value_cop', value: (row) => row.estimatedValueBaseMinor },
       { header: 'total_contributions_minor', value: (row) => row.totalContributionsMinor },
       { header: 'total_withdrawals_minor', value: (row) => row.totalWithdrawalsMinor },
       { header: 'net_contributions_minor', value: (row) => row.netContributionsMinor },
@@ -477,9 +483,8 @@ export class DataExportService {
   }
 
   async exportInvestmentValuations(): Promise<ExportResult> {
-    const rate = await this.resolveValuationRate();
-    const scaledRate = rate ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale } : null;
-    const portfolio = await this.investments.getPortfolio(scaledRate);
+    const rates = await this.resolveValuationRates();
+    const portfolio = await this.investments.getPortfolio(rates);
     const nameById = new Map(portfolio.accounts.map((view) => [view.account.id, view.account.name]));
     const rows: InvestmentValuationCsvRow[] = [];
     for (const view of portfolio.accounts) {

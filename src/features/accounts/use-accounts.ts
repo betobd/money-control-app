@@ -3,12 +3,15 @@ import { useCallback, useState } from 'react';
 import { accountService } from './accounts';
 import type { AccountWithBalance } from './account.types';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
-import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { exchangeRateService, loadValuationRates } from '@/features/exchange-rates/exchange-rates';
 import type { ExchangeRateStatus } from '@/features/exchange-rates/exchange-rate.types';
+import { ValuationRates } from '@/features/exchange-rates/valuation-rates';
+import { getBaseCurrency } from '@/features/settings/settings';
 
 export function useAccounts() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
-  const [rateStatus, setRateStatus] = useState<ExchangeRateStatus | null>(null);
+  const [rates, setRates] = useState<ValuationRates>(() => new ValuationRates(getBaseCurrency(), new Map()));
+  const [rateStatuses, setRateStatuses] = useState<ExchangeRateStatus[]>([]);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
 
@@ -16,16 +19,20 @@ export function useAccounts() {
     setLoading(true);
     setError(undefined);
     try {
-      const [loadedAccounts, status] = await Promise.all([
-        accountService.list(true),
-        exchangeRateService.getStatus(),
+      const loadedAccounts = await accountService.list(true);
+      const currencies = loadedAccounts.map((account) => account.currency);
+      const [loadedRates, statuses] = await Promise.all([
+        loadValuationRates(),
+        exchangeRateService.listStatuses(currencies),
       ]);
       setAccounts(loadedAccounts);
-      setRateStatus(status);
+      setRates(loadedRates);
+      setRateStatuses(statuses);
       // Controlled, non-blocking startup refresh on first access to currency data:
-      // only refreshes when stale/missing, de-duplicated and rate-limited by the service.
-      if (loadedAccounts.some((account) => account.currency !== 'COP')) {
-        void exchangeRateService.ensureFreshRate();
+      // only refreshes what is stale/missing, de-duplicated and rate-limited by the
+      // service, and only for the currencies actually held.
+      if (statuses.length > 0) {
+        void exchangeRateService.ensureFreshRates(currencies);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load accounts.');
@@ -36,5 +43,5 @@ export function useAccounts() {
 
   useFinancialDataRefresh(load);
 
-  return { accounts, rateStatus, error, loading, reload: load };
+  return { accounts, rates, rateStatuses, error, loading, reload: load };
 }

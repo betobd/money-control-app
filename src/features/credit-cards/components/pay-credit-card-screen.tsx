@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { Button } from '@/components/button';
 import { DateField } from '@/components/date-field';
 import { toUserMessage } from '@/errors/user-error';
@@ -70,10 +71,11 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     [details],
   );
   const selectedOption = options.find((candidate) => candidate.type === option);
-  const cardCurrency: CurrencyCode = details?.account.currency ?? 'COP';
+  const baseCurrency = useBaseCurrency();
+  const cardCurrency: CurrencyCode = details?.account.currency ?? baseCurrency;
   const money = (value: number) => formatMoneyWithSymbol(value, cardCurrency);
   const selectedSource = sources.find((source) => source.id === effectiveSourceId);
-  const sourceCurrency: CurrencyCode = selectedSource?.currency ?? 'COP';
+  const sourceCurrency: CurrencyCode = selectedSource?.currency ?? baseCurrency;
   const crossCurrency = Boolean(selectedSource) && sourceCurrency !== cardCurrency;
   const parsedCustom = parseMoney(amountDigits || '0', cardCurrency);
   const customAmount = parsedCustom.ok ? parsedCustom.minor : 0;

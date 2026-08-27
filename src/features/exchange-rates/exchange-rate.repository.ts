@@ -1,7 +1,11 @@
+import type { CurrencyCode } from '@/features/currency/currency';
 import type { ExchangeRateRecord } from './exchange-rate.types';
 
-/** Persistence for the latest valid valuation rate. No network access. */
+/** Persistence for stored valuation rates, one row per ordered pair. No network. */
 export interface ExchangeRateRepository {
-  getValuationRate(): Promise<ExchangeRateRecord | null>;
-  saveValuationRate(record: ExchangeRateRecord): Promise<void>;
+  /** The stored rate for this pair in either orientation, or null. */
+  find(base: CurrencyCode, quote: CurrencyCode): Promise<ExchangeRateRecord | null>;
+  /** Every stored rate, for the rates screen and for bulk valuation. */
+  list(): Promise<ExchangeRateRecord[]>;
+  save(record: ExchangeRateRecord): Promise<void>;
 }

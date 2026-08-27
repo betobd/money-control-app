@@ -75,7 +75,7 @@ except sqlite3.IntegrityError:
     pass
 
 connection.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     (
         'transaction', 'expense', 'posted', 50_000, 'COP', 'checking', None,
         'food', 'Internet', '2026-01-31', utc, utc,

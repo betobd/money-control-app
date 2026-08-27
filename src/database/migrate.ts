@@ -2,6 +2,7 @@ import migrationsBundle from './migrations/migrations';
 import { checkDatabaseHealth } from './health';
 import { sqlite } from './client';
 import { categoryService } from '@/features/categories/categories';
+import { settingsService } from '@/features/settings/settings';
 
 type MigrationJournalEntry = {
   idx: number;
@@ -79,6 +80,9 @@ async function initialize(): Promise<void> {
   await sqlite.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   await runMigrations();
   await categoryService.seedDefaults();
+  // Prime the synchronous base-currency cache before any screen can render. Every
+  // "is this amount already in the base currency?" decision reads it during render.
+  await settingsService.loadBaseCurrency();
 
   const health = await checkDatabaseHealth(sqlite);
   if (!health.foreignKeysEnabled || health.integrity !== 'ok') {

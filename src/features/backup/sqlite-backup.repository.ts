@@ -1,4 +1,5 @@
 import type { SQLiteBindParams, SQLiteDatabase } from 'expo-sqlite';
+import { isSupportedCurrency } from '@/features/currency/currency';
 
 import { sqlite } from '@/database/client';
 import { createBackupOverview } from './backup-serializer';
@@ -12,7 +13,7 @@ import type {
   BackupBudget,
   BackupBudgetRule,
   BackupCategory,
-  BackupDataV6,
+  BackupDataV7,
   BackupExchangeRate,
   BackupInvestmentAccount,
   BackupInvestmentValuation,
@@ -92,7 +93,7 @@ async function readOverview(database: SQLiteDatabase): Promise<BackupOverview> {
   };
 }
 
-async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV6> {
+async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV7> {
   const accounts = await database.getAllAsync<SqlAccount>(`
     SELECT id, name, type, currency, opening_balance AS openingBalance,
       credit_limit AS creditLimit, statement_closing_day AS statementClosingDay,
@@ -111,8 +112,12 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV6> {
       destination_account_id AS destinationAccountId, category_id AS categoryId,
       subcategory_id AS subcategoryId,
       original_transaction_id AS originalTransactionId,
-      base_amount_minor AS baseAmountMinor, exchange_rate_scaled AS exchangeRateScaled,
-      exchange_rate_scale AS exchangeRateScale, exchange_rate_date AS exchangeRateDate,
+      base_amount_minor AS baseAmountMinor, base_currency_code AS baseCurrencyCode,
+      exchange_rate_scaled AS exchangeRateScaled,
+      exchange_rate_scale AS exchangeRateScale,
+      exchange_rate_base_code AS exchangeRateBaseCode,
+      exchange_rate_quote_code AS exchangeRateQuoteCode,
+      exchange_rate_date AS exchangeRateDate,
       exchange_rate_source AS exchangeRateSource,
       destination_amount_minor AS destinationAmountMinor,
       destination_currency_code AS destinationCurrencyCode,
@@ -162,12 +167,19 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV6> {
       created_at AS createdAt, updated_at AS updatedAt
     FROM credit_card_statements ORDER BY id
   `);
-  const exchangeRate = await database.getFirstAsync<BackupExchangeRate>(`
+  const exchangeRates = await database.getAllAsync<BackupExchangeRate>(`
     SELECT id, base_currency_code AS baseCurrencyCode, quote_currency_code AS quoteCurrencyCode,
       rate_scaled AS rateScaled, rate_scale AS rateScale, effective_date AS effectiveDate,
       fetched_at AS fetchedAt, provider, source, created_at AS createdAt, updated_at AS updatedAt
-    FROM exchange_rates ORDER BY id LIMIT 1
+    FROM exchange_rates ORDER BY id
   `);
+  const settings = await database.getFirstAsync<{ baseCurrencyCode: string }>(
+    "SELECT base_currency_code AS baseCurrencyCode FROM app_settings WHERE id = 'device'",
+  );
+  if (!settings || !isSupportedCurrency(settings.baseCurrencyCode)) {
+    throw new Error('The base currency is missing or unsupported; cannot write a backup.');
+  }
+  const baseCurrencyCode = settings.baseCurrencyCode;
   const investmentAccounts = await database.getAllAsync<BackupInvestmentAccount>(`
     SELECT account_id AS accountId, investment_type AS investmentType,
       tracking_mode AS trackingMode, liquidity, provider_name AS providerName,
@@ -197,11 +209,12 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV6> {
     creditCardStatements,
     investmentAccounts,
     investmentValuations,
-    exchangeRate: exchangeRate ?? null,
+    baseCurrencyCode,
+    exchangeRates,
   };
 }
 
-async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV6): Promise<void> {
+async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV7): Promise<void> {
   await insertRows(database, `
     INSERT INTO accounts (
       id, name, type, currency, opening_balance, credit_limit,
@@ -244,18 +257,23 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV6): Pro
   await insertRows(database, `
     INSERT INTO transactions (
       id, type, status, amount, currency, account_id, destination_account_id,
-      category_id, subcategory_id, original_transaction_id, base_amount_minor, exchange_rate_scaled,
-      exchange_rate_scale, exchange_rate_date, exchange_rate_source,
+      category_id, subcategory_id, original_transaction_id,
+      base_amount_minor, base_currency_code,
+      exchange_rate_scaled, exchange_rate_scale,
+      exchange_rate_base_code, exchange_rate_quote_code,
+      exchange_rate_date, exchange_rate_source,
       destination_amount_minor, destination_currency_code,
       note, transaction_date, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     ...data.transactions.filter((row) => row.type !== 'refund'),
     ...data.transactions.filter((row) => row.type === 'refund'),
   ].map((row) => [
     row.id, row.type, row.status, row.amount, row.currency, row.accountId,
     row.destinationAccountId, row.categoryId, row.subcategoryId, row.originalTransactionId,
-    row.baseAmountMinor, row.exchangeRateScaled, row.exchangeRateScale,
+    row.baseAmountMinor, row.baseCurrencyCode,
+    row.exchangeRateScaled, row.exchangeRateScale,
+    row.exchangeRateBaseCode, row.exchangeRateQuoteCode,
     row.exchangeRateDate, row.exchangeRateSource,
     row.destinationAmountMinor, row.destinationCurrencyCode,
     row.note, row.transactionDate, row.createdAt, row.updatedAt,
@@ -330,24 +348,31 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV6): Pro
     row.valuationDate, row.note, row.createdAt, row.updatedAt,
   ]));
 
-  if (data.exchangeRate) {
-    await insertRows(database, `
-      INSERT INTO exchange_rates (
-        id, base_currency_code, quote_currency_code, rate_scaled, rate_scale,
-        effective_date, fetched_at, provider, source, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [[
-      data.exchangeRate.id, data.exchangeRate.baseCurrencyCode, data.exchangeRate.quoteCurrencyCode,
-      data.exchangeRate.rateScaled, data.exchangeRate.rateScale, data.exchangeRate.effectiveDate,
-      data.exchangeRate.fetchedAt, data.exchangeRate.provider, data.exchangeRate.source,
-      data.exchangeRate.createdAt, data.exchangeRate.updatedAt,
-    ]]);
-  }
+  await insertRows(database, `
+    INSERT INTO exchange_rates (
+      id, base_currency_code, quote_currency_code, rate_scaled, rate_scale,
+      effective_date, fetched_at, provider, source, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, data.exchangeRates.map((row) => [
+    row.id, row.baseCurrencyCode, row.quoteCurrencyCode, row.rateScaled, row.rateScale,
+    row.effectiveDate, row.fetchedAt, row.provider, row.source, row.createdAt, row.updatedAt,
+  ]));
+
+  // The settings row always exists (migration 0014 seeds it), so this is an
+  // update rather than an insert: restoring a backup adopts the base currency the
+  // backup was written with, which is the only currency its stored
+  // `base_amount_minor` snapshots make sense in.
+  await database.runAsync(
+    'UPDATE app_settings SET base_currency_code = ?, updated_at = ? WHERE id = ?',
+    data.baseCurrencyCode,
+    new Date().toISOString(),
+    'device',
+  );
 }
 
 async function runPostRestoreChecks(
   database: SQLiteDatabase,
-  data: BackupDataV6,
+  data: BackupDataV7,
 ): Promise<BackupOverview> {
   const actual = await readOverview(database);
   const expected = createBackupOverview(data);
@@ -424,8 +449,8 @@ export class SQLiteBackupRepository implements BackupRepository {
     return readOverview(sqlite);
   }
 
-  async readSnapshot(): Promise<BackupDataV6> {
-    let snapshot: BackupDataV6 | undefined;
+  async readSnapshot(): Promise<BackupDataV7> {
+    let snapshot: BackupDataV7 | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       snapshot = await readSnapshot(transaction);
     });
@@ -433,7 +458,7 @@ export class SQLiteBackupRepository implements BackupRepository {
     return snapshot;
   }
 
-  async replaceAll(data: BackupDataV6): Promise<BackupOverview> {
+  async replaceAll(data: BackupDataV7): Promise<BackupOverview> {
     let overview: BackupOverview | undefined;
     await sqlite.withExclusiveTransactionAsync(async (transaction) => {
       await transaction.execAsync(`

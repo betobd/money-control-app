@@ -7,19 +7,20 @@ import type {
 } from './account.types';
 import { accountTypes } from './account.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
-import {
-  convertUsdMinorToCopMinor,
-  isSupportedCurrency,
-  type ScaledRate,
-} from '@/features/currency/currency';
+import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 
 export type EstimatedNetWorth = {
-  /** Consolidated COP total, or null when it cannot be computed. */
-  totalCopMinor: number | null;
-  /** True when USD accounts exist but no valid rate excludes them from the total. */
+  /** Consolidated base-currency total, or null when it cannot be computed. */
+  totalBaseMinor: number | null;
+  /** The currency `totalBaseMinor` is in, so callers never have to assume. */
+  baseCurrency: CurrencyCode;
+  /** True when foreign accounts exist but a missing rate excludes them. */
   incomplete: boolean;
-  /** True when at least one non-COP account contributes (or would contribute). */
+  /** True when at least one foreign account contributes (or would contribute). */
   includesForeign: boolean;
+  /** Currencies held that have no rate. Names them in the incomplete message. */
+  missingCurrencies: CurrencyCode[];
 };
 
 export class AccountValidationError extends Error {
@@ -243,34 +244,44 @@ export class AccountService {
   }
 
   /**
-   * Estimated consolidated net worth in COP. COP balances contribute exactly; USD
-   * balances are converted at the given valuation rate. When USD accounts exist but
-   * no rate is available they are excluded and the result is marked incomplete
-   * (never treated as COP 0). See docs/decisions/0005-multi-currency-cop-usd.md.
+   * Estimated consolidated net worth in the base currency. Base-currency balances
+   * contribute exactly; foreign balances are converted at the saved valuation
+   * rate. An account whose currency has no rate is excluded and the result is
+   * marked incomplete — never counted as zero, which would read as a real total.
+   * See docs/decisions/0008-configurable-base-currency.md.
    */
   estimateNetWorth(
     accountsWithBalances: AccountWithBalance[],
-    rate: ScaledRate | null,
+    rates: ValuationRates,
   ): EstimatedNetWorth {
     let total = 0;
     let incomplete = false;
     let includesForeign = false;
+    const missing = new Set<CurrencyCode>();
     for (const account of accountsWithBalances) {
-      if (account.currency === 'COP') {
+      if (account.currency === rates.baseCurrency) {
         total += account.balance;
         continue;
       }
       includesForeign = true;
-      if (!rate) {
+      const valued = rates.toBase(account.balance, account.currency);
+      if (valued === null) {
         incomplete = true;
+        missing.add(account.currency);
         continue;
       }
-      total += convertUsdMinorToCopMinor(account.balance, rate);
+      total += valued;
     }
     if (!Number.isSafeInteger(total)) {
       throw new Error('Net worth exceeds the supported safe integer range.');
     }
-    return { totalCopMinor: incomplete && includesForeign ? null : total, incomplete, includesForeign };
+    return {
+      totalBaseMinor: incomplete && includesForeign ? null : total,
+      baseCurrency: rates.baseCurrency,
+      incomplete,
+      includesForeign,
+      missingCurrencies: [...missing],
+    };
   }
 
   private async validate(

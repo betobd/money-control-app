@@ -4,6 +4,7 @@ import {
   type BackupCategoryV5,
   type BackupDataV5,
   type BackupDataV6,
+  type BackupDataV7,
   type BackupFile,
   type BackupRecurringOccurrence,
   type BackupRecurringOccurrenceV5,
@@ -13,6 +14,7 @@ import {
   type BackupTransactionV2,
   type BackupTransactionV3,
   type BackupTransactionV5,
+  type BackupTransactionV6,
 } from './backup.types';
 
 export class UnsupportedBackupVersionError extends Error {
@@ -68,7 +70,7 @@ function toV6Data(data: BackupDataV5): BackupDataV6 {
       (category: BackupCategoryV5): BackupCategory => ({ ...category, parentCategoryId: null }),
     ),
     transactions: data.transactions.map(
-      (transaction: BackupTransactionV5): BackupTransaction => ({ ...transaction, subcategoryId: null }),
+      (transaction: BackupTransactionV5): BackupTransactionV6 => ({ ...transaction, subcategoryId: null }),
     ),
     recurringTransactions: data.recurringTransactions.map(
       (rule: BackupRecurringTransactionV5): BackupRecurringTransaction => ({ ...rule, subcategoryId: null }),
@@ -79,20 +81,44 @@ function toV6Data(data: BackupDataV5): BackupDataV6 {
   };
 }
 
+/**
+ * Upgrades a v1–v6 payload to v7 by writing down what used to be implied.
+ *
+ * Every backup written before v7 came from an install whose base currency was
+ * COP — it was the only one the app had — and every rate snapshot in one was
+ * "1 USD = r COP", the only pair that could be recorded. Both facts are stated
+ * explicitly here rather than left to be re-derived at read time. Nothing is
+ * converted: the numbers are untouched, only labelled.
+ */
+function toV7Data(data: BackupDataV6): BackupDataV7 {
+  const { exchangeRate, ...rest } = data;
+  return {
+    ...rest,
+    baseCurrencyCode: 'COP',
+    exchangeRates: exchangeRate ? [exchangeRate] : [],
+    transactions: data.transactions.map((transaction: BackupTransactionV6): BackupTransaction => ({
+      ...transaction,
+      baseCurrencyCode: transaction.type === 'transfer' ? null : 'COP',
+      exchangeRateBaseCode: transaction.exchangeRateScaled === null ? null : 'USD',
+      exchangeRateQuoteCode: transaction.exchangeRateScaled === null ? null : 'COP',
+    })),
+  };
+}
+
 export class BackupFormatMigrator {
   assertSupported(version: number): void {
     if (
       version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5
-      && version !== CURRENT_BACKUP_FORMAT_VERSION
+      && version !== 6 && version !== CURRENT_BACKUP_FORMAT_VERSION
     ) {
       throw new UnsupportedBackupVersionError(version);
     }
   }
 
-  migrate(file: BackupFile): BackupDataV6 {
+  migrate(file: BackupFile): BackupDataV7 {
     switch (file.formatVersion) {
       case 1:
-        return toV6Data({
+        return toV7Data(toV6Data({
           ...file.data,
           accounts: file.data.accounts.map((account) => ({
             ...account,
@@ -103,26 +129,28 @@ export class BackupFormatMigrator {
           creditCardStatements: [],
           exchangeRate: null,
           ...noInvestments(),
-        });
+        }));
       case 2:
-        return toV6Data({
+        return toV7Data(toV6Data({
           ...file.data,
           transactions: file.data.transactions.map(toV5Transaction),
           exchangeRate: null,
           ...noInvestments(),
-        });
+        }));
       case 3:
-        return toV6Data({
+        return toV7Data(toV6Data({
           ...file.data,
           transactions: file.data.transactions.map(toV5Transaction),
           exchangeRate: null,
           ...noInvestments(),
-        });
+        }));
       case 4:
-        return toV6Data({ ...file.data, ...noInvestments() });
+        return toV7Data(toV6Data({ ...file.data, ...noInvestments() }));
       case 5:
-        return toV6Data(file.data);
+        return toV7Data(toV6Data(file.data));
       case 6:
+        return toV7Data(file.data);
+      case 7:
         return file.data;
     }
   }

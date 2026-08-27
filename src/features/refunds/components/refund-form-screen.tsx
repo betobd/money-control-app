@@ -22,7 +22,8 @@ import {
   getCurrency,
   parseMoney,
 } from '@/features/currency/currency';
-import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { loadValuationRates } from '@/features/exchange-rates/exchange-rates';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -42,7 +43,8 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
   const [generalError, setGeneralError] = useState<string>();
   const [saving, setSaving] = useState(false);
 
-  const refundCurrency = summary?.original.currency ?? 'COP';
+  const baseCurrency = useBaseCurrency();
+  const refundCurrency = summary?.original.currency ?? baseCurrency;
 
   async function save() {
     if (saving || !summary) return;
@@ -57,19 +59,14 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
         return;
       }
       let exchangeRate = null;
-      if (refundCurrency !== 'COP') {
-        const rate = await exchangeRateService.getValuationRate();
-        if (!rate) {
-          setErrors({ exchangeRate: 'Add an exchange rate before saving this USD refund.' });
+      if (refundCurrency !== baseCurrency) {
+        const rates = await loadValuationRates();
+        exchangeRate = rates.snapshotInputFor(refundCurrency);
+        if (!exchangeRate) {
+          setErrors({ exchangeRate: `Add a ${refundCurrency}/${baseCurrency} exchange rate before saving this refund.` });
           setSaving(false);
           return;
         }
-        exchangeRate = {
-          rateScaled: rate.rateScaled,
-          rateScale: rate.rateScale,
-          effectiveDate: rate.effectiveDate,
-          source: rate.source,
-        };
       }
       const refund = await refundService.create({
         originalTransactionId,

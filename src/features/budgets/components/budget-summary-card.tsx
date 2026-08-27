@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import type { BudgetStatus, BudgetSummary } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -19,18 +19,18 @@ export function BudgetSummaryCard({ summary }: { summary: BudgetSummary }) {
   const theme = useAppTheme();
   const status = summaryStatus(summary);
   const remaining = summary.totalRemaining < 0
-    ? `-${formatCop(Math.abs(summary.totalRemaining))}`
-    : formatCop(summary.totalRemaining);
+    ? `-${formatBase(Math.abs(summary.totalRemaining))}`
+    : formatBase(summary.totalRemaining);
   return (
     <Card
-      accessibilityLabel={`Total monthly budget ${formatCop(summary.totalBudget)}, spent ${formatCop(summary.totalSpent)}, remaining ${remaining}, ${summary.percentageUsed}% used`}
+      accessibilityLabel={`Total monthly budget ${formatBase(summary.totalBudget)}, spent ${formatBase(summary.totalSpent)}, remaining ${remaining}, ${summary.percentageUsed}% used`}
       style={styles.card}
       variant="raised">
       <Overline>Total monthly budget</Overline>
-      <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.total, { color: theme.primaryAction }]}>{formatCop(summary.totalBudget)}</Text>
+      <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.total, { color: theme.primaryAction }]}>{formatBase(summary.totalBudget)}</Text>
       <View style={styles.amounts}>
-        <SummaryAmount label="Spent" value={formatCop(summary.totalSpent)} />
-        <SummaryAmount label={summary.totalRemaining < 0 ? 'Over by' : 'Remaining'} destructive={summary.totalRemaining < 0} value={summary.totalRemaining < 0 ? formatCop(Math.abs(summary.totalRemaining)) : remaining} />
+        <SummaryAmount label="Spent" value={formatBase(summary.totalSpent)} />
+        <SummaryAmount label={summary.totalRemaining < 0 ? 'Over by' : 'Remaining'} destructive={summary.totalRemaining < 0} value={summary.totalRemaining < 0 ? formatBase(Math.abs(summary.totalRemaining)) : remaining} />
       </View>
       <View style={styles.progressLabelRow}>
         <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>Overall progress</Text>

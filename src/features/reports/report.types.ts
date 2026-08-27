@@ -1,3 +1,5 @@
+import type { CurrencyCode } from '@/features/currency/currency';
+
 export const reportPeriodPresets = [
   'current-month',
   'previous-month',
@@ -163,7 +165,7 @@ export type PreviousPeriodComparison = {
 
 /** Realized investment income posted within the report period (COP base snapshot). */
 export type ReportInvestments = {
-  incomeCopMinor: number;
+  incomeBaseMinor: number;
   incomeCount: number;
 };
 
@@ -220,7 +222,7 @@ export type NetWorthAggregate = {
  */
 export type InvestmentValuationSeriesRow = {
   accountId: string;
-  currency: 'COP' | 'USD';
+  currency: CurrencyCode;
   valuationDate: string;
   unrealizedNativeMinor: number;
 };

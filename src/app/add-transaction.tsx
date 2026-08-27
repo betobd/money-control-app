@@ -18,14 +18,14 @@ import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import {
-  convertCopMinorToUsdMinor,
-  convertUsdMinorToCopMinor,
-  deriveCrossCurrencyRate,
-  formatExchangeRate,
+  convertMinor,
+  describeRate,
+  deriveEffectiveRate,
+  getCurrency,
   parseMoney,
   type CurrencyCode,
-  type ScaledRate,
 } from '@/features/currency/currency';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { AccountPicker } from '@/features/add-transaction/components/account-picker';
 import { AmountInput, sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { CategoryGrid, type CategorySelection } from '@/features/add-transaction/components/category-grid';
@@ -64,21 +64,19 @@ export default function AddTransactionModal() {
   const [showSuccess, setShowSuccess] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { accounts, rateStatus } = useAccounts();
+  const { accounts, rates } = useAccounts();
+  const baseCurrency = useBaseCurrency();
   const activeAccounts = accounts.filter((account) => !account.isArchived);
   const expenseTree = useCategoryTree('expense', false).tree;
   const incomeTree = useCategoryTree('income', false).tree;
   const tree = type === 'income' ? incomeTree : expenseTree;
   const selectedAccount = activeAccounts.find((account) => account.id === selectedAccountId);
   const destinationAccount = activeAccounts.find((account) => account.id === destinationAccountId);
-  const sourceCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
-  const destinationCurrency: CurrencyCode = destinationAccount?.currency ?? 'COP';
+  const sourceCurrency: CurrencyCode = selectedAccount?.currency ?? baseCurrency;
+  const destinationCurrency: CurrencyCode = destinationAccount?.currency ?? baseCurrency;
   const entryCurrency: CurrencyCode = type === 'transfer' ? sourceCurrency : sourceCurrency;
   const crossCurrency = type === 'transfer' && Boolean(selectedAccount) && Boolean(destinationAccount) && sourceCurrency !== destinationCurrency;
-  const needsForeignRate = (type !== 'transfer' && sourceCurrency !== 'COP') || crossCurrency;
-  const valuationRate: ScaledRate | null = rateStatus?.rate
-    ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale }
-    : null;
+  const needsForeignRate = (type !== 'transfer' && sourceCurrency !== baseCurrency) || crossCurrency;
   // The selection is re-resolved against the current tree on every render: a
   // category (or subcategory) archived elsewhere while this modal is open must
   // not stay silently selected. Falling back to the first category preserves the
@@ -94,6 +92,10 @@ export default function AddTransactionModal() {
     : tree[0]
       ? { categoryId: tree[0].id, subcategoryId: null }
       : null;
+  // Which pair the note is about: for a transfer the source leg is what needs a
+  // rate against the base, and for everything else it is the entry currency.
+  const rateCurrency = crossCurrency && sourceCurrency === baseCurrency ? destinationCurrency : sourceCurrency;
+  const rateSnapshot = rateCurrency === baseCurrency ? null : rates.snapshotFor(rateCurrency);
   const pickerAccounts = accountPickerField === 'source'
     ? activeAccounts.filter((account) => account.id !== destinationAccountId)
     : accountPickerField === 'destination'
@@ -158,13 +160,14 @@ export default function AddTransactionModal() {
             return;
           }
           destinationAmountMinor = parsedDestination.minor;
-          // The effective rate is derived from the actual amounts (authoritative).
-          const copMinor = sourceCurrency === 'COP' ? amount : destinationAmountMinor;
-          const usdMinor = sourceCurrency === 'USD' ? amount : destinationAmountMinor;
-          const derived = deriveCrossCurrencyRate(copMinor, usdMinor);
+          // The effective rate is derived from the actual amounts (authoritative),
+          // and carries the pair it was derived for.
+          const derived = deriveEffectiveRate(amount, sourceCurrency, destinationAmountMinor, destinationCurrency);
           exchangeRate = {
             rateScaled: derived.rateScaled,
             rateScale: derived.rateScale,
+            baseCurrencyCode: derived.baseCurrencyCode,
+            quoteCurrencyCode: derived.quoteCurrencyCode,
             effectiveDate: transactionDate,
             source: 'transfer_effective',
           };
@@ -179,18 +182,15 @@ export default function AddTransactionModal() {
         });
       } else {
         let exchangeRate: ExchangeRateSnapshotInput | null = null;
-        if (sourceCurrency !== 'COP') {
-          if (!rateStatus?.rate) {
-            setErrors({ exchangeRate: 'Add an exchange rate before saving this USD transaction.' });
+        if (sourceCurrency !== baseCurrency) {
+          exchangeRate = rates.snapshotInputFor(sourceCurrency);
+          if (!exchangeRate) {
+            setErrors({
+              exchangeRate: `Add a ${sourceCurrency}/${baseCurrency} exchange rate before saving this transaction.`,
+            });
             setSaving(false);
             return;
           }
-          exchangeRate = {
-            rateScaled: rateStatus.rate.rateScaled,
-            rateScale: rateStatus.rate.rateScale,
-            effectiveDate: rateStatus.rate.effectiveDate,
-            source: rateStatus.rate.source,
-          };
         }
         await transactionService.create({
           ...common,
@@ -212,16 +212,28 @@ export default function AddTransactionModal() {
     }
   }
 
+  /**
+   * Suggest the destination amount from the saved rates. Both legs may be foreign,
+   * so the conversion goes through the base currency, which is the only currency
+   * every saved rate is stated against.
+   */
   function prefillDestination() {
-    if (!valuationRate) return;
     const parsedSource = parseMoney(amountDigits || '0', sourceCurrency);
     if (!parsedSource.ok || parsedSource.minor <= 0) return;
-    const destMinor = destinationCurrency === 'USD'
-      ? convertCopMinorToUsdMinor(parsedSource.minor, valuationRate)
-      : convertUsdMinorToCopMinor(parsedSource.minor, valuationRate);
-    const text = destinationCurrency === 'USD'
-      ? `${Math.trunc(destMinor / 100)}.${String(destMinor % 100).padStart(2, '0')}`
-      : String(destMinor);
+    const sourceInBase = rates.toBase(parsedSource.minor, sourceCurrency);
+    if (sourceInBase === null) return;
+    const destinationRate = rates.rateFor(destinationCurrency);
+    const destMinor = destinationCurrency === baseCurrency
+      ? sourceInBase
+      : destinationRate
+        ? convertMinor(sourceInBase, baseCurrency, destinationCurrency, destinationRate)
+        : null;
+    if (destMinor === null) return;
+    const factor = getCurrency(destinationCurrency).minorUnitFactor;
+    const digits = getCurrency(destinationCurrency).fractionDigits;
+    const text = digits === 0
+      ? String(destMinor)
+      : `${Math.trunc(destMinor / factor)}.${String(destMinor % factor).padStart(digits, '0')}`;
     setDestinationAmountDigits(text);
     setErrors((current) => ({ ...current, destinationAmount: undefined }));
   }
@@ -273,13 +285,13 @@ export default function AddTransactionModal() {
           <TransactionTypeSelector onChange={changeType} value={type} />
 
           {needsForeignRate ? (
-            rateStatus?.rate ? (
-              <Text style={[styles.rateNote, { color: rateStatus.freshness === 'stale' ? theme.warning : theme.secondaryText }]}>
-                USD/COP reference rate COP {formatExchangeRate({ rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale })} · {rateStatus.freshness === 'stale' ? 'may be out of date' : `rate date ${rateStatus.rate.effectiveDate}`}. Your bank may use a different rate.
+            rateSnapshot ? (
+              <Text style={[styles.rateNote, { color: theme.secondaryText }]}>
+                Reference rate {describeRate(rateSnapshot.rate)} · rate date {rateSnapshot.effectiveDate}. Your bank may use a different rate.
               </Text>
             ) : (
               <Text accessibilityLiveRegion="polite" style={[styles.rateWarning, { color: theme.destructive }]}>
-                No exchange rate is available. Add a USD/COP rate in More → Currency & Rates before saving.
+                No exchange rate is available. Add a {rateCurrency}/{baseCurrency} rate in More → Currency & Rates before saving.
               </Text>
             )
           ) : null}
@@ -311,12 +323,12 @@ export default function AddTransactionModal() {
                   </Text>
                   <TextInput
                     accessibilityLabel={`Amount received in ${destinationCurrency}`}
-                    keyboardType={destinationCurrency === 'COP' ? 'number-pad' : 'decimal-pad'}
+                    keyboardType={getCurrency(destinationCurrency).fractionDigits === 0 ? 'number-pad' : 'decimal-pad'}
                     onChangeText={(value) => {
                       setDestinationAmountDigits(sanitizeAmountEntry(value, destinationCurrency));
                       setErrors((current) => ({ ...current, destinationAmount: undefined }));
                     }}
-                    placeholder={destinationCurrency === 'COP' ? '0' : '0.00'}
+                    placeholder={getCurrency(destinationCurrency).fractionDigits === 0 ? '0' : '0.00'}
                     placeholderTextColor={theme.mutedText}
                     value={destinationAmountDigits}
                     style={[
@@ -328,7 +340,7 @@ export default function AddTransactionModal() {
                       },
                     ]}
                   />
-                  {valuationRate ? (
+                  {rates.has(sourceCurrency) && rates.has(destinationCurrency) ? (
                     <Pressable accessibilityRole="button" onPress={prefillDestination}>
                       <Text style={[styles.rateNote, { color: theme.primaryAction }]}>Estimate from reference rate</Text>
                     </Pressable>

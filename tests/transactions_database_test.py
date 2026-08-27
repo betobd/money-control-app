@@ -37,7 +37,7 @@ categories = [
 connection.executemany('INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)', accounts)
 connection.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', categories)
 connection.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('expense', 'expense', 'posted', 150_000, 'COP', 'savings', None, 'expense', None, '2026-07-12', utc, utc),
         ('income', 'income', 'posted', 300_000, 'COP', 'savings', None, 'income', None, '2026-07-12', utc, utc),
@@ -77,7 +77,7 @@ payment = (
     'card-payment', 'transfer', 'posted', 500_000, 'COP', 'checking', 'card', None,
     ' Credit card payment ', '2026-07-12', utc, utc,
 )
-connection.execute('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', payment)
+connection.execute('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)', payment)
 connection.commit()
 connection.close()
 
@@ -100,7 +100,7 @@ assert after_payment['checking'] + after_payment['card'] == 1_950_000
 assert connection.execute(summary_sql).fetchone() == summary_before == (300_000, 150_000)
 
 connection.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('checking-to-savings', 'transfer', 'posted', 250_000, 'COP', 'checking', 'savings', None, None, '2026-07-12', utc, utc),
         ('card-to-savings', 'transfer', 'posted', 100_000, 'COP', 'card', 'savings', None, None, '2026-07-12', utc, utc),
@@ -174,7 +174,7 @@ assert connection.execute("SELECT count(*) FROM transactions WHERE status = 'voi
 
 try:
     connection.execute(
-        'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
         ('same-account', 'transfer', 'posted', 1, 'COP', 'checking', 'checking', None, None, '2026-07-12', utc, utc),
     )
     raise AssertionError('database accepted a same-account transfer')
@@ -218,7 +218,7 @@ query_database.executemany('INSERT INTO accounts (id,name,type,currency,opening_
 query_database.executemany('INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)', filter_categories)
 tie_time = '2026-07-10T10:00:00.000Z'
 query_database.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('tx-note', 'expense', 'posted', 10_000, 'COP', 'checking-filter', None, 'food-filter', 'GROCERIES', '2026-07-13', '2026-07-13T12:00:00.000Z', utc),
         ('tx-income', 'income', 'posted', 20_000, 'COP', 'savings-filter', None, 'salary-filter', None, '2026-07-12', '2026-07-12T13:00:00.000Z', utc),
@@ -432,8 +432,8 @@ tree_database.executemany(
     ],
 )
 tree_database.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at)'
-    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at,base_currency_code)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('tree-mercado', 'expense', 'posted', 90_000, 'COP', 'tree-checking', None, 'hogar', 'mercado', None, None, '2026-07-14', '2026-07-14T09:00:00.000Z', utc),
         ('tree-hogar', 'expense', 'posted', 30_000, 'COP', 'tree-checking', None, 'hogar', None, None, None, '2026-07-14', '2026-07-14T10:00:00.000Z', utc),

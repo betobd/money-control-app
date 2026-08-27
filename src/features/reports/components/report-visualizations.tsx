@@ -7,7 +7,7 @@ import { DivergingBarChart } from '@/components/charts/diverging-bar-chart';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, budgetSwatches, fonts, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type {
@@ -53,17 +53,17 @@ export function CashFlowChart({ buckets }: { buckets: CashFlowBucket[] }) {
       <View style={styles.readout}>
         <Text style={[styles.readoutLabel, { color: theme.mutedText }]}>{shown.label}</Text>
         <View style={styles.readoutRow}>
-          <ReadoutValue color={theme.income} label="Income" value={formatCop(shown.income)} />
-          <ReadoutValue color={theme.expense} label="Expenses" value={formatCop(shown.expenses)} />
+          <ReadoutValue color={theme.income} label="Income" value={formatBase(shown.income)} />
+          <ReadoutValue color={theme.expense} label="Expenses" value={formatBase(shown.expenses)} />
           <ReadoutValue
             color={shown.net >= 0 ? theme.income : theme.expense}
             label="Net"
-            value={`${shown.net < 0 ? '-' : ''}${formatCop(Math.abs(shown.net))}`}
+            value={`${shown.net < 0 ? '-' : ''}${formatBase(Math.abs(shown.net))}`}
           />
         </View>
       </View>
       <DivergingBarChart
-        accessibilityLabel={`Cash flow chart. Total income ${formatCop(totals.income)}. Total expenses ${formatCop(totals.expenses)}.`}
+        accessibilityLabel={`Cash flow chart. Total income ${formatBase(totals.income)}. Total expenses ${formatBase(totals.expenses)}.`}
         buckets={buckets.map((bucket) => ({
           key: bucket.key,
           label: bucket.label,
@@ -130,16 +130,16 @@ export function CategoryDonut({ categories }: { categories: CategoryExpenseSumma
   return (
     <View style={styles.donutBlock}>
       <DonutChart
-        accessibilityLabel={`Expenses by category. Total ${formatCop(total)}.`}
+        accessibilityLabel={`Expenses by category. Total ${formatBase(total)}.`}
         centerLabel={selected ? selected.label : 'Total expenses'}
-        centerValue={formatCop(selected ? selected.value : total)}
+        centerValue={formatBase(selected ? selected.value : total)}
         selectedKey={selectedKey}
         slices={slices}
       />
       <View style={styles.legend}>
         {slices.map((slice) => (
           <PressableScale
-            accessibilityLabel={`${slice.label}, ${formatCop(slice.value)}`}
+            accessibilityLabel={`${slice.label}, ${formatBase(slice.value)}`}
             accessibilityRole="button"
             accessibilityState={{ selected: slice.key === selectedKey }}
             key={slice.key}
@@ -181,7 +181,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
             <View style={styles.categoryContent}>
               <View style={styles.categoryHeader}>
                 <Text style={[styles.categoryName, { color: theme.primaryText }]}>{category.categoryName}</Text>
-                <Text style={[styles.categoryAmount, { color: theme.primaryText }]}>{formatCop(category.total)}</Text>
+                <Text style={[styles.categoryAmount, { color: theme.primaryText }]}>{formatBase(category.total)}</Text>
               </View>
               <View style={[styles.track, { backgroundColor: theme.progressTrack }]}>
                 <View style={[styles.fill, { backgroundColor: theme.expense, width: percentageWidth(category.total, maximum) }]} />
@@ -209,7 +209,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
             {breakdown.length > 0 ? (
               <PressableScale
                 accessibilityHint={isOpen ? 'Hides the subcategory breakdown' : 'Shows the subcategory breakdown'}
-                accessibilityLabel={`${category.categoryName}, ${formatCop(category.total)}`}
+                accessibilityLabel={`${category.categoryName}, ${formatBase(category.total)}`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isOpen }}
                 onPress={() => toggle(category.categoryId)}
@@ -238,7 +238,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
                         {subcategory.name}
                       </Text>
                       <Text style={[styles.breakdownAmount, { color: theme.secondaryText }]}>
-                        {formatCop(subcategory.total)}
+                        {formatBase(subcategory.total)}
                       </Text>
                     </View>
                     <View style={[styles.breakdownTrack, { backgroundColor: theme.progressTrack }]}>
@@ -288,7 +288,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
       <View style={styles.netWorthHeader}>
         <View>
           <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>Ending net worth</Text>
-          <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatCop(end)}</Text>
+          <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatBase(end)}</Text>
         </View>
         <View style={[styles.deltaChip, { backgroundColor: theme.elevatedSurface }]}>
           <SymbolView
@@ -299,12 +299,12 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
             tintColor={changeColor}
           />
           <Text style={[styles.deltaText, { color: changeColor }]}>
-            {change < 0 ? '-' : '+'}{formatCop(Math.abs(change))}
+            {change < 0 ? '-' : '+'}{formatBase(Math.abs(change))}
           </Text>
         </View>
       </View>
       <AreaLineChart
-        accessibilityLabel={`Net worth evolution. Starts at ${formatCop(start)}, ends at ${formatCop(end)}.`}
+        accessibilityLabel={`Net worth evolution. Starts at ${formatBase(start)}, ends at ${formatBase(end)}.`}
         endLabel={points[points.length - 1].label}
         series={[{ key: 'net-worth', values, color: theme.primaryAction, fill: true }]}
         startLabel={points[0].label}
@@ -333,7 +333,7 @@ export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
           const isBusiest = busiest !== null && entry.average === busiest.average && busiest.average > 0;
           return (
             <View
-              accessibilityLabel={`${entry.label}, average ${formatCop(entry.average)} across ${entry.dayCount} days`}
+              accessibilityLabel={`${entry.label}, average ${formatBase(entry.average)} across ${entry.dayCount} days`}
               key={entry.weekday}
               style={styles.weekdayColumn}>
               <View style={styles.weekdayBarArea}>
@@ -356,7 +356,7 @@ export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
       </View>
       {busiest && busiest.average > 0 ? (
         <Text style={[styles.hint, { color: theme.secondaryText }]}>
-          {busiest.label} is your heaviest day — {formatCop(busiest.average)} on average.
+          {busiest.label} is your heaviest day — {formatBase(busiest.average)} on average.
         </Text>
       ) : (
         <Text style={[styles.hint, { color: theme.secondaryText }]}>No expenses to compare across weekdays.</Text>
@@ -381,18 +381,18 @@ export function PaceChart({ pace, previousLabel }: { pace: PacePoint[]; previous
       <View style={styles.netWorthHeader}>
         <View>
           <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>Spent so far</Text>
-          <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatCop(spentSoFar)}</Text>
+          <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatBase(spentSoFar)}</Text>
         </View>
         {previous.length > 0 ? (
           <View style={[styles.deltaChip, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.deltaText, { color: toneColor }]}>
-              {ahead ? '+' : '-'}{formatCop(Math.abs(difference))} vs last
+              {ahead ? '+' : '-'}{formatBase(Math.abs(difference))} vs last
             </Text>
           </View>
         ) : null}
       </View>
       <AreaLineChart
-        accessibilityLabel={`Cumulative spending. ${formatCop(spentSoFar)} so far, against ${formatCop(previousAtSamePoint)} at the same point of ${previousLabel}.`}
+        accessibilityLabel={`Cumulative spending. ${formatBase(spentSoFar)} so far, against ${formatBase(previousAtSamePoint)} at the same point of ${previousLabel}.`}
         endLabel={pace[pace.length - 1]?.label}
         series={[
           ...(previous.length > 0
@@ -441,7 +441,7 @@ export function BudgetPerformanceList({ budgets, monthCount }: { budgets: Budget
             : theme.progressFill;
         return (
           <View
-            accessibilityLabel={`${budget.categoryName}, ${formatCop(budget.spent)} spent of ${formatCop(budget.limit)}, ${budget.percentageUsed}% used`}
+            accessibilityLabel={`${budget.categoryName}, ${formatBase(budget.spent)} spent of ${formatBase(budget.limit)}, ${budget.percentageUsed}% used`}
             key={budget.categoryId}
             style={styles.budgetRow}>
             <View style={styles.budgetHeader}>
@@ -454,10 +454,10 @@ export function BudgetPerformanceList({ budgets, monthCount }: { budgets: Budget
               <View style={[styles.fill, { backgroundColor: color, width: percentageWidth(Math.min(budget.spent, budget.limit), budget.limit) }]} />
             </View>
             <Text style={[styles.categoryMeta, { color: theme.secondaryText }]}>
-              {formatCop(budget.spent)} of {formatCop(budget.limit)} ·{' '}
+              {formatBase(budget.spent)} of {formatBase(budget.limit)} ·{' '}
               {budget.remaining >= 0
-                ? `${formatCop(budget.remaining)} remaining`
-                : `${formatCop(Math.abs(budget.remaining))} over`}
+                ? `${formatBase(budget.remaining)} remaining`
+                : `${formatBase(Math.abs(budget.remaining))} over`}
             </Text>
           </View>
         );

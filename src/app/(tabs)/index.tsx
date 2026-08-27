@@ -1,3 +1,4 @@
+import { getCurrency } from '@/features/currency/currency';
 import { SymbolView } from 'expo-symbols';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -15,7 +16,7 @@ import { FinancialSummaryCard } from '@/features/home/components/financial-summa
 import { SectionHeader } from '@/features/home/components/section-header';
 import { TransactionListItem } from '@/features/home/components/transaction-list-item';
 import { useHomeDashboard } from '@/features/home/use-home-dashboard';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import {
   signedTransactionAmount,
@@ -87,10 +88,10 @@ export default function HomeScreen() {
   const net = dashboard.summary.net;
   const netUp = net >= 0;
   const netColor = netUp ? theme.income : theme.expense;
-  const netLabel = `${netUp ? '+' : '-'}${formatCop(Math.abs(net))}`;
+  const netLabel = `${netUp ? '+' : '-'}${formatBase(Math.abs(net))}`;
 
   const investments = dashboard.investments;
-  const investmentGain = investments.estimatedGainLossCopMinor;
+  const investmentGain = investments.estimatedGainLossBaseMinor;
   const investmentGainColor = investmentGain === null || investmentGain === 0 ? theme.mutedText : investmentGain > 0 ? theme.income : theme.expense;
   const latestValuationDate = investments.accounts.reduce<string | undefined>((latest, view) => {
     const date = view.latestValuation?.valuationDate;
@@ -132,20 +133,20 @@ export default function HomeScreen() {
 
       <Card
         accessibilityLabel={
-          dashboard.netWorth.totalCopMinor === null
-            ? 'Estimated net worth is incomplete because no USD/COP exchange rate is available'
-            : `${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} ${formatCop(dashboard.netWorth.totalCopMinor)} Colombian pesos`
+          dashboard.netWorth.totalBaseMinor === null
+            ? `Estimated net worth is incomplete because no exchange rate is available for ${dashboard.netWorth.missingCurrencies.join(', ')}`
+            : `${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} ${formatBase(dashboard.netWorth.totalBaseMinor)} ${getCurrency(dashboard.netWorth.baseCurrency).name}`
         }
         style={styles.hero}
         variant="hero">
         <Overline color={theme.mutedText}>
           {dashboard.netWorth.includesForeign ? 'Estimated net worth · COP' : 'Total balance · COP'}
         </Overline>
-        {dashboard.netWorth.totalCopMinor === null ? (
+        {dashboard.netWorth.totalBaseMinor === null ? (
           <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.warning }]}>Estimated — incomplete</Text>
         ) : (
           <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.primaryText }]}>
-            {formatCop(dashboard.netWorth.totalCopMinor)}
+            {formatBase(dashboard.netWorth.totalBaseMinor)}
           </Text>
         )}
         <View style={styles.trendRow}>
@@ -160,16 +161,16 @@ export default function HomeScreen() {
       </Card>
 
       <FinancialSummaryCard
-        expenses={`${dashboard.summary.netExpenses < 0 ? '+' : '-'}${formatCop(Math.abs(dashboard.summary.netExpenses))}`}
-        income={`+${formatCop(dashboard.summary.income)}`}
-        refunds={dashboard.summary.refunds > 0 ? `+${formatCop(dashboard.summary.refunds)}` : undefined}
-        netBalance={`${net < 0 ? '-' : '+'}${formatCop(Math.abs(net))}`}
+        expenses={`${dashboard.summary.netExpenses < 0 ? '+' : '-'}${formatBase(Math.abs(dashboard.summary.netExpenses))}`}
+        income={`+${formatBase(dashboard.summary.income)}`}
+        refunds={dashboard.summary.refunds > 0 ? `+${formatBase(dashboard.summary.refunds)}` : undefined}
+        netBalance={`${net < 0 ? '-' : '+'}${formatBase(Math.abs(net))}`}
       />
 
       {investments.investmentAccountCount > 0 ? (
         <PressableScale
           accessibilityHint="Open the investments screen"
-          accessibilityLabel={`Investments, current value ${investments.totalCurrentValueCopMinor === null ? 'estimated, incomplete' : `${formatCop(investments.totalCurrentValueCopMinor)} Colombian pesos`}`}
+          accessibilityLabel={`Investments, current value ${investments.totalCurrentValueBaseMinor === null ? 'estimated, incomplete' : `${formatBase(investments.totalCurrentValueBaseMinor)} ${getCurrency(investments.baseCurrency).name}`}`}
           accessibilityRole="button"
           activeScale={0.985}
           onPress={() => router.push('/investments')}>
@@ -181,17 +182,17 @@ export default function HomeScreen() {
                 <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />
               </View>
             </View>
-            {investments.totalCurrentValueCopMinor === null ? (
+            {investments.totalCurrentValueBaseMinor === null ? (
               <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.warning }]}>Estimated — incomplete</Text>
             ) : (
               <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.primaryText }]}>
-                {formatCop(investments.totalCurrentValueCopMinor)}
+                {formatBase(investments.totalCurrentValueBaseMinor)}
               </Text>
             )}
             <Text style={[styles.investmentMeta, { color: investmentGainColor }]}>
               {investmentGain === null
                 ? 'Estimated gain/loss unavailable'
-                : `${investmentGain > 0 ? '+' : investmentGain < 0 ? '-' : ''}${formatCop(Math.abs(investmentGain))} estimated gain/loss`}
+                : `${investmentGain > 0 ? '+' : investmentGain < 0 ? '-' : ''}${formatBase(Math.abs(investmentGain))} estimated gain/loss`}
               {latestValuationDate ? ` · as of ${formatTransactionDate(latestValuationDate)}` : ''}
             </Text>
           </Card>

@@ -7,15 +7,18 @@ import {
   withInvestmentCurrentValues,
 } from '../src/features/investments/investment-portfolio.service.ts';
 
+import { noRates, usdCopRates } from './support/valuation-rates.mjs';
+
+
 // estimateNetWorth only reads its arguments, so a stub repository is fine.
 const accountService = new AccountService({}, { createId: () => 'x' });
-const RATE = (whole) => ({ rateScaled: whole * 10_000, rateScale: 10_000 });
+const RATE = (whole) => usdCopRates(whole * 10_000, 10_000);
 
 function account(id, { type, currency = 'COP', balance }) {
   return { id, name: id, type, currency, openingBalance: 0, creditLimit: null, statementClosingDay: null, paymentDueDay: null, isArchived: false, archivedAt: null, createdAt: 'x', updatedAt: 'x', balance };
 }
 
-function investmentView(id, { currency = 'COP', netContributionsMinor, latest = null, liquidity = 'liquid' }) {
+function investmentView(id, { currency = 'COP', netContributionsMinor, latest = null, liquidity = 'liquid', rates = noRates() }) {
   const acc = account(id, { type: 'investment', currency, balance: netContributionsMinor });
   const metadata = { accountId: id, investmentType: 'brokerage', trackingMode: 'balance', liquidity, providerName: null, startDate: null, maturityDate: null, note: null, createdAt: 'x', updatedAt: 'x' };
   return buildInvestmentAccountView({
@@ -24,7 +27,7 @@ function investmentView(id, { currency = 'COP', netContributionsMinor, latest = 
     latestValuation: latest,
     totalContributionsMinor: netContributionsMinor,
     totalWithdrawalsMinor: 0,
-    rate: null,
+    rates,
   });
 }
 
@@ -32,8 +35,8 @@ function valuation(id, valueMinor, basisMinor) {
   return { id: `v-${id}`, investmentAccountId: id, valueMinor, basisMinor, currencyCode: 'COP', valuationDate: '2026-03-31', note: null, createdAt: 'x', updatedAt: 'x' };
 }
 
-function netWorth(accounts, views, rate = null) {
-  return accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, views), rate).totalCopMinor;
+function netWorth(accounts, views, rates = noRates()) {
+  return accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, views), rates).totalBaseMinor;
 }
 
 test('a contribution from a bank account leaves net worth unchanged', () => {

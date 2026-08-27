@@ -99,7 +99,7 @@ transactions = [
     ('archived-expense', 'expense', 'posted', 200_000, 'COP', 'archived', None, 'old-utilities', None, '2026-07-05', utc, utc),
     ('recurring-income', 'income', 'posted', 50_000, 'COP', 'checking', None, 'salary', None, '2026-07-06', utc, utc),
 ]
-connection.executemany('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', transactions)
+connection.executemany('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)', transactions)
 
 # Pending/skipped occurrences contain money snapshots but have no financial effect.
 rule = (
@@ -239,8 +239,8 @@ report_tree.executemany(
     ],
 )
 report_tree.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at)'
-    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,subcategory_id,original_transaction_id,note,transaction_date,created_at,updated_at,base_currency_code)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('rt-mercado', 'expense', 'posted', 200_000, 'COP', 'rt-checking', None, 'hogar', 'mercado', None, None, '2026-07-02', utc, utc),
         ('rt-servicios', 'expense', 'posted', 120_000, 'COP', 'rt-checking', None, 'hogar', 'servicios', None, None, '2026-07-03', utc, utc),

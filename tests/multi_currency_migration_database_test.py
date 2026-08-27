@@ -159,8 +159,12 @@ def test_populated_migration_preserves_everything():
 
 
 def test_usd_allowed_and_eur_rejected_after_migration():
+    # Stops at 0009 on purpose. This asserts what *0009* established, and 0009
+    # allowed exactly COP and USD. Migration 0014 later opens the check to any
+    # ISO-4217 code, which its own suite covers; running the whole chain here
+    # would quietly turn this into a test of the newest schema instead.
     con = new_con()
-    apply(con, MIGRATIONS)
+    apply(con, PRE + [V0009])
     con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('salary', 'Salary', 'income', None, 0, None, UTC, UTC))
     # USD account now allowed.
     con.execute(
@@ -198,7 +202,10 @@ def test_usd_allowed_and_eur_rejected_after_migration():
 
 def test_cross_currency_transfer_shape():
     con = new_con()
-    apply(con, MIGRATIONS)
+    # Pinned to this migration rather than the whole chain: this suite asserts what
+    # *this* migration establishes, and later migrations deliberately relax some of
+    # it. Running everything here would silently retarget the assertions at HEAD.
+    apply(con, PRE + [V0009])
     con.executemany(
         'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,statement_closing_day,payment_due_day,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
         [
@@ -229,7 +236,10 @@ def test_cross_currency_transfer_shape():
 
 def test_reports_and_budgets_use_cop_base_snapshot():
     con = new_con()
-    apply(con, MIGRATIONS)
+    # Pinned to this migration rather than the whole chain: this suite asserts what
+    # *this* migration establishes, and later migrations deliberately relax some of
+    # it. Running everything here would silently retarget the assertions at HEAD.
+    apply(con, PRE + [V0009])
     con.execute("INSERT INTO categories (id,name,type,icon,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ('food', 'Food', 'expense', None, 0, None, UTC, UTC))
     con.execute(
         'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,statement_closing_day,payment_due_day,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',

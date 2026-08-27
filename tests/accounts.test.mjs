@@ -3,12 +3,15 @@ import test from 'node:test';
 
 import { AccountActionError, AccountService, AccountValidationError } from '../src/features/accounts/account.service.ts';
 
+import { noRates, usdCopRates } from './support/valuation-rates.mjs';
+
+
 const NOW = '2026-07-12T12:00:00.000Z';
 const validInput = { name: 'Main Checking', type: 'checking', currency: 'COP', openingBalance: 100000, creditLimit: null, statementClosingDay: null, paymentDueDay: null };
 
 // COP-only net worth: estimateNetWorth with no rate; fixtures default to COP.
 const copNetWorth = (service, accounts) =>
-  service.estimateNetWorth(accounts.map((account) => ({ currency: 'COP', ...account })), null).totalCopMinor;
+  service.estimateNetWorth(accounts.map((account) => ({ currency: 'COP', ...account })), noRates()).totalBaseMinor;
 const validCardInput = { ...validInput, name: 'Visa', type: 'credit_card', creditLimit: 2_000_000, statementClosingDay: 15, paymentDueDay: 5 };
 
 class MemoryAccountRepository {
@@ -283,7 +286,7 @@ test('credit-card payment transfer preserves net worth with equal and opposite e
   assert.equal(copNetWorth(service, after), 1950000);
 });
 
-const USD_COP = { rateScaled: 41000000, rateScale: 10000 }; // 4100 COP/USD
+const USD_COP = usdCopRates(41000000, 10000); // 1 USD = 4,100 COP
 
 test('estimateNetWorth converts USD balances at the valuation rate and marks it estimated', () => {
   const { service } = setup();
@@ -292,7 +295,7 @@ test('estimateNetWorth converts USD balances at the valuation rate and marks it 
     { balance: 100000, isArchived: false, type: 'savings', currency: 'USD' }, // USD 1,000.00
   ];
   const result = service.estimateNetWorth(accounts, USD_COP);
-  assert.equal(result.totalCopMinor, 3000000 + 4100000);
+  assert.equal(result.totalBaseMinor, 3000000 + 4100000);
   assert.equal(result.includesForeign, true);
   assert.equal(result.incomplete, false);
 });
@@ -303,8 +306,8 @@ test('estimateNetWorth excludes USD and reports incomplete when no rate exists',
     { balance: 3000000, isArchived: false, type: 'checking', currency: 'COP' },
     { balance: 100000, isArchived: false, type: 'savings', currency: 'USD' },
   ];
-  const result = service.estimateNetWorth(accounts, null);
-  assert.equal(result.totalCopMinor, null);
+  const result = service.estimateNetWorth(accounts, noRates());
+  assert.equal(result.totalBaseMinor, null);
   assert.equal(result.incomplete, true);
   assert.equal(result.includesForeign, true);
 });
@@ -313,7 +316,7 @@ test('estimateNetWorth converts negative USD card debt at the rate', () => {
   const { service } = setup();
   const accounts = [{ balance: -50000, isArchived: false, type: 'credit_card', currency: 'USD' }]; // USD -500.00
   const result = service.estimateNetWorth(accounts, USD_COP);
-  assert.equal(result.totalCopMinor, -2050000);
+  assert.equal(result.totalBaseMinor, -2050000);
 });
 
 test('currency may be changed before the account has financial history', async () => {

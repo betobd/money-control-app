@@ -32,7 +32,7 @@ transactions = [
     ('income-voided', 'income', 'voided', 900000, 'COP', 'active', None, 'income', None, '2026-07-12', utc, utc),
     ('transfer', 'transfer', 'posted', 20000, 'COP', 'active', 'archived', None, None, '2026-07-12', utc, utc),
 ]
-connection.executemany('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', transactions)
+connection.executemany('INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)', transactions)
 
 balance_sql = '''
 SELECT a.id, a.opening_balance + COALESCE(SUM(

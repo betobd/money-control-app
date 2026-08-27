@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import { formatEstimatedReturn } from '@/features/investments/investment-format';
 import { useInvestments } from '@/features/investments/use-investments';
 import { formatReportDate } from '../report-period';
@@ -116,9 +116,9 @@ export function ReportsScreen() {
             <PeriodHeadline comparison={data.comparison} summary={data.summary} />
             <CollapsibleDetails>
               <View style={styles.summaryGrid}>
-                <SummaryMetric label="Gross expenses" tone="expense" value={formatCop(data.summary.grossExpenses)} />
-                <SummaryMetric label="Refunds" tone="refund" value={formatCop(data.summary.refunds)} />
-                <SummaryMetric label="Average expense" value={formatCop(data.summary.averageExpense)} />
+                <SummaryMetric label="Gross expenses" tone="expense" value={formatBase(data.summary.grossExpenses)} />
+                <SummaryMetric label="Refunds" tone="refund" value={formatBase(data.summary.refunds)} />
+                <SummaryMetric label="Average expense" value={formatBase(data.summary.averageExpense)} />
                 <SummaryMetric label="Expense transactions" value={String(data.summary.expenseCount)} />
                 <SummaryMetric label="Income transactions" value={String(data.summary.incomeCount)} />
                 <SummaryMetric label="Refund transactions" value={String(data.summary.refundCount)} />
@@ -129,7 +129,7 @@ export function ReportsScreen() {
               {data.summary.largestExpense ? (
                 <>
                   <Text style={[styles.largestAmount, { color: theme.expense }]}>
-                    {formatCop(data.summary.largestExpense.amount)}
+                    {formatBase(data.summary.largestExpense.amount)}
                   </Text>
                   <Text style={[styles.largestMeta, { color: theme.secondaryText }]}>
                     {data.summary.largestExpense.categoryName} · {data.summary.largestExpense.accountName} ·{' '}
@@ -199,19 +199,19 @@ export function ReportsScreen() {
               <View style={styles.summaryGrid}>
                 <SummaryMetric
                   label="Current value"
-                  value={portfolio.totalCurrentValueCopMinor === null ? 'Estimated — incomplete' : formatCop(portfolio.totalCurrentValueCopMinor)}
+                  value={portfolio.totalCurrentValueBaseMinor === null ? 'Estimated — incomplete' : formatBase(portfolio.totalCurrentValueBaseMinor)}
                 />
                 <SummaryMetric
                   label="Net contributions"
-                  value={portfolio.netContributionsCopMinor === null ? '—' : formatCop(portfolio.netContributionsCopMinor)}
+                  value={portfolio.netContributionsBaseMinor === null ? '—' : formatBase(portfolio.netContributionsBaseMinor)}
                 />
                 <SummaryMetric
                   label="Estimated gain/loss"
-                  tone={portfolio.estimatedGainLossCopMinor === null ? undefined : portfolio.estimatedGainLossCopMinor >= 0 ? 'income' : 'expense'}
-                  value={portfolio.estimatedGainLossCopMinor === null ? '—' : formatCop(portfolio.estimatedGainLossCopMinor)}
+                  tone={portfolio.estimatedGainLossBaseMinor === null ? undefined : portfolio.estimatedGainLossBaseMinor >= 0 ? 'income' : 'expense'}
+                  value={portfolio.estimatedGainLossBaseMinor === null ? '—' : formatBase(portfolio.estimatedGainLossBaseMinor)}
                 />
                 <SummaryMetric label="Simple estimated return" value={formatEstimatedReturn(portfolio.estimatedReturn)} />
-                <SummaryMetric label="Investment income (period)" tone="income" value={formatCop(data.investments.incomeCopMinor)} />
+                <SummaryMetric label="Investment income (period)" tone="income" value={formatBase(data.investments.incomeBaseMinor)} />
                 <SummaryMetric label="Income transactions" value={String(data.investments.incomeCount)} />
               </View>
             </ReportSection>
@@ -297,7 +297,7 @@ function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; compa
         <View style={styles.headlineMain}>
           <Text style={[styles.headlineLabel, { color: theme.mutedText }]}>Net result</Text>
           <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.headlineValue, { color: netColor }]}>
-            {positive ? '+' : '-'}{formatCop(Math.abs(summary.net))}
+            {positive ? '+' : '-'}{formatBase(Math.abs(summary.net))}
           </Text>
         </View>
         <DeltaChip metric={comparison.net} />
@@ -314,8 +314,8 @@ function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; compa
       )}
 
       <View style={styles.headlineRow}>
-        <SummaryMetric label="Income" tone="income" value={formatCop(summary.income)} />
-        <SummaryMetric label="Net expenses" tone="expense" value={formatCop(summary.expenses)} />
+        <SummaryMetric label="Income" tone="income" value={formatBase(summary.income)} />
+        <SummaryMetric label="Net expenses" tone="expense" value={formatBase(summary.expenses)} />
       </View>
     </View>
   );
@@ -340,7 +340,7 @@ function DeltaChip({ metric }: { metric: ComparisonMetric }) {
       <SymbolView name={arrow} size={13} tintColor={toneColor} />
       <Text style={[styles.deltaChipText, { color: toneColor }]}>
         {metric.percentageChangeBasisPoints === null
-          ? formatCop(Math.abs(metric.difference))
+          ? formatBase(Math.abs(metric.difference))
           : formatPercentage(Math.abs(metric.percentageChangeBasisPoints))}
       </Text>
     </View>
@@ -415,8 +415,8 @@ function ComparisonRow({
     : metric.tone === 'negative'
       ? theme.expense
       : theme.secondaryText;
-  const currentValue = count ? String(metric.current) : formatCop(metric.current);
-  const differenceValue = count ? String(Math.abs(metric.difference)) : formatCop(Math.abs(metric.difference));
+  const currentValue = count ? String(metric.current) : formatBase(metric.current);
+  const differenceValue = count ? String(Math.abs(metric.difference)) : formatBase(Math.abs(metric.difference));
   let change = 'No change';
   if (!metric.hasPreviousData) {
     change = 'No previous-period data';

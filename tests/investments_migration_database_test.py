@@ -19,7 +19,9 @@ from pathlib import Path
 
 MIGRATION_DIR = Path(__file__).parents[1] / 'src' / 'database' / 'migrations'
 MIGRATIONS = sorted(MIGRATION_DIR.glob('*.sql'))
-PRE = [m for m in MIGRATIONS if m.name != '0012_investments_v1.sql']
+# Selecting by "before 0012" rather than "all except 0012" keeps later
+# migrations, which build on 0012's tables, from being applied ahead of it.
+PRE = [m for m in MIGRATIONS if m.name < '0012']
 V0012 = MIGRATION_DIR / '0012_investments_v1.sql'
 UTC = '2026-07-12T12:00:00.000Z'
 
@@ -147,7 +149,10 @@ def test_populated_migration_preserves_everything():
 
 def test_investment_account_and_valuation_insertable():
     con = new_con()
-    apply(con, MIGRATIONS)
+    # Pinned to this migration rather than the whole chain: this suite asserts what
+    # *this* migration establishes, and later migrations deliberately relax some of
+    # it. Running everything here would silently retarget the assertions at HEAD.
+    apply(con, PRE + [V0012])
     # A COP CDT and a USD brokerage are now valid accounts.
     con.executemany(
         'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,statement_closing_day,payment_due_day,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -189,7 +194,10 @@ def _rejects(con, sql, params, label):
 
 def test_investment_constraints_enforced():
     con = new_con()
-    apply(con, MIGRATIONS)
+    # Pinned to this migration rather than the whole chain: this suite asserts what
+    # *this* migration establishes, and later migrations deliberately relax some of
+    # it. Running everything here would silently retarget the assertions at HEAD.
+    apply(con, PRE + [V0012])
     con.execute(
         'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,statement_closing_day,payment_due_day,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
         ('inv', 'Fondo', 'investment', 'COP', 0, None, None, None, 0, None, UTC, UTC),
@@ -227,7 +235,10 @@ def test_investment_constraints_enforced():
 
 def test_unknown_account_type_still_rejected():
     con = new_con()
-    apply(con, MIGRATIONS)
+    # Pinned to this migration rather than the whole chain: this suite asserts what
+    # *this* migration establishes, and later migrations deliberately relax some of
+    # it. Running everything here would silently retarget the assertions at HEAD.
+    apply(con, PRE + [V0012])
     _rejects(
         con,
         'INSERT INTO accounts (id,name,type,currency,opening_balance,credit_limit,statement_closing_day,payment_due_day,is_archived,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',

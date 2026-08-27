@@ -65,8 +65,8 @@ export type TransactionExportRow = {
   type: 'expense' | 'income' | 'transfer' | 'refund';
   status: 'posted' | 'voided';
   currencyCode: string;
-  amountCop: number;
-  baseCurrencyAmountCop: number | null;
+  amountBaseMinor: number;
+  baseCurrencyAmountMinor: number | null;
   exchangeRate: number | null;
   exchangeRateDate: string | null;
   exchangeRateSource: string | null;
@@ -78,7 +78,7 @@ export type TransactionExportRow = {
   subcategoryName: string | null;
   originalTransactionId: string | null;
   originalTransactionDate: string | null;
-  originalTransactionAmountCop: number | null;
+  originalTransactionAmountMinor: number | null;
   originalTransactionNote: string | null;
   sourceAccountId: string;
   sourceAccountName: string;

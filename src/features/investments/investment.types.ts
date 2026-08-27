@@ -104,23 +104,25 @@ export type InvestmentAccountView = {
   currentValueMinor: number;
   estimatedGainLossMinor: number;
   estimatedReturn: EstimatedReturn;
-  /** Consolidated COP, or null when USD and no valuation rate is available. */
-  estimatedValueCopMinor: number | null;
+  /** Base-currency value, or null when the account's currency has no rate. */
+  estimatedValueBaseMinor: number | null;
 };
 
-export type InvestmentAllocationSlice = { key: string; valueCopMinor: number };
+export type InvestmentAllocationSlice = { key: string; valueBaseMinor: number };
 
-/** Consolidated portfolio read model, COP-based. */
+/** Consolidated portfolio read model, in the device's base currency. */
 export type InvestmentPortfolioSummary = {
   accounts: InvestmentAccountView[];
   investmentAccountCount: number;
-  /** Consolidated COP totals; null when USD accounts exist but no rate is available. */
-  totalCurrentValueCopMinor: number | null;
-  netContributionsCopMinor: number | null;
-  estimatedGainLossCopMinor: number | null;
+  /** Which currency the consolidated totals are in. */
+  baseCurrency: CurrencyCode;
+  /** Consolidated totals; null when a held currency has no valuation rate. */
+  totalCurrentValueBaseMinor: number | null;
+  netContributionsBaseMinor: number | null;
+  estimatedGainLossBaseMinor: number | null;
   estimatedReturn: EstimatedReturn;
-  lockedOrRestrictedValueCopMinor: number | null;
-  /** True when USD accounts exist but no valuation rate is available. */
+  lockedOrRestrictedValueBaseMinor: number | null;
+  /** True when a held currency has no valuation rate. */
   incomplete: boolean;
   allocationByType: InvestmentAllocationSlice[];
   allocationByCurrency: InvestmentAllocationSlice[];

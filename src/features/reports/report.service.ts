@@ -4,7 +4,8 @@ import {
   previousEquivalentPeriod,
   resolveReportPeriod,
 } from './report-period';
-import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
+import type { CurrencyCode } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import { calculateBasisPoints, roundedIntegerDivision, safeInteger } from './report-math';
 import { cumulativePace, foldCategoryExpenses, savingsRateBasisPoints, weekdaySpending } from './report-insights';
 import type { ReportRepository } from './report.repository';
@@ -28,7 +29,7 @@ import type {
 // after the integer helpers moved into report-math.
 export { calculateBasisPoints } from './report-math';
 
-type InvestmentSeriesByAccount = Map<string, { currency: 'COP' | 'USD'; points: { date: string; unrealized: number }[] }>;
+type InvestmentSeriesByAccount = Map<string, { currency: CurrencyCode; points: { date: string; unrealized: number }[] }>;
 
 export function groupInvestmentSeries(rows: InvestmentValuationSeriesRow[]): InvestmentSeriesByAccount {
   const series: InvestmentSeriesByAccount = new Map();
@@ -43,13 +44,14 @@ export function groupInvestmentSeries(rows: InvestmentValuationSeriesRow[]): Inv
 
 /**
  * Total unrealized investment adjustment (Σ value − basis of the latest valuation
- * on or before `date`, per account) in COP. USD is converted at the valuation rate;
- * with no rate USD contributes 0, matching the base net-worth timeline (Option A).
+ * on or before `date`, per account) in the base currency. A foreign currency is
+ * converted at its saved valuation rate; with no rate it contributes 0, matching
+ * the base net-worth timeline (Option A).
  */
 export function investmentAdjustmentAsOf(
   series: InvestmentSeriesByAccount,
   date: string,
-  rate: ScaledRate | null,
+  rates: ValuationRates,
 ): number {
   let total = 0;
   for (const entry of series.values()) {
@@ -59,8 +61,7 @@ export function investmentAdjustmentAsOf(
       else break;
     }
     if (unrealized === 0) continue;
-    if (entry.currency === 'COP') total += unrealized;
-    else if (rate) total += convertUsdMinorToCopMinor(unrealized, rate);
+    total += rates.toBase(unrealized, entry.currency) ?? 0;
   }
   return safeInteger(total, 'Investment valuation adjustment');
 }
@@ -144,7 +145,7 @@ export function buildComparisonMetric(
 export class ReportService {
   constructor(
     private readonly repository: ReportRepository,
-    private readonly resolveValuationRate: () => Promise<ScaledRate | null> = async () => null,
+    private readonly resolveValuationRates: () => Promise<ValuationRates>,
   ) {}
 
   async load(
@@ -153,7 +154,7 @@ export class ReportService {
   ): Promise<ReportData> {
     const period = resolveReportPeriod(selection, today);
     const previousPeriod = previousEquivalentPeriod(period);
-    const valuationRate = await this.resolveValuationRate();
+    const rates = await this.resolveValuationRates();
     const [
       summaryAggregate,
       previousSummaryAggregate,
@@ -169,7 +170,7 @@ export class ReportService {
       this.repository.cashFlow(period),
       this.repository.cashFlow(previousPeriod),
       this.repository.categoryExpenses(period),
-      this.repository.netWorth(period, period.grouping, valuationRate),
+      this.repository.netWorth(period, period.grouping, rates),
       this.repository.investmentValuationSeries(),
       this.repository.investmentIncome(period),
     ]);
@@ -186,7 +187,7 @@ export class ReportService {
       rawNetWorth.startingNetWorth,
       rawNetWorth.changes,
       investmentSeries,
-      valuationRate,
+      rates,
     );
     const comparison = this.buildComparison(period, previousPeriod, summary, previousSummary);
 
@@ -200,7 +201,7 @@ export class ReportService {
       categoryExpenses,
       netWorth,
       comparison,
-      investments: { incomeCopMinor: investmentIncome.copMinor, incomeCount: investmentIncome.count },
+      investments: { incomeBaseMinor: investmentIncome.baseMinor, incomeCount: investmentIncome.count },
     };
   }
 
@@ -209,7 +210,7 @@ export class ReportService {
     startingNetWorth: number,
     changes: { key: string; amount: number }[],
     investmentSeries: InvestmentSeriesByAccount,
-    valuationRate: ScaledRate | null,
+    rates: ValuationRates,
   ): NetWorthPoint[] {
     const changeByKey = new Map(changes.map((change) => [change.key, change.amount]));
     // `base` is the ledger net worth (investment accounts at net contributions);
@@ -221,7 +222,7 @@ export class ReportService {
       key: `start-${period.dateFrom}`,
       label: 'Start',
       date: startDate,
-      netWorth: safeInteger(base + investmentAdjustmentAsOf(investmentSeries, startDate, valuationRate), 'Net worth'),
+      netWorth: safeInteger(base + investmentAdjustmentAsOf(investmentSeries, startDate, rates), 'Net worth'),
       isStartingPoint: true,
     }];
     for (const bucket of enumerateReportBuckets(period)) {
@@ -231,7 +232,7 @@ export class ReportService {
         label: bucket.label,
         date: bucket.dateTo,
         netWorth: safeInteger(
-          base + investmentAdjustmentAsOf(investmentSeries, bucket.dateTo, valuationRate),
+          base + investmentAdjustmentAsOf(investmentSeries, bucket.dateTo, rates),
           'Net worth',
         ),
         isStartingPoint: false,

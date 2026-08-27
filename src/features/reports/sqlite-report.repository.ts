@@ -3,7 +3,8 @@ import { and, asc, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from 'dr
 import { database } from '@/database/client';
 import { accounts, categories, investmentValuations, transactions } from '@/database/schema';
 import { alias } from 'drizzle-orm/sqlite-core';
-import { convertUsdMinorToCopMinor, type ScaledRate } from '@/features/currency/currency';
+import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import type { ReportRepository } from './report.repository';
 import type {
   CategoryExpenseAggregate,
@@ -188,19 +189,20 @@ export class SQLiteReportRepository implements ReportRepository {
   async netWorth(
     period: ReportPeriod,
     grouping: ReportGrouping,
-    valuationRate: ScaledRate | null = null,
+    rates: ValuationRates,
   ): Promise<NetWorthAggregate> {
     const key = groupingExpression(grouping);
-    const effectFor = (currency: 'COP' | 'USD') => sql<number>`coalesce(sum(
+    // Grouped by currency rather than pivoted into one column per currency: with a
+    // configurable base there is no fixed pair to pivot on, and the fold below
+    // values whatever currencies actually turn up.
+    const effect = sql<number>`coalesce(sum(
       case
-        when ${transactions.currency} = ${currency} and ${transactions.type} = 'income' then ${transactions.amount}
-        when ${transactions.currency} = ${currency} and ${transactions.type} = 'expense' then -${transactions.amount}
-        when ${transactions.currency} = ${currency} and ${transactions.type} = 'refund' then ${transactions.amount}
+        when ${transactions.type} = 'income' then ${transactions.amount}
+        when ${transactions.type} = 'expense' then -${transactions.amount}
+        when ${transactions.type} = 'refund' then ${transactions.amount}
         else 0
       end
     ), 0)`;
-    const copEffect = effectFor('COP');
-    const usdEffect = effectFor('USD');
     const effectFilter = (extra: SQL) => and(
       eq(transactions.status, 'posted'),
       inArray(transactions.type, ['income', 'expense', 'refund']),
@@ -209,44 +211,57 @@ export class SQLiteReportRepository implements ReportRepository {
     const [openingRows, previousRows, changeRows] = await Promise.all([
       database
         .select({
-          cop: sql<number>`coalesce(sum(case when ${accounts.currency} = 'COP' then ${accounts.openingBalance} else 0 end), 0)`,
-          usd: sql<number>`coalesce(sum(case when ${accounts.currency} = 'USD' then ${accounts.openingBalance} else 0 end), 0)`,
+          currency: accounts.currency,
+          total: sql<number>`coalesce(sum(${accounts.openingBalance}), 0)`,
         })
-        .from(accounts),
+        .from(accounts)
+        .groupBy(accounts.currency),
       database
-        .select({ cop: copEffect, usd: usdEffect })
+        .select({ currency: transactions.currency, total: effect })
         .from(transactions)
-        .where(effectFilter(lt(transactions.transactionDate, period.dateFrom))),
+        .where(effectFilter(lt(transactions.transactionDate, period.dateFrom)))
+        .groupBy(transactions.currency),
       database
-        .select({ key, cop: copEffect, usd: usdEffect })
+        .select({ key, currency: transactions.currency, total: effect })
         .from(transactions)
         .where(effectFilter(and(
           gte(transactions.transactionDate, period.dateFrom),
           lte(transactions.transactionDate, period.dateTo),
         )!))
-        .groupBy(key)
+        .groupBy(key, transactions.currency)
         .orderBy(asc(key)),
     ]);
 
-    const toCop = (usdMinor: number): number =>
-      valuationRate && usdMinor !== 0 ? convertUsdMinorToCopMinor(usdMinor, valuationRate) : 0;
+    // An amount in a currency with no saved rate contributes nothing, matching the
+    // pre-existing behaviour of a missing USD/COP rate. The timeline is labelled
+    // as an estimate; the report header carries the incompleteness.
+    const valued = (rows: { currency: string; total: number }[], label: string): number => {
+      let total = 0;
+      for (const row of rows) {
+        if (!isSupportedCurrency(row.currency)) continue;
+        const amount = safeInteger(row.total, label);
+        if (amount === 0) continue;
+        total += rates.toBase(amount, row.currency) ?? 0;
+      }
+      return safeInteger(total, label);
+    };
 
-    const openingCop = safeInteger(openingRows[0]?.cop ?? 0, 'Opening-balance total');
-    const openingUsd = safeInteger(openingRows[0]?.usd ?? 0, 'Opening USD total');
-    const prevCop = safeInteger(previousRows[0]?.cop ?? 0, 'Previous net-worth effect');
-    const prevUsd = safeInteger(previousRows[0]?.usd ?? 0, 'Previous USD effect');
     const startingNetWorth = safeInteger(
-      openingCop + toCop(openingUsd) + prevCop + toCop(prevUsd),
+      valued(openingRows, 'Opening-balance total') + valued(previousRows, 'Previous net-worth effect'),
       'Starting net worth',
     );
+
+    const byKey = new Map<string, { currency: string; total: number }[]>();
+    for (const row of changeRows) {
+      const bucket = byKey.get(row.key);
+      if (bucket) bucket.push(row);
+      else byKey.set(row.key, [row]);
+    }
     return {
       startingNetWorth,
-      changes: changeRows.map((row) => ({
-        key: row.key,
-        amount: safeInteger(
-          safeInteger(row.cop, 'Net-worth COP change') + toCop(safeInteger(row.usd, 'Net-worth USD change')),
-          'Net-worth change',
-        ),
+      changes: [...byKey.entries()].map(([bucketKey, rows]) => ({
+        key: bucketKey,
+        amount: valued(rows, 'Net-worth change'),
       })),
     };
   }
@@ -263,15 +278,15 @@ export class SQLiteReportRepository implements ReportRepository {
       .innerJoin(accounts, eq(investmentValuations.investmentAccountId, accounts.id))
       .where(eq(accounts.type, 'investment'))
       .orderBy(asc(investmentValuations.investmentAccountId), asc(investmentValuations.valuationDate));
-    return rows.map((row) => ({
+    return rows.flatMap((row) => (isSupportedCurrency(row.currency) ? [{
       accountId: row.accountId,
-      currency: row.currency === 'USD' ? 'USD' : 'COP',
+      currency: row.currency as CurrencyCode,
       valuationDate: row.valuationDate,
       unrealizedNativeMinor: safeInteger(row.unrealized, 'Investment unrealized adjustment'),
-    }));
+    }] : []));
   }
 
-  async investmentIncome(period: ReportPeriod): Promise<{ copMinor: number; count: number }> {
+  async investmentIncome(period: ReportPeriod): Promise<{ baseMinor: number; count: number }> {
     const [row] = await database
       .select({
         total: sql<number>`coalesce(sum(coalesce(${transactions.baseAmountMinor}, ${transactions.amount})), 0)`,
@@ -287,7 +302,7 @@ export class SQLiteReportRepository implements ReportRepository {
         or(eq(accounts.type, 'investment'), eq(transactions.categoryId, INVESTMENT_INCOME_CATEGORY_ID)),
       ));
     return {
-      copMinor: safeInteger(row?.total ?? 0, 'Investment income'),
+      baseMinor: safeInteger(row?.total ?? 0, 'Investment income'),
       count: safeInteger(row?.count ?? 0, 'Investment income count'),
     };
   }

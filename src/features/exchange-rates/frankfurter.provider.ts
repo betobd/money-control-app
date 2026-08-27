@@ -1,16 +1,30 @@
 /**
- * Fetches the USD/COP reference rate from Frankfurter and maps it to the internal
+ * Fetches reference rates from Frankfurter and maps them to the internal
  * scaled-integer model. Network-only: no SQLite access, no React state. Sends only
- * the currency pair — never any account, transaction, or user data. The raw
- * response number is never persisted; it is converted immediately to a scaled
- * integer. Frankfurter provides a reference rate, not a live/guaranteed bank rate.
+ * currency codes — never any account, transaction, or user data. The raw response
+ * number is never persisted; it is converted immediately to a scaled integer.
+ * Frankfurter provides a reference rate, not a live/guaranteed bank rate.
  */
-import { DEFAULT_RATE_SCALE } from '@/features/currency/currency';
+import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
 import type { FetchedExchangeRate } from './exchange-rate.types';
 
 export const FRANKFURTER_BASE_URL = 'https://api.frankfurter.dev';
 export const EXCHANGE_RATE_TIMEOUT_MS = 10_000;
+
+/**
+ * Scale chosen per rate rather than fixed.
+ *
+ * A single fixed scale cannot serve every pair: at four decimals, `1 COP =
+ * 0.00024 USD` keeps two significant digits and rounds a balance into nonsense,
+ * while `1 USD = 4,102.3456 COP` needs no more than four. The scale starts at four
+ * decimals and is raised only while the scaled value would carry fewer than
+ * `MIN_SIGNIFICANT_DIGITS` digits — raising it further would append zeros the
+ * provider never sent. The scale travels with the rate in its own column.
+ */
+const MIN_SIGNIFICANT_DIGITS = 5;
+const MIN_RATE_SCALE = 10_000;
+const MAX_RATE_SCALE = 1_000_000_000_000; // 1e12, well inside the safe-integer range
 
 export type ExchangeRateProviderErrorCode =
   | 'network'
@@ -41,13 +55,23 @@ export function isExchangeRateProviderError(value: unknown): value is ExchangeRa
 }
 
 export interface ExchangeRateProvider {
-  fetchUsdCopRate(): Promise<FetchedExchangeRate>;
+  /** The rate for "1 base = ? quote". */
+  fetchRate(base: CurrencyCode, quote: CurrencyCode): Promise<FetchedExchangeRate>;
 }
 
 type FetchLike = (
   input: string,
   init?: { signal?: AbortSignal; headers?: Record<string, string> },
 ) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+/** Pick the smallest scale that keeps enough significant digits for this rate. */
+export function scaleFor(rate: number): number {
+  let scale = MIN_RATE_SCALE;
+  while (scale < MAX_RATE_SCALE && rate * scale < 10 ** (MIN_SIGNIFICANT_DIGITS - 1)) {
+    scale *= 10;
+  }
+  return scale;
+}
 
 export class FrankfurterExchangeRateProvider implements ExchangeRateProvider {
   constructor(
@@ -56,12 +80,15 @@ export class FrankfurterExchangeRateProvider implements ExchangeRateProvider {
     private readonly timeoutMs: number = EXCHANGE_RATE_TIMEOUT_MS,
   ) {}
 
-  async fetchUsdCopRate(): Promise<FetchedExchangeRate> {
+  async fetchRate(base: CurrencyCode, quote: CurrencyCode): Promise<FetchedExchangeRate> {
+    if (base === quote) {
+      throw new ExchangeRateProviderError('unsupported_rate', 'A currency has no exchange rate against itself.');
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     let response: Awaited<ReturnType<FetchLike>>;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/v2/rate/USD/COP`, {
+      response = await this.fetchImpl(`${this.baseUrl}/v2/rate/${base}/${quote}`, {
         signal: controller.signal,
         headers: { Accept: 'application/json' },
       });
@@ -85,17 +112,27 @@ export class FrankfurterExchangeRateProvider implements ExchangeRateProvider {
       throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response was not valid.');
     }
 
-    return mapFrankfurterResponse(payload);
+    return mapFrankfurterResponse(payload, base, quote);
   }
 }
 
-export function mapFrankfurterResponse(payload: unknown): FetchedExchangeRate {
+export function mapFrankfurterResponse(
+  payload: unknown,
+  expectedBase: CurrencyCode,
+  expectedQuote: CurrencyCode,
+): FetchedExchangeRate {
   if (typeof payload !== 'object' || payload === null) {
     throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response was not valid.');
   }
   const record = payload as Record<string, unknown>;
-  if (record.base !== 'USD' || record.quote !== 'COP') {
+  // Verify the response describes the pair that was asked for. A provider that
+  // silently substitutes a different base would otherwise be stored as if it had
+  // answered the question.
+  if (record.base !== expectedBase || record.quote !== expectedQuote) {
     throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response used an unexpected currency pair.');
+  }
+  if (!isSupportedCurrency(record.base) || !isSupportedCurrency(record.quote)) {
+    throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response used an unsupported currency.');
   }
   if (typeof record.date !== 'string' || !isValidCalendarDate(record.date)) {
     throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response had an invalid date.');
@@ -104,15 +141,16 @@ export function mapFrankfurterResponse(payload: unknown): FetchedExchangeRate {
   if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
     throw new ExchangeRateProviderError('invalid_response', 'The exchange-rate response had an invalid rate.');
   }
-  const rateScaled = Math.round(rate * DEFAULT_RATE_SCALE);
+  const rateScale = scaleFor(rate);
+  const rateScaled = Math.round(rate * rateScale);
   if (!Number.isSafeInteger(rateScaled) || rateScaled <= 0) {
     throw new ExchangeRateProviderError('unsupported_rate', 'The exchange rate is outside the supported range.');
   }
   return {
-    baseCurrencyCode: 'USD',
-    quoteCurrencyCode: 'COP',
+    baseCurrencyCode: record.base,
+    quoteCurrencyCode: record.quote,
     rateScaled,
-    rateScale: DEFAULT_RATE_SCALE,
+    rateScale,
     effectiveDate: record.date,
     provider: 'frankfurter',
   };

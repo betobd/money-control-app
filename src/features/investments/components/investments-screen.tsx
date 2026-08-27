@@ -26,7 +26,7 @@ export function InvestmentsScreen() {
   const router = useRouter();
   const { portfolio, loading, error, reload } = useInvestments();
 
-  const gainCop = portfolio.estimatedGainLossCopMinor;
+  const gainCop = portfolio.estimatedGainLossBaseMinor;
   const gainColor =
     gainCop === null || gainCop === 0
       ? theme.mutedText
@@ -59,7 +59,7 @@ export function InvestmentsScreen() {
           <>
             <Card style={styles.summary} variant="raised">
               <Overline color={theme.secondaryText}>Total investment value</Overline>
-              {portfolio.incomplete || portfolio.totalCurrentValueCopMinor === null ? (
+              {portfolio.incomplete || portfolio.totalCurrentValueBaseMinor === null ? (
                 <Text style={[styles.amount, { color: theme.warning }]}>Estimated — incomplete</Text>
               ) : (
                 <View style={styles.amountRow}>
@@ -68,7 +68,7 @@ export function InvestmentsScreen() {
                     minimumFontScale={0.65}
                     numberOfLines={1}
                     style={[styles.amount, { color: theme.primaryAction }]}>
-                    {formatMoneyNumber(portfolio.totalCurrentValueCopMinor, 'COP')}
+                    {formatMoneyNumber(portfolio.totalCurrentValueBaseMinor, 'COP')}
                   </Text>
                   <Text style={[styles.amountCurrency, { color: theme.mutedText }]}>COP</Text>
                 </View>
@@ -82,7 +82,7 @@ export function InvestmentsScreen() {
               <View style={styles.summaryRows}>
                 <SummaryRow
                   label="Net contributions"
-                  value={portfolio.netContributionsCopMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.netContributionsCopMinor, 'COP')}`}
+                  value={portfolio.netContributionsBaseMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.netContributionsBaseMinor, 'COP')}`}
                 />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>Estimated gain/loss</Text>
@@ -95,7 +95,7 @@ export function InvestmentsScreen() {
                 <SummaryRow label="Investment accounts" value={String(portfolio.investmentAccountCount)} />
                 <SummaryRow
                   label="Locked or restricted"
-                  value={portfolio.lockedOrRestrictedValueCopMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.lockedOrRestrictedValueCopMinor, 'COP')}`}
+                  value={portfolio.lockedOrRestrictedValueBaseMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.lockedOrRestrictedValueBaseMinor, 'COP')}`}
                 />
               </View>
 
@@ -172,7 +172,7 @@ function AllocationBlock({
       {slices.map((slice) => (
         <View key={slice.key} style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>{labelFor(slice.key)}</Text>
-          <Text style={[styles.summaryValue, { color: theme.primaryText }]}>COP {formatMoneyNumber(slice.valueCopMinor, 'COP')}</Text>
+          <Text style={[styles.summaryValue, { color: theme.primaryText }]}>COP {formatMoneyNumber(slice.valueBaseMinor, 'COP')}</Text>
         </View>
       ))}
     </View>

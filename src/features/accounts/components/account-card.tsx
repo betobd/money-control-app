@@ -10,11 +10,10 @@ import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import {
   accessibleMoney,
-  convertUsdMinorToCopMinor,
   formatMoney,
   formatMoneyNumber,
-  type ScaledRate,
 } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import { CreditCardCycleService } from '@/features/credit-cards/credit-card-cycle.service';
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
 import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
@@ -24,16 +23,16 @@ type AccountCardProps = {
   account: AccountWithBalance;
   onActions: (account: AccountWithBalance) => void;
   onOpen?: (account: AccountWithBalance) => void;
-  /** Current USD/COP valuation rate, for the estimated-COP line on USD accounts. */
-  valuationRate?: ScaledRate | null;
+  /** Saved valuation rates, for the estimated-base-currency line on foreign accounts. */
+  rates: ValuationRates;
 };
 
-export function AccountCard({ account, onActions, onOpen, valuationRate }: AccountCardProps) {
+export function AccountCard({ account, onActions, onOpen, rates }: AccountCardProps) {
   const theme = useAppTheme();
   const isCard = account.type === 'credit_card';
   const isDebt = isCard && account.balance < 0;
   const isCredit = isCard && account.balance > 0;
-  const isForeign = account.currency !== 'COP';
+  const isForeign = account.currency !== rates.baseCurrency;
   const balanceLabel = isCard
     ? isCredit
       ? 'Credit balance'
@@ -43,9 +42,7 @@ export function AccountCard({ account, onActions, onOpen, valuationRate }: Accou
       : 'Available balance';
   const displayMagnitude = isCard ? Math.abs(account.balance) : account.balance;
   const formattedBalance = formatMoneyNumber(displayMagnitude, account.currency);
-  const estimatedCopMinor = isForeign && valuationRate
-    ? convertUsdMinorToCopMinor(displayMagnitude, valuationRate)
-    : null;
+  const estimatedBaseMinor = isForeign ? rates.toBase(displayMagnitude, account.currency) : null;
   const utilization = account.type === 'credit_card'
     ? calculateCreditCardUtilization(account.balance, account.creditLimit)
     : null;
@@ -109,13 +106,13 @@ export function AccountCard({ account, onActions, onOpen, valuationRate }: Accou
           <Text style={[styles.currency, { color: theme.mutedText }]}>{account.currency}</Text>
         </View>
         {isForeign ? (
-          estimatedCopMinor !== null ? (
+          estimatedBaseMinor !== null ? (
             <Text style={[styles.estimate, { color: theme.mutedText }]}>
-              ≈ {formatMoney(estimatedCopMinor, 'COP')} · Estimated in COP
+              ≈ {formatMoney(estimatedBaseMinor, rates.baseCurrency)} · Estimated in {rates.baseCurrency}
             </Text>
           ) : (
             <Text style={[styles.estimate, { color: theme.warning }]}>
-              Add an exchange rate to include this account in estimated net worth.
+              Add a {account.currency}/{rates.baseCurrency} exchange rate to include this account in estimated net worth.
             </Text>
           )
         ) : null}

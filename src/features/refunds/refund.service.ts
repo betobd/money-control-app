@@ -1,6 +1,7 @@
 import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
-import { toBaseCurrencyMinor } from '@/features/currency/currency';
+import { toBaseCurrencyMinor, type CurrencyCode } from '@/features/currency/currency';
+import { getBaseCurrency } from '@/features/settings/base-currency';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type {
   TransactionListCursor,
@@ -37,6 +38,12 @@ export class RefundService {
     private readonly createId: () => string,
     private readonly now = () => new Date().toISOString(),
     private readonly today = () => bogotaToday(),
+    /**
+     * The device's base currency. Injected rather than read from the module cache
+     * at each call site: the cache is process-global, so a test (or any runtime
+     * that loads this module twice) could not set it deterministically.
+     */
+    private readonly baseCurrency: () => CurrencyCode = getBaseCurrency,
   ) {}
 
   async create(input: RefundInput): Promise<TransactionRecord> {
@@ -57,13 +64,15 @@ export class RefundService {
     }
     if (Object.keys(errors).length > 0) throw new RefundValidationError(errors);
 
-    // A refund inherits the original expense's account and currency. A foreign
-    // (USD) refund carries its own refund-date rate snapshot and COP base amount.
+    // A refund inherits the original expense's account and currency. A refund in a
+    // currency other than the base carries its own refund-date rate snapshot and
+    // base-currency amount.
+    const baseCurrency = this.baseCurrency();
     const original = await this.transactions.get(normalized.originalTransactionId);
-    const currency = original?.currency ?? 'COP';
+    const currency = original?.currency ?? baseCurrency;
     let baseAmountMinor = normalized.amount;
     let exchangeRate = normalized.exchangeRate ?? null;
-    if (currency !== 'COP') {
+    if (currency !== baseCurrency) {
       if (
         !exchangeRate ||
         !Number.isSafeInteger(exchangeRate.rateScaled) ||
@@ -72,11 +81,15 @@ export class RefundService {
         exchangeRate.rateScale <= 0 ||
         !isValidCalendarDate(exchangeRate.effectiveDate)
       ) {
-        throw new RefundValidationError({ exchangeRate: 'Add an exchange rate before saving this USD refund.' });
+        throw new RefundValidationError({
+          exchangeRate: `Add a ${currency}/${baseCurrency} exchange rate before saving this refund.`,
+        });
       }
-      baseAmountMinor = toBaseCurrencyMinor(normalized.amount, currency, {
+      baseAmountMinor = toBaseCurrencyMinor(normalized.amount, currency, baseCurrency, {
         rateScaled: exchangeRate.rateScaled,
         rateScale: exchangeRate.rateScale,
+        baseCurrencyCode: exchangeRate.baseCurrencyCode,
+        quoteCurrencyCode: exchangeRate.quoteCurrencyCode,
       });
     } else {
       exchangeRate = null;
@@ -89,6 +102,7 @@ export class RefundService {
       amount: normalized.amount,
       currency,
       baseAmountMinor,
+      baseCurrencyCode: baseCurrency,
       exchangeRate,
       transactionDate: normalized.transactionDate,
       note: normalized.note,

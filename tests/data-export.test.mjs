@@ -12,6 +12,8 @@ import {
 } from '../src/features/data-export/data-export.service.ts';
 import { createDefaultTransactionListFilters } from '../src/features/transactions/transaction-list-filters.ts';
 
+import { noRates } from './support/valuation-rates.mjs';
+
 const TODAY = '2026-07-21';
 const NOW = '2026-07-21T15:00:00.000Z';
 
@@ -141,7 +143,7 @@ function transaction(transactionId, overrides = {}) {
     transactionDate: '2026-07-10',
     type: 'expense',
     status: 'posted',
-    amountCop: 25_000,
+    amountBaseMinor: 25_000,
     categoryId: 'food',
     categoryName: 'Food',
     sourceAccountId: 'checking',
@@ -150,7 +152,7 @@ function transaction(transactionId, overrides = {}) {
     destinationAccountName: null,
     originalTransactionId: null,
     originalTransactionDate: null,
-    originalTransactionAmountCop: null,
+    originalTransactionAmountMinor: null,
     originalTransactionNote: null,
     note: '=private note',
     recurringOccurrenceId: null,
@@ -225,8 +227,8 @@ function setup() {
   const reports = { async load() { return reportData(); } };
   const transactionFilters = { async listFilterOptions() { return { accounts: [], categories: [] }; } };
   const emptyPortfolio = {
-    accounts: [], investmentAccountCount: 0, totalCurrentValueCopMinor: 0, netContributionsCopMinor: 0,
-    estimatedGainLossCopMinor: 0, estimatedReturn: { available: false }, lockedOrRestrictedValueCopMinor: 0,
+    accounts: [], investmentAccountCount: 0, totalCurrentValueBaseMinor: 0, netContributionsBaseMinor: 0,
+    estimatedGainLossBaseMinor: 0, estimatedReturn: { available: false }, lockedOrRestrictedValueBaseMinor: 0,
     incomplete: false, allocationByType: [], allocationByCurrency: [],
   };
   const investments = {
@@ -237,7 +239,7 @@ function setup() {
   };
   const service = new DataExportService(
     repository, accounts, budgets, recurring, reports, transactionFilters, investments,
-    new CsvSerializer(), files, { today: () => TODAY },
+    new CsvSerializer(), files, { today: () => TODAY, resolveValuationRates: async () => noRates() },
   );
   return { accounts, files, investments, repository, service };
 }
@@ -246,7 +248,7 @@ test('transaction export covers refunds, original references, other types, notes
   const { files, repository, service } = setup();
   repository.transactions = [
     transaction('voided', { transactionDate: '2026-07-11', status: 'voided' }),
-    transaction('income', { type: 'income', amountCop: 500_000, categoryId: 'salary', categoryName: 'Salary' }),
+    transaction('income', { type: 'income', amountBaseMinor: 500_000, categoryId: 'salary', categoryName: 'Salary' }),
     transaction('transfer', {
       transactionDate: '2026-07-12', type: 'transfer', categoryId: null, categoryName: null,
       destinationAccountId: 'card', destinationAccountName: 'Archived card', note: 'Transfer',
@@ -255,10 +257,10 @@ test('transaction export covers refunds, original references, other types, notes
     transaction('refund', {
       transactionDate: '2026-07-12',
       type: 'refund',
-      amountCop: 10_000,
+      amountBaseMinor: 10_000,
       originalTransactionId: 'archived',
       originalTransactionDate: '2026-07-10',
-      originalTransactionAmountCop: 25_000,
+      originalTransactionAmountMinor: 25_000,
       originalTransactionNote: 'Original note',
     }),
   ];
@@ -393,7 +395,7 @@ function investmentView(id, overrides) {
     latestValuation: null,
     netContributionsMinor: 0, totalContributionsMinor: 0, totalWithdrawalsMinor: 0,
     currentValueMinor: 0, estimatedGainLossMinor: 0, estimatedReturn: { available: false },
-    estimatedValueCopMinor: null,
+    estimatedValueBaseMinor: null,
     ...overrides,
   };
   return base;
@@ -411,13 +413,13 @@ test('investment export protects names, shows estimated COP, unavailable return,
         latestValuation: { valuationDate: '2026-07-16' },
         netContributionsMinor: 8_000_000, totalContributionsMinor: 8_000_000, totalWithdrawalsMinor: 0,
         currentValueMinor: 8_500_000, estimatedGainLossMinor: 500_000, estimatedReturn: { available: true, basisPoints: 625 },
-        estimatedValueCopMinor: 8_500_000,
+        estimatedValueBaseMinor: 8_500_000,
       }),
       investmentView('ibkr', {
         account: { id: 'ibkr', name: 'IBKR', currency: 'USD', isArchived: true },
         netContributionsMinor: 1_000_000, totalContributionsMinor: 1_000_000, totalWithdrawalsMinor: 0,
         currentValueMinor: 1_250_000, estimatedGainLossMinor: 250_000, estimatedReturn: { available: false },
-        estimatedValueCopMinor: null,
+        estimatedValueBaseMinor: null,
       }),
     ],
   };

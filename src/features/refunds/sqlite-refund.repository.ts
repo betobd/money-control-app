@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { sqlite } from '@/database/client';
-import type { CurrencyCode } from '@/features/currency/currency';
+import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import type { ExchangeRateSnapshotSource, TransactionRecord } from '@/features/transactions/transaction.types';
 import { RefundActionError } from './refund.service';
 import type { RefundCreateRecord, RefundRepository } from './refund.types';
@@ -27,6 +27,9 @@ type RefundRow = {
   category_id: string | null;
   original_transaction_id: string | null;
   base_amount_minor: number | null;
+  base_currency_code: string | null;
+  exchange_rate_base_code: string | null;
+  exchange_rate_quote_code: string | null;
   exchange_rate_scaled: number | null;
   exchange_rate_scale: number | null;
   exchange_rate_date: string | null;
@@ -41,7 +44,7 @@ function mapRefund(row: RefundRow): TransactionRecord {
   if (
     row.type !== 'refund'
     || (row.status !== 'posted' && row.status !== 'voided')
-    || (row.currency !== 'COP' && row.currency !== 'USD')
+    || !isSupportedCurrency(row.currency)
     || !row.account_id
     || !row.original_transaction_id
   ) {
@@ -52,15 +55,18 @@ function mapRefund(row: RefundRow): TransactionRecord {
     type: 'refund',
     status: row.status,
     amount: row.amount,
-    currency: row.currency as CurrencyCode,
+    currency: row.currency,
     accountId: row.account_id,
     destinationAccountId: null,
     categoryId: null,
     subcategoryId: null,
     originalTransactionId: row.original_transaction_id,
     baseAmountMinor: row.base_amount_minor,
+    baseCurrencyCode: row.base_currency_code as CurrencyCode | null,
     exchangeRateScaled: row.exchange_rate_scaled,
     exchangeRateScale: row.exchange_rate_scale,
+    exchangeRateBaseCode: row.exchange_rate_base_code as CurrencyCode | null,
+    exchangeRateQuoteCode: row.exchange_rate_quote_code as CurrencyCode | null,
     exchangeRateDate: row.exchange_rate_date,
     exchangeRateSource: row.exchange_rate_source as ExchangeRateSnapshotSource | null,
     destinationAmountMinor: null,
@@ -75,8 +81,9 @@ function mapRefund(row: RefundRow): TransactionRecord {
 async function findRefund(database: SQLiteDatabase, id: string): Promise<RefundRow | null> {
   return database.getFirstAsync<RefundRow>(
     `SELECT id, type, status, amount, currency, account_id, destination_account_id,
-            category_id, original_transaction_id, base_amount_minor, exchange_rate_scaled,
-            exchange_rate_scale, exchange_rate_date, exchange_rate_source,
+            category_id, original_transaction_id, base_amount_minor, base_currency_code,
+            exchange_rate_scaled, exchange_rate_scale, exchange_rate_base_code,
+            exchange_rate_quote_code, exchange_rate_date, exchange_rate_source,
             note, transaction_date, created_at, updated_at
        FROM transactions
       WHERE id = ?`,
@@ -134,18 +141,22 @@ export class SQLiteRefundRepository implements RefundRepository {
       await transaction.runAsync(
         `INSERT INTO transactions (
           id, type, status, amount, currency, account_id, destination_account_id,
-          category_id, original_transaction_id, base_amount_minor, exchange_rate_scaled,
-          exchange_rate_scale, exchange_rate_date, exchange_rate_source,
+          category_id, original_transaction_id, base_amount_minor, base_currency_code,
+          exchange_rate_scaled, exchange_rate_scale, exchange_rate_base_code,
+          exchange_rate_quote_code, exchange_rate_date, exchange_rate_source,
           note, transaction_date, created_at, updated_at
-        ) VALUES (?, 'refund', 'posted', ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, 'refund', 'posted', ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         record.id,
         record.amount,
         record.currency,
         original.account_id,
         original.id,
         record.baseAmountMinor,
+        record.baseCurrencyCode,
         record.exchangeRate?.rateScaled ?? null,
         record.exchangeRate?.rateScale ?? null,
+        record.exchangeRate?.baseCurrencyCode ?? null,
+        record.exchangeRate?.quoteCurrencyCode ?? null,
         record.exchangeRate?.effectiveDate ?? null,
         record.exchangeRate?.source ?? null,
         record.note,

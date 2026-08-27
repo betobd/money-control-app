@@ -10,7 +10,7 @@ import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { AccountActionError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
-import { formatMoneyNumber, type ScaledRate } from '@/features/currency/currency';
+import { formatMoneyNumber } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountCard } from '@/features/accounts/components/account-card';
 import { AccountsErrorState, EmptyAccountsState, LoadingAccountCard } from '@/features/accounts/components/account-states';
@@ -32,7 +32,7 @@ export default function AccountsScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [menu, setMenu] = useState<AccountMenu | null>(null);
-  const { accounts, rateStatus, error, loading, reload } = useAccounts();
+  const { accounts, rates, error, loading, reload } = useAccounts();
   const { portfolio, reload: reloadInvestments } = useInvestments();
   const pullToRefresh = usePullToRefresh(() => Promise.all([reload(), reloadInvestments()]));
   // Investment accounts live in their own section (and screen); exclude them from the
@@ -49,15 +49,11 @@ export default function AccountsScreen() {
     () => portfolio.accounts.filter((view) => !view.account.isArchived),
     [portfolio],
   );
-  const valuationRate: ScaledRate | null = useMemo(
-    () => (rateStatus?.rate ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale } : null),
-    [rateStatus],
-  );
   // Net worth counts investment accounts at their current valuation, not their
   // transaction-derived balance (one source per account, no double counting).
   const netWorth = useMemo(
-    () => accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, portfolio.accounts), valuationRate),
-    [accounts, portfolio, valuationRate],
+    () => accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, portfolio.accounts), rates),
+    [accounts, portfolio, rates],
   );
 
   async function openActions(account: AccountWithBalance) {
@@ -160,10 +156,11 @@ export default function AccountsScreen() {
 
       {!loading && !error ? (
         <NetWorthSummary
-          amount={netWorth.totalCopMinor === null ? '' : formatMoneyNumber(netWorth.totalCopMinor, 'COP')}
-          currency="COP"
+          amount={netWorth.totalBaseMinor === null ? '' : formatMoneyNumber(netWorth.totalBaseMinor, netWorth.baseCurrency)}
+          currency={netWorth.baseCurrency}
           estimated={netWorth.includesForeign && !netWorth.incomplete}
           incomplete={netWorth.incomplete}
+          missingCurrencies={netWorth.missingCurrencies}
         />
       ) : null}
 
@@ -185,7 +182,7 @@ export default function AccountsScreen() {
       {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState /> : null}
       {!loading && !error && activeAccounts.length > 0 ? (
         <View accessibilityLabel="Active accounts" style={styles.accounts}>
-          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} valuationRate={valuationRate} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
         </View>
       ) : null}
 
@@ -217,7 +214,7 @@ export default function AccountsScreen() {
         <View style={styles.archivedSection}>
           <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Archived accounts</Text>
           <View accessibilityLabel="Archived accounts" style={styles.accounts}>
-            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} valuationRate={valuationRate} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+            {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
           </View>
         </View>
       ) : null}

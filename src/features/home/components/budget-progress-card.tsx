@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/card';
 import { ProgressBar } from '@/components/progress-bar';
 import { spacing, typography } from '@/constants/theme';
-import { formatCop } from '@/features/accounts/account-format';
+import { formatBase } from '@/features/accounts/account-format';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -19,7 +19,7 @@ export function BudgetProgressCard({ summary, budgets = [] }: { summary: BudgetS
     <Card
       accessibilityLabel={
         hasBudget
-          ? `Monthly budget, ${formatCop(summary.totalSpent)} spent of ${formatCop(summary.totalBudget)}, ${summary.percentageUsed}% used${overBudget ? ', over budget' : ''}`
+          ? `Monthly budget, ${formatBase(summary.totalSpent)} spent of ${formatBase(summary.totalBudget)}, ${summary.percentageUsed}% used${overBudget ? ', over budget' : ''}`
           : 'No budgets set for this month'
       }
       style={styles.card}>
@@ -42,8 +42,8 @@ export function BudgetProgressCard({ summary, budgets = [] }: { summary: BudgetS
             value={summary.percentageUsed / 100}
           />
           <View style={styles.footerRow}>
-            <Text style={[styles.spent, { color: theme.secondaryText }]}>{formatCop(summary.totalSpent)} spent</Text>
-            <Text style={[styles.meta, { color: theme.mutedText }]}>of {formatCop(summary.totalBudget)}</Text>
+            <Text style={[styles.spent, { color: theme.secondaryText }]}>{formatBase(summary.totalSpent)} spent</Text>
+            <Text style={[styles.meta, { color: theme.mutedText }]}>of {formatBase(summary.totalBudget)}</Text>
           </View>
 
           {budgets.length > 0 ? (

@@ -9,7 +9,7 @@ export const accountTypeLabels: Record<AccountType, string> = {
   other: 'Other account',
 };
 
-export function formatCop(amount: number): string {
+export function formatBase(amount: number): string {
   const absolute = Math.abs(amount).toLocaleString('es-CO', { maximumFractionDigits: 0 });
   return `${amount < 0 ? '-' : ''}$${absolute}`;
 }

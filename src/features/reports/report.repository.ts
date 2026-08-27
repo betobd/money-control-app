@@ -1,4 +1,4 @@
-import type { ScaledRate } from '@/features/currency/currency';
+import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import type {
   CategoryExpenseAggregate,
   InvestmentValuationSeriesRow,
@@ -13,9 +13,9 @@ export interface ReportRepository {
   summarize(period: ReportPeriod): Promise<ReportSummaryAggregate>;
   cashFlow(period: ReportPeriod): Promise<ReportBucketAggregate[]>;
   categoryExpenses(period: ReportPeriod): Promise<CategoryExpenseAggregate[]>;
-  netWorth(period: ReportPeriod, grouping: ReportGrouping, valuationRate?: ScaledRate | null): Promise<NetWorthAggregate>;
+  netWorth(period: ReportPeriod, grouping: ReportGrouping, rates: ValuationRates): Promise<NetWorthAggregate>;
   /** All investment valuations (native unrealized adjustment), for the timeline overlay. */
   investmentValuationSeries(): Promise<InvestmentValuationSeriesRow[]>;
   /** Realized investment income posted within the period, in COP base snapshot minor units. */
-  investmentIncome(period: ReportPeriod): Promise<{ copMinor: number; count: number }>;
+  investmentIncome(period: ReportPeriod): Promise<{ baseMinor: number; count: number }>;
 }

@@ -126,9 +126,9 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
           <Text adjustsFontSizeToFit minimumFontScale={0.65} numberOfLines={1} style={[styles.amount, { color: theme.primaryText }]}>{money(view.currentValueMinor)}</Text>
           {isForeign ? (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
-              {view.estimatedValueCopMinor === null
+              {view.estimatedValueBaseMinor === null
                 ? 'Estimated COP — rate unavailable'
-                : `≈ COP ${formatMoneyNumber(view.estimatedValueCopMinor, 'COP')}`}
+                : `≈ COP ${formatMoneyNumber(view.estimatedValueBaseMinor, 'COP')}`}
             </Text>
           ) : null}
           <View style={styles.gainRow}>

@@ -20,6 +20,8 @@ export type RefundCreateRecord = {
   amount: number;
   currency: CurrencyCode;
   baseAmountMinor: number;
+  /** Which currency `baseAmountMinor` is in. */
+  baseCurrencyCode: CurrencyCode;
   exchangeRate: ExchangeRateSnapshotInput | null;
   transactionDate: string;
   note: string | null;

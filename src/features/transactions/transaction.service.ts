@@ -8,6 +8,7 @@ import {
   type CurrencyCode,
 } from '@/features/currency/currency';
 import { notifyFinancialDataChanged, type FinancialDataChange } from './financial-data-events';
+import { getBaseCurrency } from '@/features/settings/base-currency';
 import { isValidCalendarDate } from './transaction-date';
 import type { TransactionRepository } from './transaction.repository';
 import {
@@ -40,42 +41,64 @@ function isValidRateInput(rate: ExchangeRateSnapshotInput | null | undefined): r
 
 const EMPTY_SNAPSHOT: TransactionSnapshotFields = {
   baseAmountMinor: null,
+  baseCurrencyCode: null,
   exchangeRateScaled: null,
   exchangeRateScale: null,
+  exchangeRateBaseCode: null,
+  exchangeRateQuoteCode: null,
   exchangeRateDate: null,
   exchangeRateSource: null,
   destinationAmountMinor: null,
   destinationCurrencyCode: null,
 };
 
+/** The rate columns for a snapshot, or all-null when there is no rate. */
+function rateColumns(rate: ExchangeRateSnapshotInput | null) {
+  if (!rate) {
+    return {
+      exchangeRateScaled: null,
+      exchangeRateScale: null,
+      exchangeRateBaseCode: null,
+      exchangeRateQuoteCode: null,
+      exchangeRateDate: null,
+      exchangeRateSource: null,
+    } as const;
+  }
+  return {
+    exchangeRateScaled: rate.rateScaled,
+    exchangeRateScale: rate.rateScale,
+    exchangeRateBaseCode: rate.baseCurrencyCode,
+    exchangeRateQuoteCode: rate.quoteCurrencyCode,
+    exchangeRateDate: rate.effectiveDate,
+    exchangeRateSource: rate.source,
+  } as const;
+}
+
 /** Builds the persisted currency snapshot for a resolved, validated transaction input. */
-function buildSnapshot(input: ResolvedTransactionInput): TransactionSnapshotFields {
+function buildSnapshot(input: ResolvedTransactionInput, baseCurrency: CurrencyCode): TransactionSnapshotFields {
   if (input.type === 'transfer') {
     const crossCurrency = input.currency !== input.destinationCurrencyCode;
     return {
       ...EMPTY_SNAPSHOT,
       destinationAmountMinor: input.destinationAmountMinor,
       destinationCurrencyCode: input.destinationCurrencyCode,
-      exchangeRateScaled: crossCurrency && input.exchangeRate ? input.exchangeRate.rateScaled : null,
-      exchangeRateScale: crossCurrency && input.exchangeRate ? input.exchangeRate.rateScale : null,
-      exchangeRateDate: crossCurrency && input.exchangeRate ? input.exchangeRate.effectiveDate : null,
-      exchangeRateSource: crossCurrency && input.exchangeRate ? input.exchangeRate.source : null,
+      ...rateColumns(crossCurrency ? input.exchangeRate ?? null : null),
     };
   }
-  if (input.currency === 'COP') {
-    return { ...EMPTY_SNAPSHOT, baseAmountMinor: input.amount };
+  if (input.currency === baseCurrency) {
+    return { ...EMPTY_SNAPSHOT, baseAmountMinor: input.amount, baseCurrencyCode: baseCurrency };
   }
   const rate = input.exchangeRate as ExchangeRateSnapshotInput;
   return {
     ...EMPTY_SNAPSHOT,
-    baseAmountMinor: toBaseCurrencyMinor(input.amount, input.currency, {
+    baseAmountMinor: toBaseCurrencyMinor(input.amount, input.currency, baseCurrency, {
       rateScaled: rate.rateScaled,
       rateScale: rate.rateScale,
+      baseCurrencyCode: rate.baseCurrencyCode,
+      quoteCurrencyCode: rate.quoteCurrencyCode,
     }),
-    exchangeRateScaled: rate.rateScaled,
-    exchangeRateScale: rate.rateScale,
-    exchangeRateDate: rate.effectiveDate,
-    exchangeRateSource: rate.source,
+    baseCurrencyCode: baseCurrency,
+    ...rateColumns(rate),
   };
 }
 
@@ -194,6 +217,12 @@ export class TransactionService {
     // instead of subscribing to the module-level listener set. BudgetService
     // takes the same seam for the same reason.
     private readonly notifyChanged: (change: FinancialDataChange) => void = notifyFinancialDataChanged,
+    /**
+     * The device's base currency. Injected rather than read from the module cache
+     * at each call site: the cache is process-global, so a test (or any runtime
+     * that loads this module twice) could not set it deterministically.
+     */
+    private readonly baseCurrency: () => CurrencyCode = getBaseCurrency,
   ) {}
 
   private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
@@ -237,7 +266,7 @@ export class TransactionService {
       const normalized = this.normalize(input);
       const resolved = await this.validate(normalized);
       const timestamp = this.now();
-      const snapshot = buildSnapshot(resolved);
+      const snapshot = buildSnapshot(resolved, this.baseCurrency());
       const metadata = {
         id: this.createId(),
         status: 'posted' as const,
@@ -309,7 +338,7 @@ export class TransactionService {
     const resolved = await this.validate(normalized, current, errors);
 
     const updatedAt = this.now();
-    const snapshot = buildSnapshot(resolved);
+    const snapshot = buildSnapshot(resolved, this.baseCurrency());
     const update: TransactionUpdateRecord = {
       amount: resolved.amount,
       currency: resolved.currency,

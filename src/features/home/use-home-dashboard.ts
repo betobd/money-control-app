@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react';
 
+import type { CurrencyCode } from '@/features/currency/currency';
+import { getBaseCurrency } from '@/features/settings/settings';
+
 import { accountService } from '@/features/accounts/accounts';
 import type { EstimatedNetWorth } from '@/features/accounts/account.service';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
-import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { exchangeRateService, loadValuationRates } from '@/features/exchange-rates/exchange-rates';
 import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
 import { investmentPortfolioService } from '@/features/investments/investments';
 import type { InvestmentPortfolioSummary } from '@/features/investments/investment.types';
@@ -23,18 +26,21 @@ type State = {
   investments: InvestmentPortfolioSummary;
 };
 
-const emptyInvestments: InvestmentPortfolioSummary = {
-  accounts: [],
-  investmentAccountCount: 0,
-  totalCurrentValueCopMinor: 0,
-  netContributionsCopMinor: 0,
-  estimatedGainLossCopMinor: 0,
-  estimatedReturn: { available: false },
-  lockedOrRestrictedValueCopMinor: 0,
-  incomplete: false,
-  allocationByType: [],
-  allocationByCurrency: [],
-};
+function emptyInvestments(base: CurrencyCode): InvestmentPortfolioSummary {
+  return {
+    accounts: [],
+    investmentAccountCount: 0,
+    baseCurrency: base,
+    totalCurrentValueBaseMinor: 0,
+    netContributionsBaseMinor: 0,
+    estimatedGainLossBaseMinor: 0,
+    estimatedReturn: { available: false },
+    lockedOrRestrictedValueBaseMinor: 0,
+    incomplete: false,
+    allocationByType: [],
+    allocationByCurrency: [],
+  };
+}
 
 const emptyBudget: BudgetSummary = {
   totalBudget: 0,
@@ -47,7 +53,7 @@ const emptyBudget: BudgetSummary = {
 
 export function useHomeDashboard() {
   const [data, setData] = useState<State>({
-    netWorth: { totalCopMinor: 0, incomplete: false, includesForeign: false },
+    netWorth: { totalBaseMinor: 0, baseCurrency: getBaseCurrency(), incomplete: false, includesForeign: false, missingCurrencies: [] },
     summary: {
       income: 0,
       grossExpenses: 0,
@@ -58,7 +64,7 @@ export function useHomeDashboard() {
     recent: [],
     budget: emptyBudget,
     budgets: [],
-    investments: emptyInvestments,
+    investments: emptyInvestments(getBaseCurrency()),
   });
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -70,26 +76,24 @@ export function useHomeDashboard() {
     setLoading(true);
     setError(undefined);
     try {
-      const [accounts, rateStatus, summary, recent, budget] = await Promise.all([
+      const [accounts, summary, recent, budget] = await Promise.all([
         accountService.list(true),
-        exchangeRateService.getStatus(),
         transactionService.summarizeMonth(month),
         transactionService.recent(3),
         budgetService.listMonth(month),
       ]);
-      const valuationRate = rateStatus.rate
-        ? { rateScaled: rateStatus.rate.rateScaled, rateScale: rateStatus.rate.rateScale }
-        : null;
-      if (accounts.some((account) => account.currency !== 'COP')) {
-        void exchangeRateService.ensureFreshRate();
+      const currencies = accounts.map((account) => account.currency);
+      const rates = await loadValuationRates();
+      if (currencies.some((currency) => currency !== rates.baseCurrency)) {
+        void exchangeRateService.ensureFreshRates(currencies);
       }
-      const investments = await investmentPortfolioService.getPortfolio(valuationRate);
+      const investments = await investmentPortfolioService.getPortfolio(rates);
       setData({
         // Net worth counts investment accounts at their current valuation, not their
         // transaction-derived balance (one source per account, no double counting).
         netWorth: accountService.estimateNetWorth(
           withInvestmentCurrentValues(accounts, investments.accounts),
-          valuationRate,
+          rates,
         ),
         summary,
         recent,

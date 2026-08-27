@@ -11,18 +11,25 @@ This document is the normative source for financial calculations and invariants.
 - **Posted transaction**: an active transaction included in balances and reports.
 - **Voided transaction**: retained history excluded from balances and reports.
 
-## 1a. Multi-currency (COP base + USD)
+## 1a. Multi-currency (configurable base)
 
-As of Multi-Currency v1 ([ADR 0005](decisions/0005-multi-currency-cop-usd.md),
-[currency-and-rates.md](currency-and-rates.md)) accounts may be COP or USD. COP is
-the fixed base currency for all consolidated reporting. Money is integer minor units
-(COP `minorUnitFactor 1`; USD `minorUnitFactor 100`). Each USD income/expense/refund
-stores a COP `base_amount_minor` snapshot plus an immutable exchange-rate snapshot;
-Reports, Budgets, and Home read the snapshot, so refreshing the rate never rewrites
-history. Cross-currency transfers store both actual amounts and the effective rate.
-Net worth converts USD at the latest saved valuation rate (estimated; marked
-incomplete when no rate exists). Rate changes never create income or expense.
-Budgets remain COP-only. No monetary value or rate is stored as floating point.
+As of [ADR 0008](decisions/0008-configurable-base-currency.md)
+([currency-and-rates.md](currency-and-rates.md)) an account may hold any of the 160
+supported currencies. One of them is the install's **base currency**, used for all
+consolidated reporting; it is chosen at setup and fixed once a transaction or budget
+exists. Money is integer minor units, with `minorUnitFactor` per currency.
+
+Each income/expense/refund in a non-base currency stores a `base_amount_minor`
+snapshot plus an immutable exchange-rate snapshot, and both record **which
+currencies they are in** (`base_currency_code`, `exchange_rate_base_code`,
+`exchange_rate_quote_code`). Reports, Budgets, and Home read the snapshot, so
+refreshing a rate never rewrites history. Cross-currency transfers store both actual
+amounts and the effective rate.
+
+Net worth converts foreign balances at the latest saved rates (estimated; a currency
+with no rate is excluded and named). Rate changes never create income or expense.
+Budget limits are always amounts in the base currency. No monetary value or rate is
+stored as floating point.
 
 ## 2. Money representation
 

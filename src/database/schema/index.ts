@@ -20,8 +20,11 @@ const MIN_SAFE_MONEY_SQL = sql.raw(String(-MAX_SAFE_MONEY));
 const BUDGET_COLORS_ENUM = budgetColorKeys as [BudgetColorKey, ...BudgetColorKey[]];
 const BUDGET_COLORS_SQL = sql.raw(`(${budgetColorKeys.map((key) => `'${key}'`).join(', ')})`);
 
-// Multi-Currency v1 supports COP (base) and USD only.
-const SUPPORTED_CURRENCIES_SQL = sql.raw(`('COP', 'USD')`);
+// The database validates the *shape* of a currency code, not the set of codes.
+// Enumerating them here would mean a destructive migration every time a currency
+// is added; the allowed set lives in src/features/currency/currency-registry.ts
+// and is enforced by the repositories.
+const CURRENCY_CODE_GLOB = sql.raw(`'[A-Z][A-Z][A-Z]'`);
 const EXCHANGE_RATE_SOURCES_SQL = sql.raw(
   `('frankfurter', 'manual', 'transfer_effective', 'frankfurter_prefill')`,
 );
@@ -57,7 +60,7 @@ export const accounts = sqliteTable(
   },
   (table) => [
     check('accounts_name_not_empty', sql`length(trim(${table.name})) > 0`),
-    check('accounts_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('accounts_currency_supported', sql`${table.currency} GLOB ${CURRENCY_CODE_GLOB}`),
     check('accounts_type_valid', sql`${table.type} IN ('checking', 'savings', 'credit_card', 'cash', 'investment', 'other')`),
     check('accounts_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('accounts_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
@@ -172,9 +175,10 @@ export const transactions = sqliteTable(
       (): AnySQLiteColumn => transactions.id,
       { onDelete: 'restrict', onUpdate: 'restrict' },
     ),
-    // COP base-currency snapshot for income/expense/refund (NULL for transfers).
+    // Base-currency snapshot for income/expense/refund (NULL for transfers).
     baseAmountMinor: integer('base_amount_minor'),
-    // Immutable exchange-rate snapshot captured at record time (NULL for COP).
+    // Immutable exchange-rate snapshot captured at record time (NULL when the row
+    // is already in the base currency).
     exchangeRateScaled: integer('exchange_rate_scaled'),
     exchangeRateScale: integer('exchange_rate_scale'),
     exchangeRateDate: text('exchange_rate_date'),
@@ -190,12 +194,21 @@ export const transactions = sqliteTable(
     // NULL category, so the CHECK also keeps them free of a subcategory.
     subcategoryId: text('subcategory_id')
       .references((): AnySQLiteColumn => categories.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    // Added by migration 0014. Which currency `base_amount_minor` is denominated
+    // in, recorded per row so the snapshot stays readable no matter what the base
+    // currency setting says later. NULL for transfers, which have no snapshot.
+    baseCurrencyCode: text('base_currency_code'),
+    // Which pair `exchange_rate_scaled` describes, read as "1 base = rate quote".
+    // Without these the number is only interpretable while one side is known, which
+    // stopped being true once a transfer can join two non-base currencies.
+    exchangeRateBaseCode: text('exchange_rate_base_code'),
+    exchangeRateQuoteCode: text('exchange_rate_quote_code'),
   },
   (table) => [
     check('transactions_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer', 'refund')`),
     check('transactions_status_valid', sql`${table.status} IN ('posted', 'voided')`),
     check('transactions_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('transactions_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('transactions_currency_supported', sql`${table.currency} GLOB ${CURRENCY_CODE_GLOB}`),
     check(
       'transactions_date_valid',
       sql`${table.transactionDate} GLOB '????-??-??' AND date(${table.transactionDate}) = ${table.transactionDate}`,
@@ -228,19 +241,35 @@ export const transactions = sqliteTable(
     check(
       'transactions_destination_leg_valid',
       sql`(
-        (${table.type} = 'transfer' AND (${table.destinationAmountMinor} IS NULL OR (typeof(${table.destinationAmountMinor}) = 'integer' AND ${table.destinationAmountMinor} > 0 AND ${table.destinationAmountMinor} <= ${MAX_SAFE_MONEY_SQL})) AND (${table.destinationCurrencyCode} IS NULL OR ${table.destinationCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}))
+        (${table.type} = 'transfer' AND (${table.destinationAmountMinor} IS NULL OR (typeof(${table.destinationAmountMinor}) = 'integer' AND ${table.destinationAmountMinor} > 0 AND ${table.destinationAmountMinor} <= ${MAX_SAFE_MONEY_SQL})) AND (${table.destinationCurrencyCode} IS NULL OR ${table.destinationCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}))
         OR
         (${table.type} <> 'transfer' AND ${table.destinationAmountMinor} IS NULL AND ${table.destinationCurrencyCode} IS NULL)
       )`,
     ),
-    // A foreign-currency (USD) income/expense/refund MUST carry a COP base snapshot
-    // and a full rate snapshot. COP rows are exempt.
+    check('transactions_base_currency_valid', sql`${table.baseCurrencyCode} IS NULL OR ${table.baseCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
+    // The IS NOT NULL guards come before the GLOBs on purpose. A CHECK rejects only
+    // a FALSE result, never a NULL one, and `NULL GLOB '...'` is NULL: without them
+    // a rate with no pair would evaluate to NULL and be silently accepted.
+    check(
+      'transactions_rate_pair_valid',
+      sql`(
+        (${table.exchangeRateScaled} IS NULL AND ${table.exchangeRateBaseCode} IS NULL AND ${table.exchangeRateQuoteCode} IS NULL)
+        OR (${table.exchangeRateScaled} IS NOT NULL AND ${table.exchangeRateBaseCode} IS NOT NULL AND ${table.exchangeRateQuoteCode} IS NOT NULL AND ${table.exchangeRateBaseCode} GLOB ${CURRENCY_CODE_GLOB} AND ${table.exchangeRateQuoteCode} GLOB ${CURRENCY_CODE_GLOB} AND ${table.exchangeRateBaseCode} <> ${table.exchangeRateQuoteCode})
+      )`,
+    ),
+    // An income/expense/refund recorded in a currency other than the base MUST
+    // carry a base-currency amount and a full rate snapshot; a row already in the
+    // base currency is exempt. Stated against the row's own `base_currency_code`
+    // rather than a literal, because the base is a user setting and a CHECK cannot
+    // read one.
     check(
       'transactions_foreign_snapshot_present',
       sql`(
-        ${table.type} = 'transfer'
-        OR ${table.currency} = 'COP'
-        OR (${table.baseAmountMinor} IS NOT NULL AND typeof(${table.exchangeRateScaled}) = 'integer' AND ${table.exchangeRateScaled} > 0 AND typeof(${table.exchangeRateScale}) = 'integer' AND ${table.exchangeRateScale} > 0 AND ${table.exchangeRateDate} IS NOT NULL)
+        (${table.type} = 'transfer' AND ${table.baseCurrencyCode} IS NULL)
+        OR (${table.type} <> 'transfer' AND ${table.baseCurrencyCode} IS NOT NULL AND (
+          ${table.currency} = ${table.baseCurrencyCode}
+          OR (${table.baseAmountMinor} IS NOT NULL AND typeof(${table.exchangeRateScaled}) = 'integer' AND ${table.exchangeRateScaled} > 0 AND typeof(${table.exchangeRateScale}) = 'integer' AND ${table.exchangeRateScale} > 0 AND ${table.exchangeRateDate} IS NOT NULL)
+        ))
       )`,
     ),
     // A cross-currency transfer MUST carry a full effective-rate snapshot. A
@@ -388,7 +417,7 @@ export const recurringTransactions = sqliteTable(
     check('recurring_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
     check('recurring_frequency_valid', sql`${table.frequency} IN ('daily', 'weekly', 'monthly', 'yearly')`),
     check('recurring_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('recurring_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('recurring_currency_supported', sql`${table.currency} GLOB ${CURRENCY_CODE_GLOB}`),
     check('recurring_interval_positive', sql`${table.interval} > 0`),
     check('recurring_start_date_valid', sql`${table.startDate} GLOB '????-??-??' AND date(${table.startDate}) = ${table.startDate}`),
     check('recurring_next_date_valid', sql`${table.nextOccurrenceDate} GLOB '????-??-??' AND date(${table.nextOccurrenceDate}) = ${table.nextOccurrenceDate}`),
@@ -449,7 +478,7 @@ export const recurringOccurrences = sqliteTable(
     check('recurring_occurrence_status_valid', sql`${table.status} IN ('pending', 'posted', 'skipped')`),
     check('recurring_occurrence_type_valid', sql`${table.type} IN ('income', 'expense', 'transfer')`),
     check('recurring_occurrence_amount_positive', sql`typeof(${table.amount}) = 'integer' AND ${table.amount} > 0 AND ${table.amount} <= ${MAX_SAFE_MONEY_SQL}`),
-    check('recurring_occurrence_currency_supported', sql`${table.currency} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('recurring_occurrence_currency_supported', sql`${table.currency} GLOB ${CURRENCY_CODE_GLOB}`),
     check('recurring_occurrence_date_valid', sql`${table.scheduledDate} GLOB '????-??-??' AND date(${table.scheduledDate}) = ${table.scheduledDate}`),
     check('recurring_occurrence_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('recurring_occurrence_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
@@ -543,10 +572,28 @@ export const scheduledNotifications = sqliteTable(
   ],
 );
 
+// Device-level application settings. A singleton row: there is exactly one base
+// currency per install, and it is what every base_amount_minor snapshot is
+// denominated in. Added by migration 0014.
+export const appSettings = sqliteTable(
+  'app_settings',
+  {
+    id: text('id').primaryKey(),
+    baseCurrencyCode: text('base_currency_code').notNull(),
+    ...auditColumns,
+  },
+  (table) => [
+    check('app_settings_singleton', sql`${table.id} = 'device'`),
+    check('app_settings_base_currency_valid', sql`${table.baseCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
+    check('app_settings_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('app_settings_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+  ],
+);
+
 export const exchangeRates = sqliteTable(
   'exchange_rates',
   {
-    // Singleton per currency pair, e.g. 'USD-COP'. v1 stores the USD/COP pair.
+    // One row per ordered currency pair, keyed `${base}-${quote}` (e.g. 'USD-COP').
     id: text('id').primaryKey(),
     baseCurrencyCode: text('base_currency_code').notNull(),
     quoteCurrencyCode: text('quote_currency_code').notNull(),
@@ -559,8 +606,8 @@ export const exchangeRates = sqliteTable(
     ...auditColumns,
   },
   (table) => [
-    check('exchange_rates_base_supported', sql`${table.baseCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
-    check('exchange_rates_quote_supported', sql`${table.quoteCurrencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('exchange_rates_base_supported', sql`${table.baseCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
+    check('exchange_rates_quote_supported', sql`${table.quoteCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
     check('exchange_rates_pair_distinct', sql`${table.baseCurrencyCode} <> ${table.quoteCurrencyCode}`),
     check('exchange_rates_scaled_valid', sql`typeof(${table.rateScaled}) = 'integer' AND ${table.rateScaled} > 0 AND ${table.rateScaled} <= ${MAX_SAFE_MONEY_SQL}`),
     check('exchange_rates_scale_valid', sql`typeof(${table.rateScale}) = 'integer' AND ${table.rateScale} > 0 AND ${table.rateScale} <= ${MAX_SAFE_MONEY_SQL}`),
@@ -643,7 +690,7 @@ export const investmentValuations = sqliteTable(
       'investment_valuations_basis_safe',
       sql`typeof(${table.basisMinor}) = 'integer' AND ${table.basisMinor} BETWEEN ${MIN_SAFE_MONEY_SQL} AND ${MAX_SAFE_MONEY_SQL}`,
     ),
-    check('investment_valuations_currency_supported', sql`${table.currencyCode} IN ${SUPPORTED_CURRENCIES_SQL}`),
+    check('investment_valuations_currency_supported', sql`${table.currencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
     check(
       'investment_valuations_date_valid',
       sql`${table.valuationDate} GLOB '????-??-??' AND date(${table.valuationDate}) = ${table.valuationDate}`,

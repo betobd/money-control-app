@@ -1,6 +1,6 @@
 import { accountService } from '@/features/accounts/accounts';
 import { budgetService } from '@/features/budgets/budgets';
-import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
+import { loadValuationRates } from '@/features/exchange-rates/exchange-rates';
 import { investmentPortfolioService, investmentValuationService } from '@/features/investments/investments';
 import { recurringTransactionService } from '@/features/recurring-transactions/recurring-transactions';
 import { reportService } from '@/features/reports/reports';
@@ -18,17 +18,10 @@ export const dataExportService = new DataExportService(
   reportService,
   transactionService,
   {
-    getPortfolio: (rate) => investmentPortfolioService.getPortfolio(rate),
+    getPortfolio: (rates) => investmentPortfolioService.getPortfolio(rates),
     listValuations: (accountId) => investmentValuationService.list(accountId),
   },
   new CsvSerializer(),
   new ExpoExportFileAdapter(),
-  {
-    resolveValuationRate: async () => {
-      const rate = await exchangeRateService.getValuationRate();
-      return rate
-        ? { rateScaled: rate.rateScaled, rateScale: rate.rateScale, effectiveDate: rate.effectiveDate, source: rate.source }
-        : null;
-    },
-  },
+  { resolveValuationRates: loadValuationRates },
 );

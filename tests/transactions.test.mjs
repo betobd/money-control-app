@@ -20,12 +20,16 @@ import {
   normalizeTransactionListQuery,
 } from '../src/features/transactions/transaction.service.ts';
 import {
+
   buildTransactionListQuery,
   countActiveTransactionFilters,
   createClearedTransactionListFilters,
   createDefaultTransactionListFilters,
   firstTransactionListPage,
 } from '../src/features/transactions/transaction-list-filters.ts';
+
+import { testBaseCurrency } from './support/base-currency.mjs';
+
 
 const NOW = '2026-07-12T15:30:00.000Z';
 const LATER = '2026-07-12T16:45:00.000Z';
@@ -144,6 +148,7 @@ function setup(now = () => NOW) {
       () => 'tx-1',
       now,
       (change) => { changes.push(change); },
+      testBaseCurrency,
     ),
   };
 }
@@ -612,7 +617,7 @@ test('serializes concurrent transfers so a shared source cannot be overdrawn', a
   const accounts = new DerivedAccounts(repository, opening);
   const categories = new Categories();
   let counter = 0;
-  const service = new TransactionService(repository, accounts, categories, () => `tx-${++counter}`, () => NOW);
+  const service = new TransactionService(repository, accounts, categories, () => `tx-${++counter}`, () => NOW, undefined, testBaseCurrency);
   const transfer = (amount) => ({
     type: 'transfer',
     amount,
@@ -641,7 +646,7 @@ test('serializes concurrent transfers so a shared source cannot be overdrawn', a
 
 // ---- Multi-currency (USD) ----
 
-const USD_RATE = { rateScaled: 41000000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'frankfurter' };
+const USD_RATE = { rateScaled: 41000000, rateScale: 10000, baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', effectiveDate: '2026-07-12', source: 'frankfurter' };
 
 test('USD income stores native amount, currency, and a COP base snapshot', async () => {
   const { service, repository } = setup();
@@ -697,7 +702,7 @@ test('cross-currency transfer stores both amounts and the effective rate', async
   const record = await service.create({
     type: 'transfer', amount: 415000, accountId: 'active', destinationAccountId: 'usd',
     destinationAmountMinor: 10000, categoryId: null, transactionDate: '2026-07-12', note: null,
-    exchangeRate: { rateScaled: 41500000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'transfer_effective' },
+    exchangeRate: { rateScaled: 41500000, rateScale: 10000, baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', effectiveDate: '2026-07-12', source: 'transfer_effective' },
   });
   assert.equal(record.currency, 'COP');
   assert.equal(record.amount, 415000);
@@ -721,7 +726,7 @@ test('cross-currency transfer is excluded from the month summary', async () => {
   await service.create({
     type: 'transfer', amount: 415000, accountId: 'active', destinationAccountId: 'usd',
     destinationAmountMinor: 10000, categoryId: null, transactionDate: '2026-07-12', note: null,
-    exchangeRate: { rateScaled: 41500000, rateScale: 10000, effectiveDate: '2026-07-12', source: 'transfer_effective' },
+    exchangeRate: { rateScaled: 41500000, rateScale: 10000, baseCurrencyCode: 'USD', quoteCurrencyCode: 'COP', effectiveDate: '2026-07-12', source: 'transfer_effective' },
   });
   const summary = await repository.summarizeMonth('2026-07');
   assert.equal(summary.income, 0);

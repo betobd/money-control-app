@@ -5,8 +5,8 @@ Money Control v1 is a personal, local-first Android finance app. These limitatio
 ## Product scope
 
 - Personal, single-device, local-first. No cloud sync, no multi-device, no shared accounts.
-- Two currencies: COP (base, whole pesos) and USD (cents). No EUR/other currencies, no user-configurable base currency. Money is integer minor units (COP factor 1, USD factor 100). See [currency-and-rates.md](currency-and-rates.md).
-- Multi-Currency v1 limitations: budgets are COP-only; no recurring cross-currency transfers; no FX gain/loss or tax accounting; the historical net-worth timeline values USD at the current saved rate (Option A), not historical daily FX. The USD/COP reference rate is from Frankfurter and may differ from your bank's rate.
+- 160 currencies, with a per-install base currency chosen at setup. The base is fixed once a transaction or budget exists, because restating stored snapshots would need historical rates the app does not keep. COP is stored in whole pesos, not centavos. See [currency-and-rates.md](currency-and-rates.md).
+- Currency limitations: budgets are in the base currency only; no recurring cross-currency transfers; no FX gain/loss or tax accounting; the historical net-worth timeline values foreign balances at the current saved rate (Option A), not historical daily FX. Reference rates are from Frankfurter and may differ from your bank's rate. Number grouping follows the currency registry, not the reader's locale.
 - No bank synchronization, no automatic transaction detection, no automatic statement import.
 - No installment modeling, no interest calculation, no issuer minimum-payment formula.
 - No chargebacks/disputes, no split transactions, no projects, no tags.
@@ -51,7 +51,8 @@ Investments v1 tracks value by total balance per account/product; see
   valuation to correct it.
 - The net-worth timeline overlays the valuation in effect at each point
   (estimated); no historical daily FX and no interpolation between valuations.
-  Consolidated USD uses the current saved rate (Option A); incomplete when no rate.
+  Consolidated foreign balances use the current saved rates (Option A); a currency with no
+  rate is excluded and named in the incomplete message.
 - No CDT-maturity or stale-valuation reminders in v1. Withdrawing realized gains
   requires recording the gain as Income first (a transfer withdrawal is limited to
   net contributions by the funds check).

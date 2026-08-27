@@ -72,7 +72,7 @@ connection.executemany(
     ],
 )
 connection.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('expense', 'expense', 'posted', 150_000, 'COP', 'checking', None, 'food', None, '2026-07-05', UTC, UTC),
         ('income', 'income', 'posted', 900_000, 'COP', 'checking', None, 'salary', None, '2026-07-05', UTC, UTC),
@@ -192,8 +192,8 @@ nested.executemany(
     ],
 )
 nested.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,original_transaction_id,transaction_date,created_at,updated_at)'
-    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,original_transaction_id,transaction_date,created_at,updated_at,base_currency_code)'
+    ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('nb-mercado', 'expense', 'posted', 200_000, 'COP', 'nb-checking', 'hogar', 'mercado', None, '2026-07-02', stamp, stamp),
         ('nb-servicios', 'expense', 'posted', 120_000, 'COP', 'nb-checking', 'hogar', 'servicios', None, '2026-07-03', stamp, stamp),

@@ -168,7 +168,7 @@ connection.executemany(
     ],
 )
 connection.executemany(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     [
         ('income', 'income', 'posted', 500_000, 'COP', 'checking', None, 'salary', 'Salary note', '2026-07-01', utc, utc),
         ('expense', 'expense', 'posted', 120_000, 'COP', 'checking', None, 'food', 'Groceries', '2026-07-02', utc, utc),
@@ -182,7 +182,7 @@ connection.executemany(
 # ON DELETE RESTRICT path during restore-over-existing-data. The id sorts after
 # its parent so the snapshot-ordered insert satisfies the FK on the insert side too.
 connection.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,original_transaction_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,original_transaction_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     ('refund-expense', 'refund', 'posted', 40_000, 'COP', 'checking', None, None, 'expense', None, '2026-07-10', utc, utc),
 )
 connection.execute(
@@ -248,7 +248,7 @@ assert baseline_derived == {
 connection.execute("UPDATE accounts SET name = 'Renamed checking' WHERE id = 'checking'")
 connection.execute("UPDATE transactions SET status = 'voided' WHERE id = 'recurring-posted'")
 connection.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,destination_account_id,category_id,note,transaction_date,created_at,updated_at,base_currency_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, CASE WHEN ?2 = \'transfer\' THEN NULL ELSE \'COP\' END)',
     ('later-income', 'income', 'posted', 1, 'COP', 'savings', None, 'salary', None, '2026-07-20', utc, utc),
 )
 connection.commit()
@@ -330,8 +330,8 @@ except sqlite3.IntegrityError:
 insert_category(hierarchy, 'hogar', 'Hogar')
 insert_category(hierarchy, 'mercado', 'Mercado', 'hogar')
 hierarchy.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,transaction_date,created_at,updated_at)'
-    " VALUES ('h-expense','expense','posted',50000,'COP','h-checking','hogar','mercado','2026-07-02',?,?)",
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,base_currency_code,transaction_date,created_at,updated_at)'
+    " VALUES ('h-expense','expense','posted',50000,'COP','h-checking','hogar','mercado','COP','2026-07-02',?,?)",
     (utc, utc),
 )
 hierarchy.commit()
@@ -363,8 +363,8 @@ insert_category(hierarchy, 'transporte', 'Transporte')
 insert_category(hierarchy, 'mercado', 'Mercado', 'hogar')
 insert_category(hierarchy, 'taxi', 'Taxi', 'transporte')
 hierarchy.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,transaction_date,created_at,updated_at)'
-    " VALUES ('h-expense','expense','posted',50000,'COP','h-checking','hogar','mercado','2026-07-02',?,?)",
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,base_currency_code,transaction_date,created_at,updated_at)'
+    " VALUES ('h-expense','expense','posted',50000,'COP','h-checking','hogar','mercado','COP','2026-07-02',?,?)",
     (utc, utc),
 )
 hierarchy.commit()
@@ -393,8 +393,8 @@ assert hierarchy.execute('PRAGMA foreign_key_check').fetchall() == []
 # which is exactly the case the post-restore check exists to catch.
 hierarchy.execute('DROP TRIGGER transactions_subcategory_insert_guard')
 hierarchy.execute(
-    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,transaction_date,created_at,updated_at)'
-    " VALUES ('h-mismatch','expense','posted',1000,'COP','h-checking','transporte','mercado','2026-07-02',?,?)",
+    'INSERT INTO transactions (id,type,status,amount,currency,account_id,category_id,subcategory_id,base_currency_code,transaction_date,created_at,updated_at)'
+    " VALUES ('h-mismatch','expense','posted',1000,'COP','h-checking','transporte','mercado','COP','2026-07-02',?,?)",
     (utc, utc),
 )
 assert hierarchy.execute(DOMAIN_CHECK_SQL).fetchone()[0] == 1

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 
 import { toUserMessage } from '@/errors/user-error';
-import { exchangeRateService } from '@/features/exchange-rates/exchange-rates';
-import type { ScaledRate } from '@/features/currency/currency';
+import { exchangeRateService, loadValuationRates } from '@/features/exchange-rates/exchange-rates';
+import { getBaseCurrency } from '@/features/settings/settings';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
 import { investmentPortfolioService, investmentValuationService } from './investments';
 import type { InvestmentAccountView, InvestmentPortfolioSummary, InvestmentValuation } from './investment.types';
@@ -10,20 +10,16 @@ import type { InvestmentAccountView, InvestmentPortfolioSummary, InvestmentValua
 const emptyPortfolio: InvestmentPortfolioSummary = {
   accounts: [],
   investmentAccountCount: 0,
-  totalCurrentValueCopMinor: 0,
-  netContributionsCopMinor: 0,
-  estimatedGainLossCopMinor: 0,
+  baseCurrency: getBaseCurrency(),
+  totalCurrentValueBaseMinor: 0,
+  netContributionsBaseMinor: 0,
+  estimatedGainLossBaseMinor: 0,
   estimatedReturn: { available: false },
-  lockedOrRestrictedValueCopMinor: 0,
+  lockedOrRestrictedValueBaseMinor: 0,
   incomplete: false,
   allocationByType: [],
   allocationByCurrency: [],
 };
-
-async function resolveValuationRate(): Promise<ScaledRate | null> {
-  const status = await exchangeRateService.getStatus();
-  return status.rate ? { rateScaled: status.rate.rateScaled, rateScale: status.rate.rateScale } : null;
-}
 
 /** Portfolio read model for the Investments screen and the Home summary card. */
 export function useInvestments() {
@@ -35,11 +31,12 @@ export function useInvestments() {
     setLoading(true);
     setError(undefined);
     try {
-      const rate = await resolveValuationRate();
-      const summary = await investmentPortfolioService.getPortfolio(rate);
+      const rates = await loadValuationRates();
+      const summary = await investmentPortfolioService.getPortfolio(rates);
       setPortfolio(summary);
-      if (summary.accounts.some((view) => view.account.currency !== 'COP')) {
-        void exchangeRateService.ensureFreshRate();
+      const currencies = summary.accounts.map((view) => view.account.currency);
+      if (currencies.some((currency) => currency !== rates.baseCurrency)) {
+        void exchangeRateService.ensureFreshRates(currencies);
       }
     } catch (cause) {
       setError(toUserMessage(cause, 'Unable to load investments right now.'));
@@ -64,15 +61,15 @@ export function useInvestmentDetails(accountId: string) {
     setLoading(true);
     setError(undefined);
     try {
-      const rate = await resolveValuationRate();
+      const rates = await loadValuationRates();
       const [loadedView, loadedValuations] = await Promise.all([
-        investmentPortfolioService.getAccountView(accountId, rate),
+        investmentPortfolioService.getAccountView(accountId, rates),
         investmentValuationService.list(accountId),
       ]);
       setView(loadedView);
       setValuations(loadedValuations);
-      if (loadedView && loadedView.account.currency !== 'COP') {
-        void exchangeRateService.ensureFreshRate();
+      if (loadedView && loadedView.account.currency !== rates.baseCurrency) {
+        void exchangeRateService.ensureFreshRates([loadedView.account.currency]);
       }
     } catch (cause) {
       setError(toUserMessage(cause, 'Unable to load this investment right now.'));

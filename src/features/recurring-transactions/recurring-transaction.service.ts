@@ -1,3 +1,4 @@
+import { getBaseCurrency } from '@/features/settings/base-currency';
 import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transaction-date';
 import {
   isTransactionValidationError,
@@ -62,7 +63,13 @@ export class RecurringTransactionService {
     private readonly now = () => new Date().toISOString(),
     private readonly today = () => bogotaToday(),
     /** Resolves the current USD/COP rate snapshot when posting a USD occurrence. */
-    private readonly resolveExchangeRate: () => Promise<ExchangeRateSnapshotInput | null> = async () => null,
+    private readonly resolveExchangeRate: (currency: CurrencyCode) => Promise<ExchangeRateSnapshotInput | null> = async () => null,
+    /**
+     * The device's base currency. Injected rather than read from the module cache
+     * at each call site: the cache is process-global, so a test (or any runtime
+     * that loads this module twice) could not set it deterministically.
+     */
+    private readonly baseCurrency: () => CurrencyCode = getBaseCurrency,
   ) {}
 
   listRules() {
@@ -265,15 +272,17 @@ export class RecurringTransactionService {
 
   async confirmOccurrence(id: string) {
     const occurrence = await this.requirePendingOccurrence(id);
-    // A foreign-currency income/expense occurrence captures its own rate snapshot
-    // at posting time. Without a valid rate, posting is blocked (never posts COP 0).
+    // An occurrence in a currency other than the base captures its own rate
+    // snapshot at posting time. Without a valid rate, posting is blocked — it never
+    // posts a zero base amount.
+    const baseCurrency = this.baseCurrency();
     let exchangeRate: ExchangeRateSnapshotInput | null = null;
-    if (occurrence.currency !== 'COP' && occurrence.type !== 'transfer') {
-      exchangeRate = await this.resolveExchangeRate();
+    if (occurrence.currency !== baseCurrency && occurrence.type !== 'transfer') {
+      exchangeRate = await this.resolveExchangeRate(occurrence.currency);
       if (!exchangeRate) {
         throw new RecurringActionError(
           'missing_exchange_rate',
-          'Add an exchange rate before posting this USD transaction.',
+          `Add a ${occurrence.currency}/${baseCurrency} exchange rate before posting this transaction.`,
         );
       }
     }

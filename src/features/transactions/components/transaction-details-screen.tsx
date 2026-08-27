@@ -19,7 +19,7 @@ import { borderRadii, borderWidths, spacing, typography } from '@/constants/them
 import { toUserMessage } from '@/errors/user-error';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import {
-  formatExchangeRate,
+  describeRate,
   formatMoney,
   formatMoneyWithSymbol,
   getCurrency,
@@ -164,8 +164,8 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             {transaction.type !== 'transfer' && transaction.currency !== 'COP' && transaction.baseAmountMinor !== null ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
                 {formatMoney(transaction.baseAmountMinor, 'COP')} at the rate saved when recorded
-                {transaction.exchangeRateScaled && transaction.exchangeRateScale
-                  ? ` (COP ${formatExchangeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale })}/USD)`
+                {transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateBaseCode && transaction.exchangeRateQuoteCode
+                  ? ` (${describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode })})`
                   : ''}
               </Text>
             ) : null}
@@ -173,8 +173,8 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
               && transaction.destinationCurrencyCode !== transaction.currency ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
                 → {formatMoneyWithSymbol(transaction.destinationAmountMinor, transaction.destinationCurrencyCode)}
-                {transaction.exchangeRateScaled && transaction.exchangeRateScale
-                  ? ` · effective COP ${formatExchangeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale })}/USD`
+                {transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateBaseCode && transaction.exchangeRateQuoteCode
+                  ? ` · effective ${describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode })}`
                   : ''}
               </Text>
             ) : null}
@@ -386,11 +386,19 @@ function TransactionEditForm({
         setSaving(false);
         return;
       }
-      // Preserve the original rate snapshot; the amount recomputes the COP base against it.
-      const savedRate = transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateDate && transaction.exchangeRateSource
+      // Preserve the original rate snapshot, pair included; the amount recomputes
+      // the base-currency value against it rather than against today's rate.
+      const savedRate = transaction.exchangeRateScaled
+        && transaction.exchangeRateScale
+        && transaction.exchangeRateBaseCode
+        && transaction.exchangeRateQuoteCode
+        && transaction.exchangeRateDate
+        && transaction.exchangeRateSource
         ? {
             rateScaled: transaction.exchangeRateScaled,
             rateScale: transaction.exchangeRateScale,
+            baseCurrencyCode: transaction.exchangeRateBaseCode,
+            quoteCurrencyCode: transaction.exchangeRateQuoteCode,
             effectiveDate: transaction.exchangeRateDate,
             source: transaction.exchangeRateSource,
           }

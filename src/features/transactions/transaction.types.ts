@@ -22,6 +22,9 @@ export type ExchangeRateSnapshotSource =
 export type ExchangeRateSnapshotInput = {
   rateScaled: number;
   rateScale: number;
+  /** The pair the rate describes, read as "1 base = rate quote". */
+  baseCurrencyCode: CurrencyCode;
+  quoteCurrencyCode: CurrencyCode;
   effectiveDate: string;
   source: ExchangeRateSnapshotSource;
 };
@@ -95,10 +98,18 @@ type TransactionMetadata = {
 
 /** Persisted currency snapshot columns shared by every transaction record. */
 export type TransactionSnapshotFields = {
-  /** COP base-currency amount for income/expense/refund; null for transfers. */
+  /** Base-currency amount for income/expense/refund; null for transfers. */
   baseAmountMinor: number | null;
+  /**
+   * Which currency `baseAmountMinor` is in. Recorded per row rather than inferred
+   * from the current setting, so a snapshot stays readable on its own.
+   */
+  baseCurrencyCode: CurrencyCode | null;
   exchangeRateScaled: number | null;
   exchangeRateScale: number | null;
+  /** The pair `exchangeRateScaled` describes; both null when there is no rate. */
+  exchangeRateBaseCode: CurrencyCode | null;
+  exchangeRateQuoteCode: CurrencyCode | null;
   exchangeRateDate: string | null;
   exchangeRateSource: ExchangeRateSnapshotSource | null;
   /** Destination leg for transfers; null otherwise. */

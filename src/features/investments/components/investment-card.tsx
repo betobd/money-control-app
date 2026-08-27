@@ -60,9 +60,9 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
           </Text>
           {isForeign ? (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
-              {view.estimatedValueCopMinor === null
+              {view.estimatedValueBaseMinor === null
                 ? 'Estimated COP — rate unavailable'
-                : `≈ COP ${formatMoneyNumber(view.estimatedValueCopMinor, 'COP')}`}
+                : `≈ COP ${formatMoneyNumber(view.estimatedValueBaseMinor, 'COP')}`}
             </Text>
           ) : null}
         </View>

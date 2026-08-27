@@ -1,10 +1,12 @@
 /**
  * Exchange-rate freshness, caching, manual entry, and controlled remote refresh.
  *
- * Policy (docs/decisions/0005-multi-currency-cop-usd.md):
+ * Policy (docs/decisions/0008-configurable-base-currency.md):
+ * - One rate per foreign currency, always against the device's base currency.
  * - A stored rate is fresh for 24 hours from its fetch time.
- * - A stale/missing rate triggers at most one refresh; concurrent refreshes are
- *   de-duplicated and a failed refresh sets a short cool-down to avoid storms.
+ * - A stale/missing rate triggers at most one refresh per currency; concurrent
+ *   refreshes are de-duplicated and a failed refresh sets a short per-currency
+ *   cool-down to avoid storms.
  * - A failed refresh keeps the last valid rate (never deletes it) and reports it
  *   as stale. Manual entry is always available.
  * - No network access lives here; that is the provider's job.
@@ -12,13 +14,16 @@
 import {
   parseExchangeRate,
   type CurrencyCode,
+  type DirectedRate,
 } from '@/features/currency/currency';
+import { getBaseCurrency } from '@/features/settings/base-currency';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { isExchangeRateProviderError, type ExchangeRateProvider } from './frankfurter.provider';
 import type { ExchangeRateRepository } from './exchange-rate.repository';
 import {
-  USD_COP_RATE_ID,
+  rateId,
+  toDirectedRate,
   type ExchangeRateFreshness,
   type ExchangeRateRecord,
   type ExchangeRateStatus,
@@ -33,6 +38,8 @@ export type ExchangeRateServiceErrorCode =
   | 'no_rate_available';
 
 export class ExchangeRateServiceError extends Error {
+  readonly isExchangeRateServiceError = true;
+
   constructor(
     public readonly code: ExchangeRateServiceErrorCode,
     message: string,
@@ -42,17 +49,22 @@ export class ExchangeRateServiceError extends Error {
   }
 }
 
+export function isExchangeRateServiceError(value: unknown): value is ExchangeRateServiceError {
+  return value instanceof Error && (value as ExchangeRateServiceError).isExchangeRateServiceError === true;
+}
+
 type ExchangeRateServiceOptions = {
   now?: () => string;
   today?: () => string;
-  createId?: () => string;
+  baseCurrency?: () => CurrencyCode;
 };
 
 export class ExchangeRateService {
   private readonly now: () => string;
   private readonly today: () => string;
-  private refreshInFlight: Promise<ExchangeRateStatus> | undefined;
-  private lastFailureAtMs: number | undefined;
+  private readonly baseCurrency: () => CurrencyCode;
+  private readonly refreshInFlight = new Map<CurrencyCode, Promise<ExchangeRateStatus>>();
+  private readonly lastFailureAtMs = new Map<CurrencyCode, number>();
 
   constructor(
     private readonly repository: ExchangeRateRepository,
@@ -61,6 +73,7 @@ export class ExchangeRateService {
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.today = options.today ?? (() => bogotaToday());
+    this.baseCurrency = options.baseCurrency ?? getBaseCurrency;
   }
 
   private nowMs(): number {
@@ -73,54 +86,90 @@ export class ExchangeRateService {
     return age <= RATE_FRESHNESS_MS ? 'fresh' : 'stale';
   }
 
-  async getStatus(): Promise<ExchangeRateStatus> {
-    const rate = await this.repository.getValuationRate();
-    return { rate, freshness: this.freshnessOf(rate) };
+  async getStatusFor(currency: CurrencyCode): Promise<ExchangeRateStatus> {
+    const base = this.baseCurrency();
+    if (currency === base) {
+      // The base currency needs no rate, and reporting it as missing would put a
+      // permanent "no rate available" warning on a perfectly complete total.
+      return { currencyCode: currency, rate: null, freshness: 'fresh' };
+    }
+    const rate = await this.repository.find(currency, base);
+    return { currencyCode: currency, rate, freshness: this.freshnessOf(rate) };
   }
 
-  /** The current valuation rate for converting USD balances to COP, or null. */
-  async getValuationRate(): Promise<ExchangeRateRecord | null> {
-    return this.repository.getValuationRate();
+  async listStatuses(currencies: readonly CurrencyCode[]): Promise<ExchangeRateStatus[]> {
+    const base = this.baseCurrency();
+    const foreign = [...new Set(currencies)].filter((code) => code !== base);
+    return Promise.all(foreign.map((code) => this.getStatusFor(code)));
+  }
+
+  /** The rate that converts `currency` to the base currency, or null. */
+  async getRateFor(currency: CurrencyCode): Promise<DirectedRate | null> {
+    const { rate } = await this.getStatusFor(currency);
+    return rate ? toDirectedRate(rate) : null;
   }
 
   /**
-   * Non-blocking auto-refresh used on startup / first access to currency-dependent
-   * data. Refreshes only when stale/missing, never throws, and respects the
-   * failure cool-down and in-flight de-duplication.
+   * Rates for several currencies at once, keyed by currency. Currencies with no
+   * stored rate are absent rather than null, so callers must decide explicitly
+   * what an unconvertible amount means instead of defaulting it to zero.
    */
-  async ensureFreshRate(): Promise<void> {
-    const status = await this.getStatus();
-    if (status.freshness === 'fresh') return;
-    if (this.refreshInFlight) return;
-    if (
-      this.lastFailureAtMs !== undefined &&
-      this.nowMs() - this.lastFailureAtMs < REFRESH_FAILURE_COOLDOWN_MS
-    ) {
-      return;
+  async getRatesFor(currencies: readonly CurrencyCode[]): Promise<Map<CurrencyCode, DirectedRate>> {
+    const statuses = await this.listStatuses(currencies);
+    const rates = new Map<CurrencyCode, DirectedRate>();
+    for (const status of statuses) {
+      if (status.rate) rates.set(status.currencyCode, toDirectedRate(status.rate));
     }
-    try {
-      await this.refreshFromProvider();
-    } catch {
-      // Keep the cached rate; auto-refresh never surfaces an error.
-    }
+    return rates;
   }
 
-  /** Refresh from the provider. De-duplicates concurrent calls. Throws on failure. */
-  refreshFromProvider(): Promise<ExchangeRateStatus> {
-    if (this.refreshInFlight) return this.refreshInFlight;
-    this.refreshInFlight = this.performRefresh().finally(() => {
-      this.refreshInFlight = undefined;
+  /**
+   * Non-blocking auto-refresh for the currencies actually in use. Refreshes only
+   * what is stale or missing, never throws, and respects the per-currency failure
+   * cool-down and in-flight de-duplication.
+   */
+  async ensureFreshRates(currencies: readonly CurrencyCode[]): Promise<void> {
+    const base = this.baseCurrency();
+    const stale: CurrencyCode[] = [];
+    for (const currency of new Set(currencies)) {
+      if (currency === base) continue;
+      const status = await this.getStatusFor(currency);
+      if (status.freshness === 'fresh') continue;
+      if (this.refreshInFlight.has(currency)) continue;
+      const failedAt = this.lastFailureAtMs.get(currency);
+      if (failedAt !== undefined && this.nowMs() - failedAt < REFRESH_FAILURE_COOLDOWN_MS) continue;
+      stale.push(currency);
+    }
+    // Settled, not all: one unreachable currency must not discard the rates that
+    // did arrive.
+    await Promise.allSettled(stale.map((currency) => this.refreshFromProvider(currency)));
+  }
+
+  /** Refresh one currency from the provider. De-duplicates concurrent calls. */
+  refreshFromProvider(currency: CurrencyCode): Promise<ExchangeRateStatus> {
+    const existing = this.refreshInFlight.get(currency);
+    if (existing) return existing;
+    const refresh = this.performRefresh(currency).finally(() => {
+      this.refreshInFlight.delete(currency);
     });
-    return this.refreshInFlight;
+    this.refreshInFlight.set(currency, refresh);
+    return refresh;
   }
 
-  private async performRefresh(): Promise<ExchangeRateStatus> {
+  private async performRefresh(currency: CurrencyCode): Promise<ExchangeRateStatus> {
+    const base = this.baseCurrency();
+    if (currency === base) {
+      throw new ExchangeRateServiceError(
+        'invalid_manual_rate',
+        'The base currency has no exchange rate against itself.',
+      );
+    }
     try {
-      const fetched = await this.provider.fetchUsdCopRate();
-      const existing = await this.repository.getValuationRate();
+      const fetched = await this.provider.fetchRate(currency, base);
+      const existing = await this.repository.find(currency, base);
       const timestamp = this.now();
       const record: ExchangeRateRecord = {
-        id: USD_COP_RATE_ID,
+        id: rateId(fetched.baseCurrencyCode, fetched.quoteCurrencyCode),
         baseCurrencyCode: fetched.baseCurrencyCode,
         quoteCurrencyCode: fetched.quoteCurrencyCode,
         rateScaled: fetched.rateScaled,
@@ -132,19 +181,19 @@ export class ExchangeRateService {
         createdAt: existing?.createdAt ?? timestamp,
         updatedAt: timestamp,
       };
-      await this.repository.saveValuationRate(record);
-      this.lastFailureAtMs = undefined;
+      await this.repository.save(record);
+      this.lastFailureAtMs.delete(currency);
       notifyFinancialDataChanged({ kind: 'exchange-rate', operation: 'update' });
-      return { rate: record, freshness: this.freshnessOf(record) };
+      return { currencyCode: currency, rate: record, freshness: this.freshnessOf(record) };
     } catch (cause) {
-      this.lastFailureAtMs = this.nowMs();
-      const cached = await this.repository.getValuationRate();
+      this.lastFailureAtMs.set(currency, this.nowMs());
+      const cached = await this.repository.find(currency, base);
       if (isExchangeRateProviderError(cause)) {
         throw new ExchangeRateServiceError(
           cached ? 'refresh_failed' : 'no_rate_available',
           cached
-            ? 'Could not update the USD/COP reference rate. The last saved rate is still being used.'
-            : 'No exchange rate is available. Enter a USD/COP rate manually.',
+            ? `Could not update the ${currency}/${base} reference rate. The last saved rate is still being used.`
+            : `No exchange rate is available for ${currency}. Enter a ${currency}/${base} rate manually.`,
           cached,
         );
       }
@@ -152,23 +201,28 @@ export class ExchangeRateService {
     }
   }
 
-  /** Validate and persist a manual USD/COP rate. Becomes the current valuation rate. */
-  async setManualRate(input: string): Promise<ExchangeRateStatus> {
+  /** Validate and persist a manual rate, read as "1 currency = input base". */
+  async setManualRate(currency: CurrencyCode, input: string): Promise<ExchangeRateStatus> {
+    const base = this.baseCurrency();
+    if (currency === base) {
+      throw new ExchangeRateServiceError(
+        'invalid_manual_rate',
+        'The base currency has no exchange rate against itself.',
+      );
+    }
     const parsed = parseExchangeRate(input);
     if (!parsed.ok) {
       throw new ExchangeRateServiceError(
         'invalid_manual_rate',
-        'Enter a valid USD/COP rate greater than zero.',
+        `Enter a valid ${currency}/${base} rate greater than zero.`,
       );
     }
-    const existing = await this.repository.getValuationRate();
+    const existing = await this.repository.find(currency, base);
     const timestamp = this.now();
-    const base: CurrencyCode = 'USD';
-    const quote: CurrencyCode = 'COP';
     const record: ExchangeRateRecord = {
-      id: USD_COP_RATE_ID,
-      baseCurrencyCode: base,
-      quoteCurrencyCode: quote,
+      id: rateId(currency, base),
+      baseCurrencyCode: currency,
+      quoteCurrencyCode: base,
       rateScaled: parsed.rateScaled,
       rateScale: parsed.rateScale,
       effectiveDate: this.today(),
@@ -178,8 +232,8 @@ export class ExchangeRateService {
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
-    await this.repository.saveValuationRate(record);
+    await this.repository.save(record);
     notifyFinancialDataChanged({ kind: 'exchange-rate', operation: 'update' });
-    return { rate: record, freshness: this.freshnessOf(record) };
+    return { currencyCode: currency, rate: record, freshness: this.freshnessOf(record) };
   }
 }
