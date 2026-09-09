@@ -7,10 +7,18 @@ import { isValidBudgetMonth } from './budget-month';
 import type { BudgetRepository } from './budget.repository';
 import type { BudgetRuleRepository } from './budget-rule.repository';
 import type { BudgetRule } from './budget-rule.types';
+import type { MonthlyBudgetRepository } from './monthly-budget.repository';
+import type {
+  MonthlyBudget,
+  MonthlyBudgetInput,
+  MonthlyBudgetValidationErrors,
+  MonthlyBudgetView,
+} from './monthly-budget.types';
 import type {
   Budget,
   BudgetGroup,
   BudgetInput,
+  BudgetStatus,
   BudgetMonthView,
   BudgetRecord,
   BudgetSpendingRecord,
@@ -25,6 +33,12 @@ export type BudgetEditModel = BudgetRecord & { isRecurring: boolean };
 export class BudgetValidationError extends Error {
   constructor(public readonly fields: BudgetValidationErrors) {
     super('Budget validation failed.');
+  }
+}
+
+export class MonthlyBudgetValidationError extends Error {
+  constructor(public readonly fields: MonthlyBudgetValidationErrors) {
+    super('Monthly budget validation failed.');
   }
 }
 
@@ -92,6 +106,56 @@ export function calculateBudget(record: BudgetSpendingRecord, isRecurring = fals
     status,
     isRecurring,
   };
+}
+
+/**
+ * The ceiling as one month sees it.
+ *
+ * `categoryBudgetTotal` is a slice of the ceiling, never an addition to it: the
+ * ceiling is a global cap that already includes every category budget, which is
+ * what makes `unallocated` meaningful — money inside the cap that no category
+ * budget is watching.
+ */
+export function calculateMonthlyBudget(
+  month: string,
+  limitAmount: number,
+  spent: number,
+  inheritedFrom: string | null,
+  categoryBudgetTotal: number,
+): MonthlyBudgetView {
+  const limit = ensureSafeMoney(limitAmount, 'Monthly ceiling');
+  const safeSpent = ensureSafeMoney(spent, 'Monthly ceiling spending');
+  const remaining = ensureSafeMoney(limit - safeSpent, 'Monthly ceiling remaining amount');
+  const ratio = safeSpent / limit;
+  const percentageUsed = Math.round(ratio * 1000) / 10;
+  const status: BudgetStatus = safeSpent > limit
+    ? 'over-budget'
+    : safeSpent === limit
+      ? 'fully-used'
+      : ratio >= 0.8
+        ? 'near-limit'
+        : 'on-track';
+  return {
+    month,
+    limitAmount: limit,
+    spent: safeSpent,
+    remaining,
+    percentageUsed,
+    progressWidth: progressWidth(percentageUsed),
+    status,
+    inheritedFrom,
+    categoryBudgetTotal: ensureSafeMoney(categoryBudgetTotal, 'Category budget total'),
+    unallocated: ensureSafeMoney(limit - categoryBudgetTotal, 'Unallocated ceiling'),
+  };
+}
+
+export function validateMonthlyBudgetInput(input: MonthlyBudgetInput): MonthlyBudgetValidationErrors {
+  const errors: MonthlyBudgetValidationErrors = {};
+  if (!isValidBudgetMonth(input.month)) errors.month = 'Enter a valid month in YYYY-MM format.';
+  if (!Number.isSafeInteger(input.limitAmount) || input.limitAmount <= 0) {
+    errors.limitAmount = 'Enter a positive whole limit.';
+  }
+  return errors;
 }
 
 /**
@@ -165,6 +229,7 @@ export class BudgetService {
     private readonly repository: BudgetRepository,
     private readonly categories: CategoryRepository,
     private readonly rules: BudgetRuleRepository,
+    private readonly monthly: MonthlyBudgetRepository,
     options: BudgetServiceOptions = {},
   ) {
     this.createId = options.createId ?? createFallbackId;
@@ -182,7 +247,87 @@ export class BudgetService {
     const budgets = (await this.repository.listMonth(month)).map((record) =>
       calculateBudget(record, recurringCategories.has(record.categoryId)),
     );
-    return { budgets, summary: calculateBudgetSummary(budgets) };
+    const summary = calculateBudgetSummary(budgets);
+    return { budgets, summary, ceiling: await this.getCeilingView(month, summary.totalBudget) };
+  }
+
+  /**
+   * The ceiling governing `month`, or null when none applies.
+   *
+   * Reads the nearest row at or before the month: a month with no row of its own
+   * inherits the last one set, and an inactive row means the user stopped the
+   * ceiling from that month onward.
+   */
+  async getCeilingView(month: string, categoryBudgetTotal: number): Promise<MonthlyBudgetView | null> {
+    const record = await this.monthly.findEffective(month);
+    if (!record || !record.isActive) return null;
+    const spent = await this.monthly.spendingFor(month);
+    return calculateMonthlyBudget(
+      month,
+      record.limitAmount,
+      spent,
+      record.month === month ? null : record.month,
+      categoryBudgetTotal,
+    );
+  }
+
+  /** The stored ceiling row governing a month, for the edit form. */
+  getCeiling(month: string): Promise<MonthlyBudget | null> {
+    return this.monthly.findEffective(month);
+  }
+
+  /**
+   * Sets the ceiling from `month` onward.
+   *
+   * Later months that never had a ceiling of their own inherit this one. A later
+   * month the user set explicitly keeps its own value — an intentional December
+   * ceiling is not erased by editing September.
+   */
+  async setCeiling(input: MonthlyBudgetInput): Promise<MonthlyBudget> {
+    const normalized: MonthlyBudgetInput = { month: input.month.trim(), limitAmount: input.limitAmount };
+    const errors = validateMonthlyBudgetInput(normalized);
+    if (Object.keys(errors).length) throw new MonthlyBudgetValidationError(errors);
+    const timestamp = this.now();
+    const existing = await this.monthly.findEffective(normalized.month);
+    const budget: MonthlyBudget = {
+      id: existing?.month === normalized.month ? existing.id : this.createId(),
+      month: normalized.month,
+      limitAmount: normalized.limitAmount,
+      isActive: true,
+      createdAt: existing?.month === normalized.month ? existing.createdAt : timestamp,
+      updatedAt: timestamp,
+    };
+    await this.monthly.upsert(budget);
+    this.notifyChanged({ kind: 'budget', operation: 'update', budgetId: budget.id });
+    return budget;
+  }
+
+  /**
+   * Stops the ceiling from `month` onward.
+   *
+   * Writes an inactive row rather than deleting: deleting would let the month
+   * inherit an older ceiling again, silently undoing the removal. Later rows are
+   * dropped so no future ceiling survives the removal.
+   */
+  async removeCeiling(month: string): Promise<void> {
+    if (!isValidBudgetMonth(month)) {
+      throw new MonthlyBudgetValidationError({ month: 'Enter a valid month in YYYY-MM format.' });
+    }
+    const existing = await this.monthly.findEffective(month);
+    if (!existing) return;
+    const timestamp = this.now();
+    await this.monthly.upsert({
+      id: existing.month === month ? existing.id : this.createId(),
+      month,
+      // The CHECK requires a positive limit, so the last known limit is kept as
+      // the tombstone's payload. `isActive` is what makes it a removal.
+      limitAmount: existing.limitAmount,
+      isActive: false,
+      createdAt: existing.month === month ? existing.createdAt : timestamp,
+      updatedAt: timestamp,
+    });
+    await this.monthly.deleteAfter(month);
+    this.notifyChanged({ kind: 'budget', operation: 'remove', budgetId: existing.id });
   }
 
   async listAll(): Promise<BudgetView[]> {

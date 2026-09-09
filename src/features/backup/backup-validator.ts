@@ -6,6 +6,7 @@ import {
   BACKUP_FORMAT,
   BACKUP_TIMEZONE,
   type BackupBudgetRule,
+  type BackupMonthlyBudget,
   type BackupFile,
   type BackupFileV1,
   type BackupFileV2,
@@ -650,6 +651,25 @@ function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void
   });
 }
 
+function validateMonthlyBudgetRows(rows: unknown[], issues: ValidationIssues): void {
+  rows.forEach((value, index) => {
+    const path = `data.monthlyBudgets[${index}]`;
+    const row = requireRecord(value, path, issues);
+    if (!row) return;
+    validateId(row.id, `${path}.id`, issues);
+    if (typeof row.month !== 'string' || !monthPattern.test(row.month)) {
+      issue(issues, 'invalid_value', `${path}.month`, 'Monthly ceiling month must use YYYY-MM.');
+    }
+    // Positive even for an inactive row: the tombstone keeps the last known
+    // limit as its payload, and the database CHECK requires it.
+    validateSafeInteger(row.limitAmount, `${path}.limitAmount`, issues, { positive: true });
+    if (typeof row.isActive !== 'boolean') {
+      issue(issues, 'invalid_value', `${path}.isActive`, 'Monthly ceiling isActive must be a boolean.');
+    }
+    validateAuditFields(row, path, issues);
+  });
+}
+
 function validateRecurringRows(rows: unknown[], issues: ValidationIssues, version: BackupFormatVersion = 1): void {
   rows.forEach((value, index) => {
     const path = `data.recurringTransactions[${index}]`;
@@ -925,6 +945,10 @@ export class BackupValidator {
         const budgetRules = requireArray(data, 'budgetRules', 'data.budgetRules', backupLimits.collections.budgetRules, issues);
         validateBudgetRuleRows(budgetRules, issues);
       }
+      if (data.monthlyBudgets !== undefined) {
+        const monthlyBudgets = requireArray(data, 'monthlyBudgets', 'data.monthlyBudgets', backupLimits.collections.monthlyBudgets, issues);
+        validateMonthlyBudgetRows(monthlyBudgets, issues);
+      }
       validateRecurringRows(recurring, issues, version);
       validateOccurrenceRows(occurrences, issues, version);
       if (version >= 2) validateCreditCardStatementRows(cardStatements, issues);
@@ -949,6 +973,9 @@ export class BackupValidator {
     validateUniqueIds(data.budgets, 'budgets', issues);
     if ('budgetRules' in data && Array.isArray((data as { budgetRules?: unknown[] }).budgetRules)) {
       validateUniqueIds((data as { budgetRules: { id: string }[] }).budgetRules, 'budgetRules', issues);
+    }
+    if ('monthlyBudgets' in data && Array.isArray((data as { monthlyBudgets?: unknown[] }).monthlyBudgets)) {
+      validateUniqueIds((data as { monthlyBudgets: { id: string }[] }).monthlyBudgets, 'monthlyBudgets', issues);
     }
     validateUniqueIds(data.recurringTransactions, 'recurringTransactions', issues);
     validateUniqueIds(data.recurringOccurrences, 'recurringOccurrences', issues);
@@ -1087,6 +1114,15 @@ export class BackupValidator {
         issue(issues, 'duplicate_constraint', 'data.budgets', 'Two budgets use the same category and month.');
       }
       budgetKeys.add(key);
+    }
+
+    const monthlyBudgets = (data as { monthlyBudgets?: BackupMonthlyBudget[] }).monthlyBudgets ?? [];
+    const ceilingMonths = new Set<string>();
+    for (const ceiling of monthlyBudgets) {
+      if (ceilingMonths.has(ceiling.month)) {
+        issue(issues, 'duplicate_constraint', 'data.monthlyBudgets', 'Two monthly ceilings use the same month.');
+      }
+      ceilingMonths.add(ceiling.month);
     }
 
     const budgetRules = (data as { budgetRules?: BackupBudgetRule[] }).budgetRules ?? [];

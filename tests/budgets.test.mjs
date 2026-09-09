@@ -5,8 +5,10 @@ import {
   BudgetActionError,
   BudgetService,
   BudgetValidationError,
+  MonthlyBudgetValidationError,
   calculateBudget,
   calculateBudgetSummary,
+  calculateMonthlyBudget,
   groupBudgets,
 } from '../src/features/budgets/budget.service.ts';
 import { shiftBudgetMonth } from '../src/features/budgets/budget-month.ts';
@@ -76,17 +78,37 @@ class MemoryBudgetRuleRepository {
   async deactivate(id, updatedAt) { const rule = this.rules.find((candidate) => candidate.id === id); rule.isActive = false; rule.updatedAt = updatedAt; }
 }
 
+class MemoryMonthlyBudgetRepository {
+  rows = [];
+  spending = new Map();
+
+  async findEffective(month) {
+    return [...this.rows]
+      .filter((row) => row.month <= month)
+      .sort((a, b) => (a.month < b.month ? 1 : -1))[0] ?? null;
+  }
+  async upsert(budget) {
+    const index = this.rows.findIndex((row) => row.month === budget.month);
+    if (index >= 0) this.rows[index] = { ...budget };
+    else this.rows.push({ ...budget });
+  }
+  async deleteAfter(month) { this.rows = this.rows.filter((row) => row.month <= month); }
+  async listAll() { return [...this.rows].sort((a, b) => (a.month < b.month ? -1 : 1)); }
+  async spendingFor(month) { return this.spending.get(month) ?? 0; }
+}
+
 function setup() {
   const repository = new MemoryBudgetRepository();
   const rules = new MemoryBudgetRuleRepository();
+  const monthly = new MemoryMonthlyBudgetRepository();
   let changed = 0;
   let id = 0;
-  const service = new BudgetService(repository, new MemoryCategoryRepository(), rules, {
+  const service = new BudgetService(repository, new MemoryCategoryRepository(), rules, monthly, {
     createId: () => `budget-${++id}`,
     now: () => NOW,
     notifyChanged: () => { changed += 1; },
   });
-  return { repository, rules, service, changed: () => changed };
+  return { repository, rules, monthly, service, changed: () => changed };
 }
 
 async function validationFields(action) {
@@ -349,4 +371,92 @@ test('grouping and the summary agree on what is nested', () => {
   const shown = groups.flatMap((group) => [group.budget.id, ...group.children.map((child) => child.id)]);
   assert.equal(shown.length, all.length);
   assert.deepEqual(new Set(shown), new Set(all.map((budget) => budget.id)));
+});
+
+test('the ceiling counts every expense, not only budgeted categories', () => {
+  // 5,000,000 ceiling, 3,200,000 planned in category budgets, 4,000,000 actually
+  // spent. The 800,000 gap between spending and the category plan is exactly the
+  // money the ceiling exists to make visible.
+  const ceiling = calculateMonthlyBudget('2026-07', 5_000_000, 4_000_000, null, 3_200_000);
+  assert.equal(ceiling.spent, 4_000_000);
+  assert.equal(ceiling.remaining, 1_000_000);
+  assert.equal(ceiling.percentageUsed, 80);
+  assert.equal(ceiling.status, 'near-limit');
+  assert.equal(ceiling.categoryBudgetTotal, 3_200_000);
+  assert.equal(ceiling.unallocated, 1_800_000);
+});
+
+test('reports category budgets that overrun the ceiling as negative headroom', () => {
+  const ceiling = calculateMonthlyBudget('2026-07', 1_000_000, 200_000, null, 1_500_000);
+  assert.equal(ceiling.unallocated, -500_000);
+  // Overcommitting the plan is not the same as overspending it.
+  assert.equal(ceiling.status, 'on-track');
+});
+
+test('marks the ceiling over budget once spending passes it', () => {
+  const ceiling = calculateMonthlyBudget('2026-07', 1_000_000, 1_200_000, null, 0);
+  assert.equal(ceiling.status, 'over-budget');
+  assert.equal(ceiling.remaining, -200_000);
+  assert.equal(ceiling.progressWidth, '100%');
+});
+
+test('sets a ceiling and carries it into later months', async () => {
+  const { service, monthly } = setup();
+  await service.setCeiling({ month: '2026-07', limitAmount: 5_000_000 });
+  monthly.spending.set('2026-09', 1_000_000);
+
+  const july = await service.listMonth('2026-07');
+  assert.equal(july.ceiling.limitAmount, 5_000_000);
+  assert.equal(july.ceiling.inheritedFrom, null);
+
+  // September never had a ceiling set, so it uses July's and says so.
+  const september = await service.listMonth('2026-09');
+  assert.equal(september.ceiling.limitAmount, 5_000_000);
+  assert.equal(september.ceiling.inheritedFrom, '2026-07');
+  assert.equal(september.ceiling.spent, 1_000_000);
+});
+
+test('a month with its own ceiling is not overwritten by editing an earlier one', async () => {
+  const { service } = setup();
+  await service.setCeiling({ month: '2026-07', limitAmount: 5_000_000 });
+  await service.setCeiling({ month: '2026-12', limitAmount: 9_000_000 });
+  await service.setCeiling({ month: '2026-07', limitAmount: 4_000_000 });
+
+  assert.equal((await service.listMonth('2026-08')).ceiling.limitAmount, 4_000_000);
+  // A deliberately different December survives an edit to September.
+  assert.equal((await service.listMonth('2026-12')).ceiling.limitAmount, 9_000_000);
+});
+
+test('removing the ceiling stops it going forward without touching the past', async () => {
+  const { service } = setup();
+  await service.setCeiling({ month: '2026-07', limitAmount: 5_000_000 });
+  await service.setCeiling({ month: '2026-12', limitAmount: 9_000_000 });
+  await service.removeCeiling('2026-09');
+
+  assert.equal((await service.listMonth('2026-07')).ceiling.limitAmount, 5_000_000);
+  // Without the tombstone this would fall back to July's ceiling.
+  assert.equal((await service.listMonth('2026-09')).ceiling, null);
+  assert.equal((await service.listMonth('2026-10')).ceiling, null);
+  // The future ceiling is dropped too, so nothing resurrects it.
+  assert.equal((await service.listMonth('2026-12')).ceiling, null);
+});
+
+test('a month before any ceiling has none', async () => {
+  const { service } = setup();
+  await service.setCeiling({ month: '2026-07', limitAmount: 5_000_000 });
+  assert.equal((await service.listMonth('2026-06')).ceiling, null);
+});
+
+test('rejects a ceiling that is not a positive whole amount', async () => {
+  const { service } = setup();
+  for (const limitAmount of [0, -1, 1500.5]) {
+    await assert.rejects(
+      () => service.setCeiling({ month: '2026-07', limitAmount }),
+      (error) => error instanceof MonthlyBudgetValidationError && Boolean(error.fields.limitAmount),
+    );
+  }
+  await assert.rejects(
+    () => service.setCeiling({ month: '2026-13', limitAmount: 1_000_000 }),
+    (error) => error instanceof MonthlyBudgetValidationError && Boolean(error.fields.month),
+  );
 });

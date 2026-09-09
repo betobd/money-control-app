@@ -11,6 +11,7 @@ import { groupBudgets } from '@/features/budgets/budget.service';
 import { BudgetCard } from '@/features/budgets/components/budget-card';
 import { BudgetErrorState, EmptyBudgetsState, LoadingBudgetCard } from '@/features/budgets/components/budget-states';
 import { BudgetSummaryCard } from '@/features/budgets/components/budget-summary-card';
+import { MonthlyCeilingCard, MonthlyCeilingEmptyCard } from '@/features/budgets/components/monthly-ceiling-card';
 import { CreateBudgetButton } from '@/features/budgets/components/create-budget-button';
 import { useBudgets } from '@/features/budgets/use-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -26,6 +27,7 @@ export default function BudgetsScreen() {
     pathname: '/budget-form',
     params: { month, ...(id ? { id } : {}) },
   });
+  const openCeilingForm = () => router.push({ pathname: '/monthly-ceiling-form', params: { month } });
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
@@ -43,6 +45,13 @@ export default function BudgetsScreen() {
 
       {data.loading ? <><LoadingBudgetCard /><LoadingBudgetCard /></> : null}
       {!data.loading && data.error ? <BudgetErrorState message={data.error} onRetry={() => void data.reload()} /> : null}
+
+      {!data.loading && !data.error ? (
+        data.ceiling
+          ? <MonthlyCeilingCard ceiling={data.ceiling} onEdit={openCeilingForm} />
+          : <MonthlyCeilingEmptyCard onCreate={openCeilingForm} />
+      ) : null}
+
       {!data.loading && !data.error && data.budgets.length === 0 ? <EmptyBudgetsState onCreate={() => openForm()} /> : null}
 
       {!data.loading && !data.error && data.budgets.length > 0 ? (

@@ -1,4 +1,5 @@
 import type { BudgetColorKey } from '@/constants/theme';
+import type { MonthlyBudgetView } from './monthly-budget.types';
 
 export type BudgetStatus = 'on-track' | 'near-limit' | 'fully-used' | 'over-budget';
 export type ProgressWidth = `${number}%`;
@@ -57,6 +58,8 @@ export type BudgetSummary = {
 export type BudgetMonthView = {
   budgets: BudgetView[];
   summary: BudgetSummary;
+  /** The overall monthly ceiling, or null when none is set for this month. */
+  ceiling: MonthlyBudgetView | null;
 };
 
 /** A top-level budget with the subcategory sub-limits nested inside it. */

@@ -15,6 +15,7 @@ Money Control v1 is a personal, local-first Android finance app. These limitatio
 ## Credit cards
 
 - Each purchase is recorded as one full expense; installments are not modeled.
+- The overall monthly ceiling is a single base-currency figure per month: no per-category ceiling, no per-currency ceiling, and no income-side target. It carries forward rather than recurring through a rule, so a month never has a ceiling row until one is set there.
 - A card payment is one posted transfer; it never counts as income, expense, or budget spending.
 - Minimum payment and statement balance are copied from the bank; the app never calculates them.
 - **Statement payment attribution is a date-based approximation, not issuer-level allocation.** A posted transfer into the card after the later of the statement's period end and closing date is counted against that statement. Consequently a single payment can reduce more than one older unpaid statement's displayed "remaining"; the bank remains the authoritative source. This is surfaced with a "Payment" descriptor in the card's recent activity and documented in [credit-cards.md](credit-cards.md).

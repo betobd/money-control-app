@@ -47,7 +47,7 @@ This document describes product behavior. Financial invariants are normative in 
 
 #### Budgets
 
-- Create, edit, and remove one monthly budget per expense category.
+- Create, edit, and remove one monthly budget per expense category, plus at most one overall monthly ceiling.
 - Use the category name and icon as the budget label; do not require a separate budget name.
 - Assign each expense category to at most one budget in the same month while allowing a new limit in another month.
 - Derive spending automatically from posted expense transactions; users never select a budget on a transaction.
@@ -165,8 +165,10 @@ These assumptions make the scope implementable but are not yet confirmed product
 
 - A budget requires one active expense category, a valid month, and a positive whole-COP limit.
 - Posted expenses matching that category and month count exactly once.
-- Income, transfers, voided transactions, other months, and unbudgeted categories do not count toward budget totals.
+- Income, transfers, voided transactions, other months, and unbudgeted categories do not count toward *category* budget totals.
 - Archived categories remain visible on historical budgets but cannot be selected for new budgets.
+- One optional overall monthly ceiling per month, in the base currency. Unlike a category budget it counts **every** posted expense minus refunds, including spending in categories with no budget; transfers still do not count. It carries forward to later months until changed, and states which month it was inherited from.
+- Show the ceiling above the category budgets in Budgets and as the headline of Home's budget card, together with how much of it no category budget claims.
 
 ### Persistence
 

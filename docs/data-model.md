@@ -82,6 +82,15 @@ Income-category rejection and active-category eligibility are enforced by `Budge
 
 Migration 0004 keeps the original direct category relationship, validates that existing legacy budgets reference expense categories, renames `amount` to `limit_amount`, removes the redundant `currency` column, and copies every row through a create-copy-swap migration. No `budget_categories` table is created.
 
+### `monthly_budgets`
+
+- `id`, `month`, positive safe-integer `limit_amount`, `is_active`
+- UTC `created_at`, `updated_at`
+
+The overall monthly spending ceiling (migration 0015, [ADR 0009](decisions/0009-overall-monthly-ceiling.md)). `UNIQUE(month)` allows at most one ceiling per month. It has no category, no color and no foreign key: it is a global cap that already includes every category budget, and its spending is every posted expense minus refunds for the month rather than one category subtree.
+
+A row exists only for a month the user set or cleared a ceiling in. A month with no row of its own inherits the most recent earlier row, so the ceiling carries forward without materializing a row per browsed month, and the view names the month it was inherited from. `is_active = 0` is the tombstone that stops that inheritance from a month onward — deleting instead would let the month fall back to an older ceiling and silently undo the removal. The tombstone keeps the last known `limit_amount` because the `CHECK` requires a positive one.
+
 ### `recurring_transactions`
 
 - Reusable transaction template shape for expense, income, or transfer.
@@ -158,6 +167,7 @@ Migration 0006 adds `notification_settings`, `scheduled_notifications`, and `bud
 - History retains both posted and voided records and labels their status.
 - Budget spending uses posted expense transactions whose `category_id` **or** `subcategory_id` equals the budget's category and whose `transaction_date` is inside the budget month. A budget on a top-level category therefore covers its whole subtree, and a budget on a subcategory covers only that subcategory; the single id is unambiguous because a parent id can never appear in `subcategory_id` and a leaf id never in `category_id`. `created_at` is irrelevant to budget attribution. The repository derives this value from persisted transactions; it is not stored as a mutable total.
 - When a category and one of its subcategories are both budgeted in the same month, the subcategory budget is a sub-limit inside the other. Month totals exclude its limit **and** its spending, because both are already inside the parent's figures; the summary states how many were folded in. A subcategory budget whose parent is not budgeted that month counts normally. See [ADR 0007](decisions/0007-category-subcategories.md).
+- The monthly ceiling counts every posted expense minus every posted refund for the month, with no category filter, each row contributing its frozen base-currency snapshot. Transfers stay excluded, which also keeps investment contributions out. `unallocated` is the ceiling minus the category-budget total: money inside the cap that no category budget watches.
 - Pending and skipped recurring occurrences never affect balances, budgets, Home totals, or transaction history. A confirmed occurrence affects those read models only through its linked normal posted transaction.
 - Reports derive summaries, cash-flow buckets, category rankings, and net-worth changes from posted transactions and `transaction_date`. Report percentages and comparison values are transient service results and are never persisted.
 

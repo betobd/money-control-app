@@ -6,6 +6,7 @@ import { getBaseCurrency } from '@/features/settings/settings';
 import { accountService } from '@/features/accounts/accounts';
 import type { EstimatedNetWorth } from '@/features/accounts/account.service';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
+import type { MonthlyBudgetView } from '@/features/budgets/monthly-budget.types';
 import { budgetService } from '@/features/budgets/budgets';
 import { exchangeRateService, loadValuationRates } from '@/features/exchange-rates/exchange-rates';
 import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
@@ -23,6 +24,7 @@ type State = {
   recent: TransactionListItem[];
   budget: BudgetSummary;
   budgets: BudgetView[];
+  ceiling: MonthlyBudgetView | null;
   investments: InvestmentPortfolioSummary;
 };
 
@@ -64,6 +66,7 @@ export function useHomeDashboard() {
     recent: [],
     budget: emptyBudget,
     budgets: [],
+    ceiling: null,
     investments: emptyInvestments(getBaseCurrency()),
   });
   const [loading, setLoading] = useState(true);
@@ -99,6 +102,7 @@ export function useHomeDashboard() {
         recent,
         budget: budget.summary,
         budgets: budget.budgets,
+        ceiling: budget.ceiling,
         investments,
       });
       setHasLoaded(true);

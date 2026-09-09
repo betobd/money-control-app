@@ -380,6 +380,38 @@ export const budgetRules = sqliteTable(
   ],
 );
 
+/**
+ * The overall monthly spending ceiling (migration 0015).
+ *
+ * One row per month the user actually set a ceiling in; a month with no row of
+ * its own inherits the most recent earlier row, so the ceiling carries forward
+ * without materializing a row per browsed month. `is_active = 0` is the
+ * tombstone that stops that inheritance from a given month onward — without it,
+ * removing the ceiling would silently fall back to an older row.
+ *
+ * Deliberately not a nullable `category_id` on `budgets`: the ceiling has no
+ * category, no nesting, and its spending is every expense rather than one
+ * subtree, so it shares no query with a category budget.
+ */
+export const monthlyBudgets = sqliteTable(
+  'monthly_budgets',
+  {
+    id: text('id').primaryKey(),
+    month: text('month').notNull(),
+    limitAmount: integer('limit_amount').notNull(),
+    isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+    ...auditColumns,
+  },
+  (table) => [
+    check('monthly_budgets_limit_amount_positive', sql`typeof(${table.limitAmount}) = 'integer' AND ${table.limitAmount} > 0 AND ${table.limitAmount} <= ${MAX_SAFE_MONEY_SQL}`),
+    check('monthly_budgets_month_format', sql`${table.month} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]' AND substr(${table.month}, 6, 2) BETWEEN '01' AND '12'`),
+    check('monthly_budgets_is_active_valid', sql`${table.isActive} IN (0, 1)`),
+    check('monthly_budgets_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
+    check('monthly_budgets_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    uniqueIndex('monthly_budgets_month_uidx').on(table.month),
+  ],
+);
+
 export const recurringTransactions = sqliteTable(
   'recurring_transactions',
   {

@@ -14,6 +14,7 @@ const empty: BudgetMonthView = {
     progressWidth: '0%',
   nestedCount: 0,
   },
+  ceiling: null,
 };
 
 export function useBudgets(month: string) {

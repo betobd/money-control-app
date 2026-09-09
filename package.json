@@ -69,7 +69,7 @@
     "test:transactions": "node --import tsx --test tests/transactions.test.mjs && python tests/transactions_database_test.py",
     "test:refunds": "node --import tsx --test tests/refunds.test.mjs && python tests/refunds_database_test.py && python tests/refunds_migration_database_test.py",
     "test:budgets-schema": "python tests/budgets_schema_database_test.py",
-    "test:budgets": "node --import tsx --test tests/budgets.test.mjs && python tests/budgets_schema_database_test.py && python tests/budgets_database_test.py",
+    "test:budgets": "node --import tsx --test tests/budgets.test.mjs && python tests/budgets_schema_database_test.py && python tests/budgets_database_test.py && python tests/monthly_budget_ceiling_migration_database_test.py",
     "test:recurring": "node --import tsx --test tests/recurring-transactions.test.mjs && python tests/recurring_transactions_database_test.py",
     "test:reports": "node --import tsx --test tests/reports.test.mjs tests/report-insights.test.mjs && python tests/reports_database_test.py && python tests/investments_reports_database_test.py",
     "test:notifications": "node --import tsx --test tests/notifications.test.mjs && python tests/notifications_database_test.py",

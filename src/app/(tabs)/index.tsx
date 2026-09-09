@@ -199,7 +199,7 @@ export default function HomeScreen() {
         </PressableScale>
       ) : null}
 
-      <BudgetProgressCard budgets={dashboard.budgets} summary={dashboard.budget} />
+      <BudgetProgressCard budgets={dashboard.budgets} ceiling={dashboard.ceiling} summary={dashboard.budget} />
 
       <SectionHeader
         action={

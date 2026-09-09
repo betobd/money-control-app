@@ -3,7 +3,7 @@ import type { CurrencyCode } from '@/features/currency/currency';
 
 export const BACKUP_FORMAT = 'money-control-backup' as const;
 export const CURRENT_BACKUP_FORMAT_VERSION = 7 as const;
-export const CURRENT_DATABASE_SCHEMA_VERSION = '0014' as const;
+export const CURRENT_DATABASE_SCHEMA_VERSION = '0015' as const;
 export const BACKUP_TIMEZONE = 'America/Bogota' as const;
 /** The fixed base currency of the backup envelope (consolidated reporting is COP). */
 export const BACKUP_CURRENCY = 'COP' as const;
@@ -172,6 +172,16 @@ export type BackupBudgetRule = {
   updatedAt: string;
 };
 
+/** Overall monthly spending ceiling (schema 0015+). */
+export type BackupMonthlyBudget = {
+  id: string;
+  month: string;
+  limitAmount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type BackupRecurringTransactionV5 = {
   id: string;
   type: 'income' | 'expense' | 'transfer';
@@ -278,6 +288,12 @@ export type BackupDataV4 = Omit<BackupDataV3, 'transactions'> & {
   exchangeRate: BackupExchangeRate | null;
   /** Recurring-budget templates (schema 0011+). Absent in older backups. */
   budgetRules?: BackupBudgetRule[];
+  /**
+   * Overall monthly ceilings (schema 0015+). Optional for the same reason
+   * `budgetRules` is: the collection is purely additive, so a file written before
+   * it existed stays a valid v7 file and restores with no ceiling.
+   */
+  monthlyBudgets?: BackupMonthlyBudget[];
 };
 
 /** Format-v5 data shape: adds investment accounts + valuations. */

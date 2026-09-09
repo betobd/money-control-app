@@ -136,6 +136,7 @@ export default function RootLayout() {
                 <Stack.Screen name="reports" />
                 <Stack.Screen name="currency-rates" />
                 <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="monthly-ceiling-form" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="recurring-form" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="recurring-occurrence" options={{ presentation: 'fullScreenModal' }} />

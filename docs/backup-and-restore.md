@@ -18,6 +18,11 @@ No collection is added. `categories` gains `parentCategoryId`, and `transactions
 `categoryId` keeps its meaning and always holds the parent, so every count,
 aggregate and CSV built on it reads the same before and after.
 
+The overall monthly ceiling ([ADR 0009](decisions/0009-overall-monthly-ceiling.md))
+adds the optional `monthlyBudgets` collection **without** advancing the format,
+exactly as recurring budgets added `budgetRules`: a v7 file written before the
+ceiling existed stays valid and restores with no ceiling.
+
 The importer accepts v1–v7 and rejects future versions. **A v1–v6 backup upgrades
 by filling nulls, never by inferring a hierarchy**: a null parent means "this was
 already a top-level category" and a null subcategory means "classified exactly as

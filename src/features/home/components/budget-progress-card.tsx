@@ -6,28 +6,44 @@ import { ProgressBar } from '@/components/progress-bar';
 import { spacing, typography } from '@/constants/theme';
 import { formatBase } from '@/features/accounts/account-format';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
+import type { MonthlyBudgetView } from '@/features/budgets/monthly-budget.types';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function BudgetProgressCard({ summary, budgets = [] }: { summary: BudgetSummary; budgets?: BudgetView[] }) {
+export function BudgetProgressCard({
+  summary,
+  budgets = [],
+  ceiling = null,
+}: {
+  summary: BudgetSummary;
+  budgets?: BudgetView[];
+  ceiling?: MonthlyBudgetView | null;
+}) {
   const theme = useAppTheme();
-  const hasBudget = summary.totalBudget > 0;
-  const overBudget = summary.totalSpent > summary.totalBudget;
+  // The ceiling takes the headline when it exists: it covers every expense, so
+  // the category total below it is a subset rather than a competing number.
+  const headline = ceiling
+    ? { total: ceiling.limitAmount, spent: ceiling.spent, percentageUsed: ceiling.percentageUsed }
+    : { total: summary.totalBudget, spent: summary.totalSpent, percentageUsed: summary.percentageUsed };
+  const hasBudget = headline.total > 0;
+  const overBudget = headline.spent > headline.total;
   const fillColor = overBudget ? theme.destructive : theme.progressFill;
 
   return (
     <Card
       accessibilityLabel={
         hasBudget
-          ? `Monthly budget, ${formatBase(summary.totalSpent)} spent of ${formatBase(summary.totalBudget)}, ${summary.percentageUsed}% used${overBudget ? ', over budget' : ''}`
+          ? `${ceiling ? 'Monthly ceiling' : 'Monthly budget'}, ${formatBase(headline.spent)} spent of ${formatBase(headline.total)}, ${headline.percentageUsed}% used${overBudget ? ', over budget' : ''}`
           : 'No budgets set for this month'
       }
       style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: theme.primaryText }]}>Monthly budget</Text>
+        <Text style={[styles.title, { color: theme.primaryText }]}>
+          {ceiling ? 'Monthly ceiling' : 'Monthly budget'}
+        </Text>
         {hasBudget ? (
           <Text style={[styles.meta, { color: overBudget ? theme.destructive : theme.secondaryText }]}>
-            {summary.percentageUsed}% used{overBudget ? ' · Over budget' : ''}
+            {headline.percentageUsed}% used{overBudget ? ' · Over budget' : ''}
           </Text>
         ) : null}
       </View>
@@ -36,15 +52,20 @@ export function BudgetProgressCard({ summary, budgets = [] }: { summary: BudgetS
         <>
           <ProgressBar
             accessibilityRole="progressbar"
-            accessibilityValue={{ max: 100, min: 0, now: Math.min(summary.percentageUsed, 100) }}
+            accessibilityValue={{ max: 100, min: 0, now: Math.min(headline.percentageUsed, 100) }}
             color={fillColor}
             height={10}
-            value={summary.percentageUsed / 100}
+            value={headline.percentageUsed / 100}
           />
           <View style={styles.footerRow}>
-            <Text style={[styles.spent, { color: theme.secondaryText }]}>{formatBase(summary.totalSpent)} spent</Text>
-            <Text style={[styles.meta, { color: theme.mutedText }]}>of {formatBase(summary.totalBudget)}</Text>
+            <Text style={[styles.spent, { color: theme.secondaryText }]}>{formatBase(headline.spent)} spent</Text>
+            <Text style={[styles.meta, { color: theme.mutedText }]}>of {formatBase(headline.total)}</Text>
           </View>
+          {ceiling ? (
+            <Text style={[styles.meta, { color: theme.mutedText }]}>
+              All spending this month, including what no category budget covers.
+            </Text>
+          ) : null}
 
           {budgets.length > 0 ? (
             <View style={[styles.breakdown, { borderTopColor: theme.hairline }]}>

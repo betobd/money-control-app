@@ -12,6 +12,7 @@ import type {
   BackupCreditCardStatement,
   BackupBudget,
   BackupBudgetRule,
+  BackupMonthlyBudget,
   BackupCategory,
   BackupDataV7,
   BackupExchangeRate,
@@ -141,6 +142,11 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV7> {
       created_at AS createdAt, updated_at AS updatedAt
     FROM budget_rules ORDER BY id
   `);
+  const monthlyBudgets = await database.getAllAsync<Omit<BackupMonthlyBudget, 'isActive'> & { isActive: number }>(`
+    SELECT id, month, limit_amount AS limitAmount, is_active AS isActive,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM monthly_budgets ORDER BY month
+  `);
   const recurringTransactions = await database.getAllAsync<SqlRecurring>(`
     SELECT id, type, amount, currency, account_id AS accountId,
       destination_account_id AS destinationAccountId, category_id AS categoryId,
@@ -201,6 +207,7 @@ async function readSnapshot(database: SQLiteDatabase): Promise<BackupDataV7> {
     transactionSplits,
     budgets,
     budgetRules: budgetRules.map((row) => ({ ...row, isActive: row.isActive === 1 })),
+    monthlyBudgets: monthlyBudgets.map((row) => ({ ...row, isActive: row.isActive === 1 })),
     recurringTransactions: recurringTransactions.map((row) => ({
       ...row,
       isActive: row.isActive === 1,
@@ -293,6 +300,14 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV7): Pro
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, (data.budgetRules ?? []).map((row) => [
     row.id, row.categoryId, row.limitAmount, row.color ?? null, row.startMonth, row.isActive ? 1 : 0, row.createdAt, row.updatedAt,
+  ]));
+
+  await insertRows(database, `
+    INSERT INTO monthly_budgets (
+      id, month, limit_amount, is_active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `, (data.monthlyBudgets ?? []).map((row) => [
+    row.id, row.month, row.limitAmount, row.isActive ? 1 : 0, row.createdAt, row.updatedAt,
   ]));
 
   await insertRows(database, `
@@ -468,6 +483,7 @@ export class SQLiteBackupRepository implements BackupRepository {
         DELETE FROM credit_card_statements;
         DELETE FROM recurring_occurrences;
         DELETE FROM transaction_splits;
+        DELETE FROM monthly_budgets;
         DELETE FROM budgets;
         DELETE FROM budget_rules;
         DELETE FROM recurring_transactions;
