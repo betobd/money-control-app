@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import {
+  formatMoneyEntry,
   formatMoneyWithSymbol,
   getCurrency,
   parseMoney,
@@ -256,7 +257,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               placeholder="Enter amount"
               placeholderTextColor={theme.mutedText}
               style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: customAmountError ? theme.destructive : theme.hairline, color: theme.primaryText }]}
-              value={amountDigits}
+              value={formatMoneyEntry(amountDigits, cardCurrency)}
             />
             {customAmountError ? <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.destructive }]}>{customAmountError}</Text> : null}
           </Field>
@@ -274,7 +275,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               placeholder="Enter amount your account was debited"
               placeholderTextColor={theme.mutedText}
               style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
-              value={sourceAmountDigits}
+              value={formatMoneyEntry(sourceAmountDigits, sourceCurrency)}
             />
             <Text style={[styles.help, { color: theme.mutedText }]}>
               This card payment converts {sourceCurrency} to {cardCurrency}. Enter the actual amount sent and credited; both are saved.

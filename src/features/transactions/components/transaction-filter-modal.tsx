@@ -26,12 +26,15 @@ import {
   dateFilterOptions,
   FilterChoiceGroup,
   FilterDateFields,
-  FilterOptionGroup,
+  FilterOptionSheet,
   FilterSection,
-  SelectionRow,
+  FilterValueRow,
   statusFilterOptions,
   typeFilterOptions,
+  type FilterOption,
 } from './transaction-filter-controls';
+
+type FilterPicker = 'account' | 'category' | null;
 
 type TransactionFilterModalProps = {
   filters: TransactionListFilters;
@@ -52,8 +55,11 @@ export function TransactionFilterModal({
 }: TransactionFilterModalProps) {
   const [draft, setDraft] = useState(filters);
   const [dateError, setDateError] = useState<string>();
+  const [picker, setPicker] = useState<FilterPicker>(null);
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const accountOptions = buildAccountOptions(filterOptions.accounts);
+  const categoryOptions = buildCategoryOptions(filterOptions.categories);
 
   const apply = () => {
     try {
@@ -135,44 +141,17 @@ export function TransactionFilterModal({
             </FilterChoiceGroup>
           </FilterSection>
 
-          <FilterSection title="Account">
-            <SelectionRow
-              label="All accounts"
-              onPress={() => setDraft((current) => ({ ...current, accountId: null }))}
-              selected={draft.accountId === null}
+          <FilterSection title="Scope">
+            <FilterValueRow
+              label="Account"
+              onPress={() => setPicker('account')}
+              value={labelFor(accountOptions, draft.accountId)}
             />
-            {filterOptions.accounts.map((account) => (
-              <SelectionRow
-                key={account.id}
-                label={`${account.name}${account.isArchived ? ' (Archived)' : ''}`}
-                onPress={() => setDraft((current) => ({ ...current, accountId: account.id }))}
-                selected={draft.accountId === account.id}
-              />
-            ))}
-          </FilterSection>
-
-          <FilterSection title="Category">
-            <SelectionRow
-              label="All categories"
-              onPress={() => setDraft((current) => ({ ...current, categoryId: null }))}
-              selected={draft.categoryId === null}
+            <FilterValueRow
+              label="Category"
+              onPress={() => setPicker('category')}
+              value={labelFor(categoryOptions, draft.categoryId)}
             />
-            {(['expense', 'income'] as const).map((type) => {
-              const options = filterOptions.categories.filter((category) => category.type === type);
-              if (options.length === 0) return null;
-              return (
-                <FilterOptionGroup key={type} label={type === 'expense' ? 'Expense' : 'Income'}>
-                  {options.map((category) => (
-                    <SelectionRow
-                      key={category.id}
-                      label={`${category.name}${category.isArchived ? ' (Archived)' : ''}`}
-                      onPress={() => setDraft((current) => ({ ...current, categoryId: category.id }))}
-                      selected={draft.categoryId === category.id}
-                    />
-                  ))}
-                </FilterOptionGroup>
-              );
-            })}
           </FilterSection>
 
           <FilterSection title="Date range">
@@ -222,9 +201,63 @@ export function TransactionFilterModal({
             <Text style={[styles.applyLabel, { color: theme.onPrimaryAction }]}>Apply filters</Text>
           </Pressable>
         </View>
+
+        <FilterOptionSheet
+          onClose={() => setPicker(null)}
+          onSelect={(accountId) => setDraft((current) => ({ ...current, accountId }))}
+          options={accountOptions}
+          selectedId={draft.accountId}
+          title="Account"
+          visible={picker === 'account'}
+        />
+        <FilterOptionSheet
+          onClose={() => setPicker(null)}
+          onSelect={(categoryId) => setDraft((current) => ({ ...current, categoryId }))}
+          options={categoryOptions}
+          selectedId={draft.categoryId}
+          title="Category"
+          visible={picker === 'category'}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/** The chosen option's label, or the "no filter" row when nothing is selected. */
+function labelFor(options: readonly FilterOption[], id: string | null): string {
+  return options.find((option) => option.id === id)?.label ?? options[0].label;
+}
+
+function buildAccountOptions(accounts: TransactionFilterOptions['accounts']): FilterOption[] {
+  return [
+    { id: null, label: 'All accounts' },
+    ...accounts.map((account) => ({
+      id: account.id,
+      label: `${account.name}${account.isArchived ? ' (Archived)' : ''}`,
+    })),
+  ];
+}
+
+/**
+ * Categories and subcategories in one list, each subcategory qualified by its
+ * category. A bare subcategory name ("Taxi") is ambiguous next to the categories
+ * it could belong to, and the flat list gave no other clue.
+ */
+function buildCategoryOptions(categories: TransactionFilterOptions['categories']): FilterOption[] {
+  const names = new Map(categories.map((category) => [category.id, category.name]));
+  const options: FilterOption[] = [{ id: null, label: 'All categories' }];
+  for (const type of ['expense', 'income'] as const) {
+    for (const category of categories.filter((candidate) => candidate.type === type)) {
+      const parentName = category.parentCategoryId ? names.get(category.parentCategoryId) : undefined;
+      const name = parentName ? `${parentName} · ${category.name}` : category.name;
+      options.push({
+        id: category.id,
+        label: `${name}${category.isArchived ? ' (Archived)' : ''}`,
+        group: type === 'expense' ? 'Expense' : 'Income',
+      });
+    }
+  }
+  return options;
 }
 
 const styles = StyleSheet.create({

@@ -25,7 +25,7 @@ import {
   type TransactionValidationErrors,
 } from './transaction.types';
 
-const MISSING_RATE_MESSAGE = 'Add an exchange rate before saving this USD transaction.';
+const MISSING_RATE_MESSAGE = 'Add an exchange rate before saving this foreign-currency transaction.';
 const INCOMPLETE_TRANSFER_MESSAGE = 'Enter both the amount sent and the amount received.';
 
 function isValidRateInput(rate: ExchangeRateSnapshotInput | null | undefined): rate is ExchangeRateSnapshotInput {
@@ -439,12 +439,13 @@ export class TransactionService {
     const selection = await this.resolveCategorySelection(input, errors, original);
 
     // The account is the source of truth for currency.
-    const currency: CurrencyCode = account?.currency ?? input.currency ?? 'COP';
+    const baseCurrency = this.baseCurrency();
+    const currency: CurrencyCode = account?.currency ?? input.currency ?? baseCurrency;
 
-    // A foreign-currency income/expense must carry a valid COP rate snapshot at
+    // A non-base-currency income/expense must carry a valid rate snapshot at
     // posting time. Recurring templates skip this: they capture the rate later,
     // when each occurrence is posted (see confirmOccurrence).
-    if (requireExchangeRate && currency !== 'COP' && !isValidRateInput(input.exchangeRate)) {
+    if (requireExchangeRate && currency !== baseCurrency && !isValidRateInput(input.exchangeRate)) {
       errors.exchangeRate = MISSING_RATE_MESSAGE;
     }
 
@@ -535,7 +536,7 @@ export class TransactionService {
     const accounts = await this.accounts.list(true);
     const source = accounts.find((account) => account.id === input.accountId);
     const destination = accounts.find((account) => account.id === input.destinationAccountId);
-    const currency: CurrencyCode = source?.currency ?? input.currency ?? 'COP';
+    const currency: CurrencyCode = source?.currency ?? input.currency ?? this.baseCurrency();
     const destinationCurrencyCode: CurrencyCode =
       destination?.currency ?? input.destinationCurrencyCode ?? currency;
     const crossCurrency = currency !== destinationCurrencyCode;

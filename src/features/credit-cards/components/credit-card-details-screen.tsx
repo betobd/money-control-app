@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -133,7 +133,7 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
             <View style={[styles.empty, { backgroundColor: theme.surface }]}>
               <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>No bank statement has been recorded yet.</Text>
               <Text style={[styles.body, { color: theme.secondaryText }]}>Current debt comes from Money Control transactions and is not treated as statement balance.</Text>
-              {!account.isArchived ? <Action fullWidth label="Add latest statement" onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} primary /> : null}
+              {!account.isArchived ? <Action fullWidth icon={statementIcon} label="Add latest statement" onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} primary /> : null}
             </View>
           )}
         </Section>
@@ -141,9 +141,9 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
         {!account.isArchived ? (
           <Section title="Actions">
             <View style={styles.actions}>
-              <Action label="Pay credit card" onPress={() => router.push({ pathname: '/pay-credit-card', params: { id: account.id } })} primary />
-              <Action label={statementActionLabel} onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} />
-              <Action label="Edit card" onPress={() => router.push({ pathname: '/account-form', params: { id: account.id } })} />
+              <Action icon={{ ios: 'dollarsign.circle.fill', android: 'payments', web: 'payments' }} label="Pay credit card" onPress={() => router.push({ pathname: '/pay-credit-card', params: { id: account.id } })} primary />
+              <Action icon={statementIcon} label={statementActionLabel} onPress={() => router.push({ pathname: '/update-credit-card-statement', params: { id: account.id } })} />
+              <Action icon={{ ios: 'pencil', android: 'edit', web: 'edit' }} label="Edit card" onPress={() => router.push({ pathname: '/account-form', params: { id: account.id } })} />
             </View>
           </Section>
         ) : null}
@@ -174,6 +174,8 @@ export function CreditCardDetailsScreen({ accountId }: { accountId: string }) {
   );
 }
 
+const statementIcon = { ios: 'doc.text.fill', android: 'receipt_long', web: 'receipt_long' } satisfies SymbolViewProps['name'];
+
 function Section({ children, title }: { children: React.ReactNode; title: string }) {
   const theme = useAppTheme();
   return <View style={styles.section}><Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{title}</Text>{children}</View>;
@@ -189,10 +191,11 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   return <View style={styles.metricRow}><Text style={[styles.body, { color: theme.secondaryText }]}>{label}</Text><Text style={[styles.bodyStrong, styles.metricValue, { color: theme.primaryText }]}>{value}</Text></View>;
 }
 
-function Action({ label, onPress, primary = false, fullWidth = false }: { label: string; onPress: () => void; primary?: boolean; fullWidth?: boolean }) {
+function Action({ label, onPress, icon, primary = false, fullWidth = false }: { label: string; onPress: () => void; icon?: SymbolViewProps['name']; primary?: boolean; fullWidth?: boolean }) {
   return (
     <Button
       fullWidth={fullWidth}
+      icon={icon}
       label={label}
       onPress={onPress}
       size={fullWidth ? 'lg' : 'md'}

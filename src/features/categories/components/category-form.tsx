@@ -7,7 +7,8 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollVie
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import { categoryIconCatalog, categoryIconGroupNames, fallbackCategoryIcon, isCategoryIcon, searchCategoryIcons, type CategoryIcon } from '../category-icons';
+import { categoryIconCatalog, fallbackCategoryIcon, isCategoryIcon, type CategoryIcon } from '../category-icons';
+import { IconPicker } from './icon-picker';
 import { CategoryValidationError } from '../category.service';
 import { categoryService } from '../categories';
 import type { Category, CategoryType, CategoryValidationErrors } from '../category.types';
@@ -48,7 +49,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
   const [parentId, setParentId] = useState<string | null>(initialParentId ?? null);
   const [parents, setParents] = useState<Category[]>([]);
   const [parentLock, setParentLock] = useState<string>();
-  const [iconSearch, setIconSearch] = useState('');
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [errors, setErrors] = useState<CategoryValidationErrors>({}); const [generalError, setGeneralError] = useState<string>();
   const [loading, setLoading] = useState(Boolean(categoryId)); const [saving, setSaving] = useState(false);
   const selectedParent = parents.find((candidate) => candidate.id === parentId);
@@ -159,11 +160,34 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
 
       <View style={styles.field}><Overline color={theme.mutedText}>Category type</Overline><View style={styles.row}>{(['expense', 'income'] as CategoryType[]).map((value) => { const selected = type === value; return <Pressable accessibilityRole="radio" accessibilityState={{ selected, disabled: typeLocked }} disabled={typeLocked} key={value} onPress={() => setType(value)} style={[styles.choice, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent', opacity: typeLocked && !selected ? 0.4 : 1 }]}><Text style={{ color: selected ? theme.primaryText : theme.secondaryText }}>{value === 'expense' ? 'Expense' : 'Income'}</Text></Pressable>; })}</View>{typeLocked ? <Text style={[styles.hint, { color: theme.mutedText }]}>A subcategory always uses its parent&apos;s type.</Text> : null}{errors.type ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.type}</Text> : null}</View>
 
-      <View style={styles.field}><Overline color={theme.mutedText}>Icon</Overline><TextInput accessibilityLabel="Search category icons" onChangeText={setIconSearch} placeholder="Search icons" placeholderTextColor={theme.mutedText} value={iconSearch} style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]} />{categoryIconGroupNames.map((group) => { const values = searchCategoryIcons(iconSearch).filter((value) => categoryIconCatalog[value].group === group); if (!values.length) return null; return <View key={group} style={styles.iconGroup}><Text style={[styles.groupLabel, { color: theme.secondaryText }]}>{group}</Text><View accessibilityRole="radiogroup" style={styles.icons}>{values.map((value) => { const selected = icon === value; const definition = categoryIconCatalog[value]; return <Pressable accessibilityLabel={`${definition.label} icon`} accessibilityHint={`Category icon in ${definition.group}`} accessibilityRole="radio" accessibilityState={{ selected }} key={value} onPress={() => setIcon(value)} style={[styles.icon, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent' }]}><SymbolView name={definition.symbol} size={24} tintColor={selected ? theme.primaryAction : theme.primaryText} />{selected ? <View style={[styles.selectedMark, { backgroundColor: theme.primaryAction }]}><SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={10} tintColor={theme.onPrimaryAction} /></View> : null}</Pressable>; })}</View></View>; })}{searchCategoryIcons(iconSearch).length === 0 ? <Text style={[styles.error, { color: theme.secondaryText }]}>No matching icons.</Text> : null}{errors.icon ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.icon}</Text> : null}</View>
+      <View style={styles.field}>
+        <Overline color={theme.mutedText}>Icon</Overline>
+        <Pressable
+          accessibilityHint="Opens the icon picker"
+          accessibilityLabel={`Icon, ${categoryIconCatalog[icon].label}`}
+          accessibilityRole="button"
+          onPress={() => setIconPickerOpen(true)}
+          style={[styles.iconField, { backgroundColor: theme.surface, borderColor: errors.icon ? theme.destructive : theme.hairline }]}>
+          <View style={[styles.iconPreview, { backgroundColor: theme.tintPrimary }]}>
+            <SymbolView name={categoryIconCatalog[icon].symbol} size={24} tintColor={theme.primaryAction} />
+          </View>
+          <Text numberOfLines={1} style={[styles.iconFieldLabel, { color: theme.primaryText }]}>
+            {categoryIconCatalog[icon].label}
+          </Text>
+          <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.mutedText} />
+        </Pressable>
+        {errors.icon ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.icon}</Text> : null}
+      </View>
     </ScrollView>
+    <IconPicker
+      onClose={() => setIconPickerOpen(false)}
+      onSelect={setIcon}
+      selected={icon}
+      visible={iconPickerOpen}
+    />
     <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
       <Button busy={saving} fullWidth label={parentId ? 'Save subcategory' : 'Save category'} onPress={() => void save()} size="lg" variant="primary" />
     </View>
   </KeyboardAvoidingView>;
 }
-const styles = StyleSheet.create({ flex: { flex: 1 }, loading: { alignItems: 'center', flex: 1, justifyContent: 'center' }, header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm }, headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, field: { gap: spacing.sm }, input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md }, row: { flexDirection: 'row', gap: spacing.sm }, choice: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flex: 1, justifyContent: 'center', minHeight: 48 }, parentList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, parentOption: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', maxWidth: '100%', minHeight: 44, paddingHorizontal: spacing.md }, lockedValue: { borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md }, hint: { ...typography.caption }, iconGroup: { gap: spacing.sm }, groupLabel: { ...typography.label, textTransform: 'uppercase' }, icons: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, icon: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, height: 56, justifyContent: 'center', position: 'relative', width: 56 }, selectedMark: { alignItems: 'center', borderRadius: borderRadii.full, height: 18, justifyContent: 'center', position: 'absolute', right: 2, top: 2, width: 18 }, error: { ...typography.caption }, footer: { borderTopWidth: borderWidths.thin, paddingHorizontal: spacing.md, paddingTop: spacing.md }, save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 }, saveText: { ...typography.body, fontWeight: '700' } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, loading: { alignItems: 'center', flex: 1, justifyContent: 'center' }, header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm }, headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, field: { gap: spacing.sm }, input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md }, row: { flexDirection: 'row', gap: spacing.sm }, choice: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flex: 1, justifyContent: 'center', minHeight: 48 }, parentList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, parentOption: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', maxWidth: '100%', minHeight: 44, paddingHorizontal: spacing.md }, lockedValue: { borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md }, hint: { ...typography.caption }, iconField: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md }, iconPreview: { alignItems: 'center', borderRadius: borderRadii.md, height: 44, justifyContent: 'center', width: 44 }, iconFieldLabel: { ...typography.body, flex: 1 }, error: { ...typography.caption }, footer: { borderTopWidth: borderWidths.thin, paddingHorizontal: spacing.md, paddingTop: spacing.md }, save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 }, saveText: { ...typography.body, fontWeight: '700' } });

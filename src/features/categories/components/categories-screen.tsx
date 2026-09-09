@@ -38,9 +38,15 @@ function deletionReason(
   return `Delete or move its ${total} ${total === 1 ? 'subcategory' : 'subcategories'} first${archivedNote}.`;
 }
 
+/** What the data-dependent rows need. `null` until the two queries answer. */
+type CategoryActionDetails = {
+  blocker: CategoryDeletionBlocker;
+  subcategories: { active: number; archived: number };
+};
+
 type SheetTarget = {
   category: Category;
-  actions: SheetAction[];
+  details: CategoryActionDetails | null;
 };
 
 export function CategoriesScreen({ initialType = 'expense' }: { initialType?: CategoryType }) {
@@ -57,52 +63,78 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   const accent = type === 'income' ? theme.income : theme.expense;
   const accentTint = type === 'income' ? theme.tintIncome : theme.tintExpense;
 
-  async function actions(category: Category) {
+  /**
+   * Opens the action sheet immediately, then fills in what needs the database.
+   *
+   * The two queries used to run before `setSheet`, so tapping a category sat
+   * unresponsive for as long as they took (~1s on a real list). Only the rows
+   * that actually depend on the answer wait for it.
+   */
+  function actions(category: Category) {
     if (busy) return;
     setActionError(undefined);
-    try {
-      const [blocker, subcategories] = await Promise.all([
-        categoryService.deletionBlocker(category.id),
-        categoryService.countSubcategories(category.id),
-      ]);
-      const isSubcategory = category.parentCategoryId !== null;
-      const options: SheetAction[] = [
-        { label: 'Edit', icon: actionIcons.edit, onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
-      ];
-      if (!isSubcategory && !category.isArchived) {
-        options.push({
-          label: 'Add subcategory',
-          description: 'Adds a second level inside this category.',
-          icon: { ios: 'plus', android: 'add', web: 'add' },
-          onPress: () => router.push({ pathname: '/category-form', params: { parentId: category.id, type } }),
-        });
-      }
-      if (category.isArchived) {
-        options.push({ label: 'Restore', icon: actionIcons.restore, onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
-      } else {
-        options.push({
-          label: 'Archive',
-          description: subcategories.active > 0
-            ? `Also archives ${subcategories.active} ${subcategories.active === 1 ? 'subcategory' : 'subcategories'}.`
-            : 'Keeps history, hides it from new transactions.',
-          icon: actionIcons.archive,
-          onPress: () => confirmArchive(category, subcategories.active),
-        });
-      }
-      // The row is always present. Hiding it left no way to tell "this cannot be
-      // deleted" apart from "this app has no delete".
+    setSheet({ category, details: null });
+    void Promise.all([
+      categoryService.deletionBlocker(category.id),
+      categoryService.countSubcategories(category.id),
+    ]).then(
+      ([blocker, subcategories]) => {
+        // Ignore a late answer for a category the user already navigated away from.
+        setSheet((current) => current && current.category.id === category.id
+          ? { ...current, details: { blocker, subcategories } }
+          : current);
+      },
+      (cause: unknown) => {
+        setSheet(null);
+        setActionError(toUserMessage(cause, 'Unable to load category actions.'));
+      },
+    );
+  }
+
+  /** The sheet rows for a category, degrading gracefully while `details` loads. */
+  function sheetActions(category: Category, details: CategoryActionDetails | null): SheetAction[] {
+    const isSubcategory = category.parentCategoryId !== null;
+    const options: SheetAction[] = [
+      { label: 'Edit', icon: actionIcons.edit, onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
+    ];
+    if (!isSubcategory && !category.isArchived) {
       options.push({
-        label: 'Delete permanently',
-        description: deletionReason(blocker, subcategories),
-        disabled: blocker !== null,
-        icon: actionIcons.delete,
-        tone: 'destructive',
-        onPress: () => confirmDelete(category),
+        label: 'Add subcategory',
+        description: 'Adds a second level inside this category.',
+        icon: { ios: 'plus', android: 'add', web: 'add' },
+        onPress: () => router.push({ pathname: '/category-form', params: { parentId: category.id, type } }),
       });
-      setSheet({ category, actions: options });
-    } catch (cause) {
-      setActionError(toUserMessage(cause, 'Unable to load category actions.'));
     }
+    if (category.isArchived) {
+      options.push({ label: 'Restore', icon: actionIcons.restore, onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
+    } else {
+      const active = details?.subcategories.active ?? 0;
+      options.push({
+        label: 'Archive',
+        // Stays tappable while the count loads: archiving is the common action,
+        // and the count only decides whether a confirmation is needed.
+        description: details === null
+          ? 'Keeps history, hides it from new transactions.'
+          : active > 0
+            ? `Also archives ${active} ${active === 1 ? 'subcategory' : 'subcategories'}.`
+            : 'Keeps history, hides it from new transactions.',
+        icon: actionIcons.archive,
+        onPress: () => void confirmArchive(category, details?.subcategories.active),
+      });
+    }
+    // The row is always present. Hiding it left no way to tell "this cannot be
+    // deleted" apart from "this app has no delete".
+    options.push({
+      label: 'Delete permanently',
+      description: details === null
+        ? 'Checking whether this can be deleted…'
+        : deletionReason(details.blocker, details.subcategories),
+      disabled: details === null || details.blocker !== null,
+      icon: actionIcons.delete,
+      tone: 'destructive',
+      onPress: () => confirmDelete(category),
+    });
+    return options;
   }
 
   async function run(operation: () => Promise<void>, label: string, id: string) { if (busy) return; setBusyId(id); try { await operation(); await reload(); } catch (cause) { if (cause instanceof CategoryActionError) dialog.notice({ title: `Unable to ${label} category`, message: cause.message }); else setActionError(toUserMessage(cause, `Unable to ${label} category.`)); } finally { setBusyId(null); } }
@@ -110,8 +142,19 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   // Archiving one row needs no confirmation: it is reversible and reversible in
   // one tap. Archiving a parent is different, because it silently takes its
   // subcategories with it, and restore deliberately does not cascade back.
-  function confirmArchive(category: Category, subcategoryCount: number) {
+  async function confirmArchive(category: Category, knownSubcategoryCount?: number) {
     const archive = () => void run(() => categoryService.archive(category.id), 'archive', category.id);
+    // Resolved on demand in the rare case the sheet was tapped before the count
+    // arrived, so the cascade warning is never skipped for lack of data.
+    let subcategoryCount = knownSubcategoryCount;
+    if (subcategoryCount === undefined) {
+      try {
+        subcategoryCount = (await categoryService.countSubcategories(category.id)).active;
+      } catch (cause) {
+        setActionError(toUserMessage(cause, 'Unable to load category actions.'));
+        return;
+      }
+    }
     if (subcategoryCount === 0) { archive(); return; }
     dialog.confirm({
       title: 'Archive this category?',
@@ -248,7 +291,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
       </ScrollView>
 
       <ActionSheet
-        actions={sheet?.actions ?? []}
+        actions={sheet ? sheetActions(sheet.category, sheet.details) : []}
         description={sheet?.category.parentCategoryId ? 'Choose a subcategory action.' : 'Choose a category action.'}
         onClose={() => setSheet(null)}
         title={sheet?.category.name ?? ''}

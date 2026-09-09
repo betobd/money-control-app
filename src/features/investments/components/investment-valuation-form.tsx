@@ -19,7 +19,7 @@ import { Card } from '@/components/card';
 import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
-import { getCurrency, formatMoneyWithSymbol, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { formatMoneyEntry, formatMoneyWithSymbol, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { InvestmentValuationError } from '../investment-valuation.service';
@@ -28,8 +28,7 @@ import { useInvestmentDetails } from '../use-investments';
 
 /** Sanitizes raw money input for the given currency: digits and optional dot (USD). */
 function sanitizeMoneyInput(value: string, currency: CurrencyCode): string {
-  const allowDot = getCurrency(currency).fractionDigits > 0;
-  return value.replace(allowDot ? /[^\d.]/g : /\D/g, '');
+  return sanitizeMoneyEntry(value, currency);
 }
 
 export function InvestmentValuationForm({ accountId }: { accountId: string }) {
@@ -141,7 +140,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
             placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
             placeholderTextColor={theme.mutedText}
             style={[styles.moneyInput, inputStyle(Boolean(fieldError))]}
-            value={value}
+            value={formatMoneyEntry(value, currency)}
           />
           {fieldError ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{fieldError}</Text> : null}
         </View>

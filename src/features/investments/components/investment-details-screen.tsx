@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
@@ -168,11 +169,11 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
         {!isArchived ? (
           <Section title="Actions">
             <View style={styles.actions}>
-              <Action label="Update value" onPress={() => router.push({ pathname: '/investment-valuation-form', params: { accountId } })} primary />
-              <Action label="Add contribution" onPress={() => router.push('/add-transaction')} />
-              <Action label="Withdraw" onPress={() => router.push('/add-transaction')} />
-              <Action label="Edit" onPress={() => router.push({ pathname: '/investment-form', params: { id: accountId } })} />
-              <Action label="Archive" onPress={confirmArchive} destructive />
+              <Action icon={{ ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }} label="Update value" onPress={() => router.push({ pathname: '/investment-valuation-form', params: { accountId } })} primary />
+              <Action icon={{ ios: 'plus.circle.fill', android: 'add_circle', web: 'add_circle' }} label="Add contribution" onPress={() => router.push('/add-transaction')} />
+              <Action icon={{ ios: 'minus.circle.fill', android: 'do_not_disturb_on', web: 'do_not_disturb_on' }} label="Withdraw" onPress={() => router.push('/add-transaction')} />
+              <Action icon={{ ios: 'pencil', android: 'edit', web: 'edit' }} label="Edit" onPress={() => router.push({ pathname: '/investment-form', params: { id: accountId } })} />
+              <Action icon={{ ios: 'archivebox.fill', android: 'archive', web: 'archive' }} label="Archive" onPress={confirmArchive} destructive />
             </View>
           </Section>
         ) : null}
@@ -232,14 +233,16 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Action({ label, onPress, primary = false, destructive = false }: { label: string; onPress: () => void; primary?: boolean; destructive?: boolean }) {
-  const theme = useAppTheme();
-  const background = primary ? theme.primaryAction : destructive ? theme.tintDestructive : theme.elevatedSurface;
-  const color = primary ? theme.onPrimaryAction : destructive ? theme.destructive : theme.primaryText;
+/** Hand-rolled before; now the shared Button so sizing matches the rest of the app. */
+function Action({ label, onPress, icon, primary = false, destructive = false }: { label: string; onPress: () => void; icon?: SymbolViewProps['name']; primary?: boolean; destructive?: boolean }) {
   return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.action, { backgroundColor: background }]}>
-      <Text style={[styles.actionText, { color }]}>{label}</Text>
-    </Pressable>
+    <Button
+      icon={icon}
+      label={label}
+      onPress={onPress}
+      size="md"
+      variant={primary ? 'primary' : destructive ? 'destructive' : 'secondary'}
+    />
   );
 }
 

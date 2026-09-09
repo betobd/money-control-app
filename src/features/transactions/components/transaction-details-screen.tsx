@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -67,6 +67,22 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   const [editing, setEditing] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const [actionError, setActionError] = useState<string>();
+
+  const isExpense = transaction?.type === 'expense';
+  const isRefund = transaction?.type === 'refund';
+  // For an expense the refund summary decides what is still allowed, so every
+  // action stays disabled until it arrives rather than briefly offering an edit
+  // the service would refuse.
+  const refundSummaryPending = isExpense && !refundSummary;
+  const lockedByRefunds = isExpense && (refundSummary?.refundedAmount ?? 0) > 0;
+  const canAddRefund = isExpense && (refundSummary?.refundableRemaining ?? 0) > 0;
+  const canEdit = !isRefund && !lockedByRefunds && !refundSummaryPending;
+  const canVoid = !lockedByRefunds && !refundSummaryPending && !voiding;
+  // An unavailable action stays visible and says why, instead of disappearing
+  // and leaving the reason to be guessed.
+  const actionHints: string[] = [];
+  if (lockedByRefunds) actionHints.push('Void all posted refunds before editing or voiding this expense.');
+  else if (isRefund) actionHints.push('A refund cannot be edited. Void it and add a new one instead.');
 
   function confirmVoid() {
     if (!transaction || transaction.status === 'voided' || voiding) return;
@@ -161,9 +177,9 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
               ]}>
               {formatMoneyWithSymbol(transaction.amount, transaction.currency)}
             </Text>
-            {transaction.type !== 'transfer' && transaction.currency !== 'COP' && transaction.baseAmountMinor !== null ? (
+            {transaction.type !== 'transfer' && transaction.baseCurrencyCode !== null && transaction.currency !== transaction.baseCurrencyCode && transaction.baseAmountMinor !== null ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
-                {formatMoney(transaction.baseAmountMinor, 'COP')} at the rate saved when recorded
+                {formatMoney(transaction.baseAmountMinor, transaction.baseCurrencyCode)} at the rate saved when recorded
                 {transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateBaseCode && transaction.exchangeRateQuoteCode
                   ? ` (${describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode })})`
                   : ''}
@@ -271,51 +287,39 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
 
           {transaction.status === 'posted' ? (
             <View style={styles.actions}>
-              {transaction.type === 'expense'
-                && refundSummary
-                && refundSummary.refundableRemaining > 0 ? (
-                <Pressable
-                  accessibilityLabel="Add refund"
-                  accessibilityRole="button"
-                  onPress={() => router.push({
-                    pathname: '/refund-form',
-                    params: { originalTransactionId: transaction.id },
-                  })}
-                  style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
-                  <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Add refund</Text>
-                </Pressable>
-              ) : null}
-              {transaction.type !== 'refund'
-                && (transaction.type !== 'expense' || refundSummary?.refundedAmount === 0) ? (
-                <Pressable
-                accessibilityLabel="Edit transaction"
-                accessibilityRole="button"
-                onPress={() => {
-                  setActionError(undefined);
-                  setEditing(true);
-                }}
-                style={[styles.actionButton, { backgroundColor: theme.primaryAction }]}>
-                <Text style={[styles.actionLabel, { color: theme.onPrimaryAction }]}>Edit transaction</Text>
-              </Pressable>
-              ) : null}
-              {transaction.type !== 'expense' || refundSummary?.refundedAmount === 0 ? (
-              <Pressable
-                accessibilityLabel={transaction.type === 'refund' ? 'Void refund' : 'Void transaction'}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: voiding }}
-                disabled={voiding}
-                onPress={confirmVoid}
-                style={[styles.actionButton, { backgroundColor: theme.tintDestructive }]}>
-                {voiding ? <ActivityIndicator color={theme.destructive} /> : null}
-                <Text style={[styles.actionLabel, { color: theme.destructive }]}>
-                  {voiding ? 'Voiding…' : transaction.type === 'refund' ? 'Void refund' : 'Void transaction'}
-                </Text>
-              </Pressable>
-              ) : (
-                <Text style={[styles.lockedExplanation, { color: theme.secondaryText }]}>
-                  Void all posted refunds before editing or voiding this expense.
-                </Text>
-              )}
+              <View style={styles.actionRow}>
+                {isExpense ? (
+                  <ActionTile
+                    disabled={!canAddRefund}
+                    icon={{ ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' }}
+                    label="Refund"
+                    onPress={() => router.push({
+                      pathname: '/refund-form',
+                      params: { originalTransactionId: transaction.id },
+                    })}
+                  />
+                ) : null}
+                <ActionTile
+                  disabled={!canEdit}
+                  icon={{ ios: 'pencil', android: 'edit', web: 'edit' }}
+                  label="Edit"
+                  onPress={() => {
+                    setActionError(undefined);
+                    setEditing(true);
+                  }}
+                />
+                <ActionTile
+                  busy={voiding}
+                  disabled={!canVoid}
+                  icon={{ ios: 'slash.circle', android: 'block', web: 'block' }}
+                  label={voiding ? 'Voiding…' : 'Void'}
+                  onPress={confirmVoid}
+                  tone="destructive"
+                />
+              </View>
+              {actionHints.map((hint) => (
+                <Text key={hint} style={[styles.lockedExplanation, { color: theme.secondaryText }]}>{hint}</Text>
+              ))}
             </View>
           ) : null}
         </ScrollView>
@@ -572,6 +576,51 @@ function TransactionEditForm({
   );
 }
 
+/**
+ * One compact icon action. Three of these fit on a row, where the previous
+ * full-width stacked buttons dominated the screen and pushed the detail rows
+ * out of view.
+ */
+function ActionTile({
+  busy = false,
+  disabled = false,
+  icon,
+  label,
+  onPress,
+  tone = 'primary',
+}: {
+  busy?: boolean;
+  disabled?: boolean;
+  icon: SymbolViewProps['name'];
+  label: string;
+  onPress: () => void;
+  tone?: 'primary' | 'destructive';
+}) {
+  const theme = useAppTheme();
+  const background = disabled
+    ? theme.disabledSurface
+    : tone === 'destructive' ? theme.tintDestructive : theme.tintPrimary;
+  const foreground = disabled
+    ? theme.disabledText
+    : tone === 'destructive' ? theme.destructive : theme.primaryAction;
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.actionTile, { backgroundColor: background }]}>
+      {busy ? (
+        <ActivityIndicator color={foreground} />
+      ) : (
+        <SymbolView name={icon} size={22} tintColor={foreground} />
+      )}
+      <Text numberOfLines={1} style={[styles.actionTileLabel, { color: foreground }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 function DetailRow({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
   return (
@@ -659,8 +708,9 @@ const styles = StyleSheet.create({
   detailLabel: { ...typography.overline },
   detailValue: { ...typography.body, fontFamily: typography.caption.fontFamily, fontSize: 14, lineHeight: 20 },
   actions: { gap: spacing.md },
-  actionButton: { alignItems: 'center', borderRadius: borderRadii.full, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.lg },
-  actionLabel: { ...typography.body, fontWeight: '700' },
+  actionRow: { flexDirection: 'row', gap: spacing.sm },
+  actionTile: { alignItems: 'center', borderRadius: borderRadii.md, flex: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 72, paddingHorizontal: spacing.sm },
+  actionTileLabel: { ...typography.caption, fontWeight: '700' },
   error: { ...typography.caption },
   editArea: { flex: 1 },
   editContent: { gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },

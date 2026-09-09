@@ -4,7 +4,7 @@ import { getBaseCurrency } from '@/features/settings/settings';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
-import { getCurrency, type CurrencyCode } from '@/features/currency/currency';
+import { formatMoneyEntry, getCurrency, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 type AmountInputProps = {
@@ -18,25 +18,19 @@ type AmountInputProps = {
   error?: string;
 };
 
-/** Sanitizes raw amount entry for the currency: digits and, for USD, up to 2 decimals. */
+/**
+ * Sanitizes raw amount entry for the currency.
+ *
+ * Kept as a named re-export because the hero amount field and every other money
+ * field must agree on what a valid entry is; see `money-entry.ts`.
+ */
 export function sanitizeAmountEntry(value: string, currency: CurrencyCode): string {
-  if (getCurrency(currency).fractionDigits === 0) return value.replace(/\D/g, '').slice(0, 16);
-  let cleaned = value.replace(/[^\d.]/g, '');
-  const firstDot = cleaned.indexOf('.');
-  if (firstDot >= 0) {
-    cleaned = `${cleaned.slice(0, firstDot + 1)}${cleaned.slice(firstDot + 1).replace(/\./g, '').slice(0, 2)}`;
-  }
-  return cleaned.slice(0, 19);
+  return sanitizeMoneyEntry(value, currency);
 }
 
+/** The hero field shows `0` rather than an empty box when nothing is typed. */
 function formatAmountEntry(value: string, currency: CurrencyCode): string {
-  const definition = getCurrency(currency);
-  if (!value) return '0';
-  const [whole, fraction] = value.split('.');
-  const normalizedWhole = whole.replace(/^0+(?=\d)/, '') || '0';
-  const grouped = Number(normalizedWhole).toLocaleString(definition.locale, { maximumFractionDigits: 0 });
-  if (fraction === undefined) return grouped;
-  return `${grouped}${definition.decimalSeparator}${fraction}`;
+  return formatMoneyEntry(value, currency) || '0';
 }
 
 export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigitsChange, type, currency = getBaseCurrency(), error }: AmountInputProps) {

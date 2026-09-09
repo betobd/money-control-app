@@ -19,8 +19,9 @@ import { borderRadii, borderWidths, spacing, typography } from '@/constants/them
 import { useAccounts } from '@/features/accounts/use-accounts';
 import {
   convertMinor,
-  describeRate,
   deriveEffectiveRate,
+  describeRate,
+  formatMoneyEntry,
   getCurrency,
   parseMoney,
   type CurrencyCode,
@@ -330,7 +331,7 @@ export default function AddTransactionModal() {
                     }}
                     placeholder={getCurrency(destinationCurrency).fractionDigits === 0 ? '0' : '0.00'}
                     placeholderTextColor={theme.mutedText}
-                    value={destinationAmountDigits}
+                    value={formatMoneyEntry(destinationAmountDigits, destinationCurrency)}
                     style={[
                       styles.textInput,
                       {

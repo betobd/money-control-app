@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { SegmentedControl } from '@/components/segmented-control';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
@@ -28,6 +29,8 @@ import type {
   RecurringRuleListItem,
 } from '../recurring-transaction.types';
 
+type RecurringTab = 'due' | 'rules' | 'history';
+
 export function RecurringTransactionsScreen() {
   const dialog = useDialog();
   const router = useRouter();
@@ -35,6 +38,7 @@ export function RecurringTransactionsScreen() {
   const theme = useAppTheme();
   const { error, hasLoaded, history, limited, loading, pending, reload: load, rules } = useRecurringTransactions();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [tab, setTab] = useState<RecurringTab>('due');
   const busy = busyId !== null;
   const activeRules = rules.filter((rule) => rule.isActive && !rule.endedAt);
   const pausedRules = rules.filter((rule) => !rule.isActive && !rule.endedAt);
@@ -134,130 +138,133 @@ export function RecurringTransactionsScreen() {
       {loading && !hasLoaded ? (
         <View style={styles.center}><ActivityIndicator color={theme.primaryAction} /></View>
       ) : (
-        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-          {loading ? (
-            <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.secondaryText }]}>Updating…</Text>
-          ) : null}
-          {error ? (
-            <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{error}</Text>
-          ) : null}
-          {limited ? (
-            <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.warning }]}>
-              A large backlog was limited for this load. Reopen this screen to continue safely.
-            </Text>
-          ) : null}
-
-          <SectionHeading count={pending.length} title="Due for review" />
-          {pending.length === 0 ? (
-            <EmptyCard text="No recurring transactions are due today." />
-          ) : pending.map((occurrence) => (
-            <OccurrenceCard
-              key={occurrence.id}
-              busy={busy}
-              confirming={busyId === occurrence.id}
-              occurrence={occurrence}
-              onConfirm={() => void confirm(occurrence)}
-              onEdit={() => router.push({ pathname: '/recurring-occurrence', params: { id: occurrence.id } })}
-              onSkip={() => skip(occurrence)}
+        <>
+          {/* The switch stays outside the ScrollView so moving between sections
+              never depends on where the current section happened to be scrolled. */}
+          <View style={styles.tabs}>
+            <SegmentedControl
+              accessibilityLabel="Recurring sections"
+              onChange={setTab}
+              segments={[
+                { value: 'due', label: 'Due', badge: pending.length },
+                { value: 'rules', label: 'Rules', badge: activeRules.length + pausedRules.length },
+                { value: 'history', label: 'History', badge: history.length },
+              ]}
+              value={tab}
             />
-          ))}
-
-          <SectionHeading count={activeRules.length} title="Upcoming" />
-          {activeRules.length === 0 ? (
-            <EmptyCard text="No active recurring schedules." />
-          ) : activeRules.slice(0, 5).map((rule) => (
-            <Card
-              accessible
-              accessibilityLabel={`Upcoming ${rule.type}, ${formatMoneyWithSymbol(rule.amount, rule.currency)}, ${formatTransactionDate(rule.nextOccurrenceDate)}, ${ruleDetail(rule)}`}
-              key={`upcoming-${rule.id}`}
-              style={styles.historyRow}>
-              <View style={styles.flex}>
-                <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>{occurrenceLabel(rule)}</Text>
-                <Text numberOfLines={1} style={[styles.meta, { color: theme.secondaryText }]}>{ruleDetail(rule)}</Text>
-              </View>
-              <View style={styles.right}>
-                <Text style={[styles.amount, { color: typeColor(rule.type, theme) }]}>{formatMoneyWithSymbol(rule.amount, rule.currency)}</Text>
-                <Text style={[styles.meta, { color: theme.secondaryText }]}>{formatTransactionDate(rule.nextOccurrenceDate)}</Text>
-              </View>
-            </Card>
-          ))}
-
-          <View style={styles.sectionTop}>
-            <SectionHeading count={activeRules.length} title="Active rules" />
-            <Pressable accessibilityRole="button" onPress={() => router.push('/recurring-form')} style={styles.textButton}>
-              <Text style={[styles.textButtonLabel, { color: theme.primaryAction }]}>Create</Text>
-            </Pressable>
           </View>
-          {activeRules.length === 0 ? (
-            <EmptyCard text="Create a rule for expenses, income, or transfers you expect regularly." />
-          ) : activeRules.map((rule) => (
-            <RuleCard
-              key={rule.id}
-              busy={busy}
-              onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
-              onEnd={() => endRule(rule)}
-              onToggle={() => void toggleRule(rule)}
-              rule={rule}
-            />
-          ))}
 
-          {pausedRules.length ? (
-            <>
-              <SectionHeading count={pausedRules.length} title="Paused rules" />
-              {pausedRules.map((rule) => (
-                <RuleCard
-                  key={rule.id}
+          <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+            {loading ? (
+              <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.secondaryText }]}>Updating…</Text>
+            ) : null}
+            {error ? (
+              <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{error}</Text>
+            ) : null}
+            {limited ? (
+              <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.warning }]}>
+                A large backlog was limited for this load. Reopen this screen to continue safely.
+              </Text>
+            ) : null}
+
+            {tab === 'due' ? (
+              pending.length === 0 ? (
+                <EmptyCard text="No recurring transactions are due today." />
+              ) : pending.map((occurrence) => (
+                <OccurrenceCard
+                  key={occurrence.id}
                   busy={busy}
-                  onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
-                  onEnd={() => endRule(rule)}
-                  onToggle={() => void toggleRule(rule)}
-                  rule={rule}
+                  confirming={busyId === occurrence.id}
+                  occurrence={occurrence}
+                  onConfirm={() => void confirm(occurrence)}
+                  onEdit={() => router.push({ pathname: '/recurring-occurrence', params: { id: occurrence.id } })}
+                  onSkip={() => skip(occurrence)}
                 />
-              ))}
-            </>
-          ) : null}
+              ))
+            ) : null}
 
-          {endedRules.length ? (
-            <>
-              <SectionHeading count={endedRules.length} title="Ended rules" />
-              {endedRules.map((rule) => (
-                <RuleCard
-                  key={rule.id}
-                  onEdit={() => undefined}
-                  onEnd={() => undefined}
-                  onToggle={() => undefined}
-                  rule={rule}
-                />
-              ))}
-            </>
-          ) : null}
+            {tab === 'rules' ? (
+              <>
+                <View style={styles.sectionTop}>
+                  <SectionHeading count={activeRules.length} title="Active rules" />
+                  <Pressable accessibilityRole="button" onPress={() => router.push('/recurring-form')} style={styles.textButton}>
+                    <Text style={[styles.textButtonLabel, { color: theme.primaryAction }]}>Create</Text>
+                  </Pressable>
+                </View>
+                {activeRules.length === 0 ? (
+                  <EmptyCard text="Create a rule for expenses, income, or transfers you expect regularly." />
+                ) : activeRules.map((rule) => (
+                  <RuleCard
+                    key={rule.id}
+                    busy={busy}
+                    onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
+                    onEnd={() => endRule(rule)}
+                    onToggle={() => void toggleRule(rule)}
+                    rule={rule}
+                  />
+                ))}
 
-          <SectionHeading count={history.length} title="Recent history" />
-          {history.length === 0 ? (
-            <EmptyCard text="Confirmed and skipped occurrences will appear here." />
-          ) : history.map((occurrence) => (
-            <Card
-              accessible
-              accessibilityLabel={`${occurrence.status}, ${occurrenceLabel(occurrence)}, ${formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}, ${formatTransactionDate(occurrence.scheduledDate)}`}
-              key={occurrence.id}
-              style={styles.historyRow}>
-              <View style={styles.flex}>
-                <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>
-                  {occurrenceLabel(occurrence)}
-                </Text>
-                <Text style={[styles.meta, { color: theme.secondaryText }]}>
-                  {formatTransactionDate(occurrence.scheduledDate)}
-                </Text>
-              </View>
-              <View style={styles.right}>
-                <Text style={[styles.amount, { color: theme.primaryText }]}>{formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}</Text>
-                <Text style={[styles.status, { color: occurrence.status === 'posted' ? theme.income : theme.mutedText }]}>
-                  {occurrence.status === 'posted' ? 'Posted' : 'Skipped'}
-                </Text>
-              </View>
-            </Card>
-          ))}
-        </ScrollView>
+                {pausedRules.length ? (
+                  <>
+                    <SectionHeading count={pausedRules.length} title="Paused rules" />
+                    {pausedRules.map((rule) => (
+                      <RuleCard
+                        key={rule.id}
+                        busy={busy}
+                        onEdit={() => router.push({ pathname: '/recurring-form', params: { id: rule.id } })}
+                        onEnd={() => endRule(rule)}
+                        onToggle={() => void toggleRule(rule)}
+                        rule={rule}
+                      />
+                    ))}
+                  </>
+                ) : null}
+
+                {endedRules.length ? (
+                  <>
+                    <SectionHeading count={endedRules.length} title="Ended rules" />
+                    {endedRules.map((rule) => (
+                      <RuleCard
+                        key={rule.id}
+                        onEdit={() => undefined}
+                        onEnd={() => undefined}
+                        onToggle={() => undefined}
+                        rule={rule}
+                      />
+                    ))}
+                  </>
+                ) : null}
+              </>
+            ) : null}
+
+            {tab === 'history' ? (
+              history.length === 0 ? (
+                <EmptyCard text="Confirmed and skipped occurrences will appear here." />
+              ) : history.map((occurrence) => (
+                <Card
+                  accessible
+                  accessibilityLabel={`${occurrence.status}, ${occurrenceLabel(occurrence)}, ${formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}, ${formatTransactionDate(occurrence.scheduledDate)}`}
+                  key={occurrence.id}
+                  style={styles.historyRow}>
+                  <View style={styles.flex}>
+                    <Text numberOfLines={1} style={[styles.cardTitle, { color: theme.primaryText }]}>
+                      {occurrenceLabel(occurrence)}
+                    </Text>
+                    <Text style={[styles.meta, { color: theme.secondaryText }]}>
+                      {formatTransactionDate(occurrence.scheduledDate)}
+                    </Text>
+                  </View>
+                  <View style={styles.right}>
+                    <Text style={[styles.amount, { color: theme.primaryText }]}>{formatMoneyWithSymbol(occurrence.amount, occurrence.currency)}</Text>
+                    <Text style={[styles.status, { color: occurrence.status === 'posted' ? theme.income : theme.mutedText }]}>
+                      {occurrence.status === 'posted' ? 'Posted' : 'Skipped'}
+                    </Text>
+                  </View>
+                </Card>
+              ))
+            ) : null}
+          </ScrollView>
+        </>
       )}
       <DialogHost dialog={dialog} />
     </View>
@@ -411,6 +418,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   title: { ...typography.sectionTitle, flex: 1, fontSize: 22, textAlign: 'center' },
+  tabs: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   content: { gap: spacing.md, padding: spacing.md },
   sectionTitle: { ...typography.sectionTitle, marginTop: spacing.sm },
   sectionTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },

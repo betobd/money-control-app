@@ -38,7 +38,14 @@ test('allows type changes before historical use', async () => { const { service 
 test('excludes archived categories from new-transaction selection but preserves historical lookup', async () => { const { service } = setup(); const category = await service.create(expense); await service.archive(category.id); assert.equal((await service.listSelectable('expense')).length, 0); assert.equal((await service.get(category.id)).id, category.id); });
 test('filters Add Transaction choices by expense and income type', async () => { const { service } = setup(); await service.create(expense); await service.create({ name: 'Salary', type: 'income', icon: 'salary' }); assert.deepEqual((await service.listSelectable('expense')).map((item) => item.name), ['Food']); assert.deepEqual((await service.listSelectable('income')).map((item) => item.name), ['Salary']); });
 test('keeps legacy icon identifiers and a stable unknown-icon fallback', () => { for (const id of ['food', 'bills', 'transport', 'shopping', 'entertainment', 'health', 'education', 'salary', 'freelance', 'gift', 'refund', 'other']) assert.equal(isCategoryIcon(id), true); assert.equal(fallbackCategoryIcon, 'other'); assert.deepEqual(getCategoryIcon('unknown-saved-value'), getCategoryIcon('other')); });
-test('offers a curated searchable icon catalog', () => { assert.ok(categoryIconKeys.length >= 30 && categoryIconKeys.length <= 50); assert.ok(searchCategoryIcons('coffee').includes('coffee')); assert.ok(searchCategoryIcons('pets').includes('pets')); assert.ok(searchCategoryIcons('airline').includes('flight')); });
+test('offers a curated searchable icon catalog', () => { assert.ok(categoryIconKeys.length >= 100 && categoryIconKeys.length <= 200); assert.ok(searchCategoryIcons('coffee').includes('coffee')); assert.ok(searchCategoryIcons('pets').includes('pets')); assert.ok(searchCategoryIcons('airline').includes('flight')); assert.ok(searchCategoryIcons('barber').includes('haircut')); });
+
+// Icon keys are stored on `categories.icon`, so removing or renaming one turns
+// every category that used it into the fallback. The catalog only ever grows.
+test('keeps every previously shipped icon key', () => {
+  const shipped = ['food', 'groceries', 'restaurant', 'coffee', 'bills', 'home', 'rent', 'electricity', 'water', 'internet', 'phone', 'transport', 'bus', 'bike', 'fuel', 'parking', 'shopping', 'cart', 'clothing', 'health', 'pharmacy', 'fitness', 'dental', 'education', 'books', 'entertainment', 'movies', 'music', 'sports', 'travel', 'flight', 'hotel', 'luggage', 'bank', 'credit-card', 'savings', 'investment', 'refund', 'salary', 'freelance', 'bonus', 'family', 'childcare', 'pets', 'gift', 'charity', 'other'];
+  for (const key of shipped) assert.ok(isCategoryIcon(key), `icon key ${key} was removed`);
+});
 
 /* ----------------------------------------------------------- subcategories */
 

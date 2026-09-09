@@ -26,19 +26,17 @@ import { accountTypes, type AccountField, type AccountType, type AccountValidati
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
 import { getBaseCurrency } from '@/features/settings/settings';
 import {
+  formatMoneyEntry,
   getCurrency,
   parseMoney,
+  sanitizeMoneyEntry,
   type CurrencyCode,
 } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 /** Sanitizes raw input for the given currency: digits, optional dot (for USD), optional sign. */
 function sanitizeMoneyInput(value: string, currency: CurrencyCode, allowNegative: boolean): string {
-  const allowDot = getCurrency(currency).fractionDigits > 0;
-  const pattern = allowNegative
-    ? allowDot ? /[^\d.-]/g : /[^\d-]/g
-    : allowDot ? /[^\d.]/g : /\D/g;
-  return value.replace(pattern, '');
+  return sanitizeMoneyEntry(value, currency, { allowNegative });
 }
 
 /** Formats a stored minor-unit magnitude for editing (no grouping). */
@@ -245,7 +243,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
             placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
             placeholderTextColor={theme.mutedText}
             style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance), openingBalanceEditable)]}
-            value={openingBalance}
+            value={formatMoneyEntry(openingBalance, currency)}
           />
           {!openingBalanceEditable ? <Text style={[styles.help, { color: theme.secondaryText }]}>Locked because this account has posted activity. Use an adjustment transaction for corrections.</Text> : null}
         </FormField>
@@ -259,7 +257,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
               placeholderTextColor={theme.mutedText}
               style={[styles.moneyInput, inputStyle(Boolean(errors.creditLimit))]}
-              value={creditLimit}
+              value={formatMoneyEntry(creditLimit, currency)}
             />
             <Text style={[styles.help, { color: theme.secondaryText }]}>In the card&apos;s currency. Must cover the card&apos;s current debt.</Text>
           </FormField>

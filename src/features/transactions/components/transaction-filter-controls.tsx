@@ -1,7 +1,10 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
+import { foldForSearch } from '@/utils/text-search';
 import type {
   SupportedTransactionType,
   TransactionDateRangePreset,
@@ -45,16 +48,6 @@ export function FilterSection({ children, title }: { children: React.ReactNode; 
 
 export function FilterChoiceGroup({ children }: { children: React.ReactNode }) {
   return <View style={styles.choices}>{children}</View>;
-}
-
-export function FilterOptionGroup({ children, label }: { children: React.ReactNode; label: string }) {
-  const theme = useAppTheme();
-  return (
-    <View style={styles.optionGroup}>
-      <Text style={[styles.groupLabel, { color: theme.mutedText }]}>{label}</Text>
-      {children}
-    </View>
-  );
 }
 
 export function FilterDateFields({ children }: { children: React.ReactNode }) {
@@ -117,6 +110,137 @@ export function SelectionRow({ label, onPress, selected }: { label: string; onPr
   );
 }
 
+export type FilterOption = {
+  /** `null` is the "no filter" option and always sorts first. */
+  id: string | null;
+  label: string;
+  /** Optional heading this option is listed under. */
+  group?: string;
+};
+
+/**
+ * Collapsed filter value: a single row that opens {@link FilterOptionSheet}.
+ *
+ * Accounts and categories used to be rendered inline as full lists, which made
+ * the filter sheet several screens tall for anyone with more than a handful of
+ * either. One row per filter keeps every control reachable without scrolling.
+ */
+export function FilterValueRow({
+  label,
+  onPress,
+  value,
+}: {
+  label: string;
+  onPress: () => void;
+  value: string;
+}) {
+  const theme = useAppTheme();
+  return (
+    <Pressable
+      accessibilityHint={`Opens the ${label.toLocaleLowerCase('en')} list`}
+      accessibilityLabel={`${label}, ${value}`}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.valueRow, { backgroundColor: theme.surface }]}>
+      <Text style={[styles.valueRowLabel, { color: theme.mutedText }]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.valueRowValue, { color: theme.primaryText }]}>{value}</Text>
+      <SymbolView
+        name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+        size={18}
+        tintColor={theme.mutedText}
+      />
+    </Pressable>
+  );
+}
+
+/** Searchable single-select list, presented over the filter sheet. */
+export function FilterOptionSheet({
+  onClose,
+  onSelect,
+  options,
+  selectedId,
+  title,
+  visible,
+}: {
+  onClose: () => void;
+  onSelect: (id: string | null) => void;
+  options: readonly FilterOption[];
+  selectedId: string | null;
+  title: string;
+  visible: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
+  const [query, setQuery] = useState('');
+  const needle = foldForSearch(query);
+  // The "no filter" option is never searched away: it is how the filter is
+  // cleared, and hiding it behind an empty query would strand the user.
+  const matches = options.filter((option) => option.id === null || !needle || foldForSearch(option.label).includes(needle));
+  const groups = [...new Set(matches.map((option) => option.group))];
+
+  function close() {
+    setQuery('');
+    onClose();
+  }
+
+  return (
+    <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet" visible={visible}>
+      <View style={[styles.sheet, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
+        <View style={styles.sheetHeader}>
+          <Pressable
+            accessibilityLabel={`Close ${title.toLocaleLowerCase('en')}`}
+            accessibilityRole="button"
+            onPress={close}
+            style={styles.sheetHeaderButton}>
+            <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
+          </Pressable>
+          <Text accessibilityRole="header" style={[styles.sheetTitle, { color: theme.primaryText }]}>{title}</Text>
+          <View style={styles.sheetHeaderButton} />
+        </View>
+        <View style={styles.sheetSearch}>
+          <TextInput
+            accessibilityLabel={`Search ${title.toLocaleLowerCase('en')}`}
+            autoCorrect={false}
+            onChangeText={setQuery}
+            placeholder="Search"
+            placeholderTextColor={theme.mutedText}
+            style={[styles.searchInput, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
+            value={query}
+          />
+        </View>
+        <ScrollView
+          accessibilityRole="radiogroup"
+          contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + spacing.xl }]}
+          keyboardShouldPersistTaps="handled">
+          {matches.length === 1 && needle ? (
+            <Text style={[styles.groupLabel, { color: theme.secondaryText }]}>No matches.</Text>
+          ) : null}
+          {groups.map((group) => {
+            const rows = matches.filter((option) => option.group === group);
+            if (rows.length === 0) return null;
+            return (
+              <View key={group ?? 'ungrouped'} style={styles.optionGroup}>
+                {group ? <Text style={[styles.groupLabel, { color: theme.mutedText }]}>{group}</Text> : null}
+                {rows.map((option) => (
+                  <SelectionRow
+                    key={option.id ?? 'all'}
+                    label={option.label}
+                    onPress={() => {
+                      onSelect(option.id);
+                      close();
+                    }}
+                    selected={option.id === selectedId}
+                  />
+                ))}
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   section: { gap: spacing.md },
   sectionTitle: { ...typography.sectionTitle },
@@ -143,6 +267,23 @@ const styles = StyleSheet.create({
   selectionLabel: { ...typography.body, flex: 1 },
   optionGroup: { gap: spacing.sm },
   groupLabel: { ...typography.label, textTransform: 'uppercase' },
+  valueRow: {
+    alignItems: 'center',
+    borderRadius: borderRadii.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 60,
+    paddingHorizontal: spacing.md,
+  },
+  valueRowLabel: { ...typography.label, textTransform: 'uppercase' },
+  valueRowValue: { ...typography.body, flex: 1, textAlign: 'right' },
+  sheet: { flex: 1 },
+  sheetHeader: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
+  sheetHeaderButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
+  sheetTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
+  sheetSearch: { paddingBottom: spacing.sm, paddingHorizontal: spacing.md },
+  searchInput: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
+  sheetContent: { gap: spacing.lg, padding: spacing.md },
   dateFields: { gap: spacing.md },
   dateField: { gap: spacing.sm },
   dateLabel: { ...typography.caption, fontWeight: '700' },

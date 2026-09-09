@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import {
+  formatMoneyEntry,
   formatMoneyWithSymbol,
   getCurrency,
   parseMoney,
@@ -168,7 +169,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
                 color: theme.primaryText,
               },
             ]}
-            value={amountDigits}
+            value={formatMoneyEntry(amountDigits, refundCurrency)}
           />
           <Text style={[styles.helper, { color: theme.mutedText }]}>
             Maximum refundable: {formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)}

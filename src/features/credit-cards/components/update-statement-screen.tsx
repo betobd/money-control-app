@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
-import { getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { formatMoneyEntry, getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
 import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -167,7 +167,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
 }
 
 function MoneyField({ currency, error, label, onChange, value }: { currency: CurrencyCode; error?: string; label: string; onChange: (value: string) => void; value: string }) {
-  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in ${getCurrency(currency).name}`} invalid={Boolean(error)} keyboardType={getCurrency(currency).fractionDigits === 0 ? 'number-pad' : 'decimal-pad'} onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={value} /></Field>;
+  return <Field error={error} label={label}><Input accessibilityLabel={`${label} in ${getCurrency(currency).name}`} invalid={Boolean(error)} keyboardType={getCurrency(currency).fractionDigits === 0 ? 'number-pad' : 'decimal-pad'} onChangeText={onChange} placeholder="Enter amount" style={styles.amountInput} value={formatMoneyEntry(value, currency)} /></Field>;
 }
 
 function Field({ children, error, label }: { children: React.ReactNode; error?: string; label: string }) {

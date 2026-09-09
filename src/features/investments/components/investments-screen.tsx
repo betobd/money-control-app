@@ -44,7 +44,7 @@ export function InvestmentsScreen() {
         <View style={styles.headerButton} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.xl }]}>
         {loading ? (
           <View accessibilityLabel="Loading investments" style={styles.center}>
             <ActivityIndicator color={theme.primaryAction} size="large" />
@@ -134,14 +134,25 @@ export function InvestmentsScreen() {
               </View>
             )}
 
-            <Action
-              label="Add investment"
-              onPress={() => router.push('/investment-form')}
-              primary
-            />
           </>
         )}
       </ScrollView>
+
+      {/* Pinned rather than trailing the list: with several investments the only
+          way to add one was to scroll past all of them. */}
+      {loading ? null : (
+        <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
+          <Button
+            accessibilityHint="Opens the investment form"
+            fullWidth
+            icon={{ ios: 'plus', android: 'add', web: 'add' }}
+            label="Add investment"
+            onPress={() => router.push('/investment-form')}
+            size="lg"
+            variant="primary"
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -189,6 +200,7 @@ const styles = StyleSheet.create({
   headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
   summary: { gap: spacing.sm },
   amountRow: { alignItems: 'baseline', flexDirection: 'row', maxWidth: '100%' },

@@ -19,7 +19,7 @@ import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { getCurrency, parseMoney, type CurrencyCode } from '@/features/currency/currency';
+import { formatMoneyEntry, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
 import { getBaseCurrency } from '@/features/settings/settings';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -45,8 +45,7 @@ function defaultLiquidityFor(type: InvestmentType): InvestmentLiquidity {
 
 /** Sanitizes raw money input for the given currency: digits and optional dot (USD). */
 function sanitizeMoneyInput(value: string, currency: CurrencyCode): string {
-  const allowDot = getCurrency(currency).fractionDigits > 0;
-  return value.replace(allowDot ? /[^\d.]/g : /\D/g, '');
+  return sanitizeMoneyEntry(value, currency);
 }
 
 /** Formats a stored minor-unit magnitude for editing (no grouping). */
@@ -242,7 +241,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
             placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
             placeholderTextColor={theme.mutedText}
             style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance))]}
-            value={openingBalance}
+            value={formatMoneyEntry(openingBalance, currency)}
           />
           <Text style={[styles.help, { color: theme.secondaryText }]}>The capital initially placed in this investment. Record later contributions as transfers.</Text>
         </FormField>

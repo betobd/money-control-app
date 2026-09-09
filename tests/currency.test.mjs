@@ -8,6 +8,7 @@ import {
   supportedCurrencyCodes,
 } from '../src/features/currency/currency-registry.ts';
 import { parseMoney } from '../src/features/currency/money-parser.ts';
+import { formatMoneyEntry, sanitizeMoneyEntry } from '../src/features/currency/money-entry.ts';
 import {
   accessibleMoney,
   formatMoney,
@@ -217,4 +218,46 @@ test('isValidScaledRate guards', () => {
   assert.equal(isValidScaledRate({ rateScaled: 0, rateScale: 10000 }), false);
   assert.equal(isValidScaledRate({ rateScaled: 100, rateScale: 0 }), false);
   assert.equal(isValidScaledRate({ rateScaled: -1, rateScale: 10000 }), false);
+});
+
+test('groups money entry for display without touching what is stored', () => {
+  assert.equal(formatMoneyEntry('1000000', 'COP'), '1.000.000');
+  assert.equal(formatMoneyEntry('1000000', 'USD'), '1,000,000');
+  assert.equal(formatMoneyEntry('1234', 'USD'), '1,234');
+  assert.equal(formatMoneyEntry('999', 'COP'), '999');
+});
+
+test('leaves a half-typed money entry alone', () => {
+  // An empty field must keep showing its placeholder, and a trailing separator
+  // or lone sign must survive so the next keystroke lands where the user expects.
+  assert.equal(formatMoneyEntry('', 'COP'), '');
+  assert.equal(formatMoneyEntry('1000.', 'USD'), '1,000.');
+  assert.equal(formatMoneyEntry('1000.5', 'USD'), '1,000.5');
+  assert.equal(formatMoneyEntry('-', 'COP'), '-');
+  assert.equal(formatMoneyEntry('-1000000', 'COP'), '-1.000.000');
+});
+
+test('groups a 16-digit entry exactly, without going through Number', () => {
+  assert.equal(formatMoneyEntry('1234567890123456', 'USD'), '1,234,567,890,123,456');
+});
+
+test('the display form is never fed back into the parser', () => {
+  // The COP group separator is '.', which parseMoney rejects. Fields keep the raw
+  // entry in state precisely so this round trip never happens.
+  assert.equal(parseMoney(formatMoneyEntry('1000000', 'COP'), 'COP').ok, false);
+  assert.deepEqual(parseMoney('1000000', 'COP'), { ok: true, minor: 1000000 });
+});
+
+test('sanitizes money entry to one dot and the currency precision', () => {
+  assert.equal(sanitizeMoneyEntry('1.2.3', 'USD'), '1.23');
+  assert.equal(sanitizeMoneyEntry('10.999', 'USD'), '10.99');
+  assert.equal(sanitizeMoneyEntry('10.999', 'BHD'), '10.999');
+  assert.equal(sanitizeMoneyEntry('1.000.000', 'COP'), '1000000');
+  assert.equal(sanitizeMoneyEntry('abc12x3', 'COP'), '123');
+});
+
+test('accepts a leading minus only where negatives are allowed', () => {
+  assert.equal(sanitizeMoneyEntry('-500', 'COP', { allowNegative: true }), '-500');
+  assert.equal(sanitizeMoneyEntry('-500', 'COP'), '500');
+  assert.equal(sanitizeMoneyEntry('5-0-0', 'COP', { allowNegative: true }), '500');
 });

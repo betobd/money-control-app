@@ -243,7 +243,9 @@ export class CategoryService {
     const errors: CategoryValidationErrors = {};
     if (!value.name) errors.name = 'Enter a category name.';
     if (!categoryTypes.includes(value.type)) errors.type = 'Select expense or income.';
-    if (!isCategoryIcon(value.icon)) errors.icon = `Select a supported icon (${categoryIconKeys.join(', ')}).`;
+    // The catalog is over a hundred entries, so the message names the count
+    // rather than listing every key at the user.
+    if (!isCategoryIcon(value.icon)) errors.icon = `Select one of the ${categoryIconKeys.length} available icons.`;
 
     if (value.parentCategoryId !== null) {
       const parent = value.parentCategoryId === excludingId
