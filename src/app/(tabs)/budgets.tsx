@@ -12,7 +12,6 @@ import { BudgetCard } from '@/features/budgets/components/budget-card';
 import { BudgetErrorState, EmptyBudgetsState, LoadingBudgetCard } from '@/features/budgets/components/budget-states';
 import { BudgetSummaryCard } from '@/features/budgets/components/budget-summary-card';
 import { MonthlyCeilingCard, MonthlyCeilingEmptyCard } from '@/features/budgets/components/monthly-ceiling-card';
-import { CreateBudgetButton } from '@/features/budgets/components/create-budget-button';
 import { useBudgets } from '@/features/budgets/use-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -31,7 +30,7 @@ export default function BudgetsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
-      <PrimaryScreenHeader title="Budgets" />
+      <PrimaryScreenHeader onAdd={{ accessibilityLabel: 'Create budget', onPress: () => openForm() }} title="Budgets" />
 
       <View accessibilityLabel={`Selected month, ${label}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
         <Pressable accessibilityLabel="Previous month" accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, -1))} style={styles.monthButton}>
@@ -57,7 +56,6 @@ export default function BudgetsScreen() {
       {!data.loading && !data.error && data.budgets.length > 0 ? (
         <>
           <BudgetSummaryCard summary={data.summary} />
-          <CreateBudgetButton onPress={() => openForm()} />
           <View style={styles.sectionHeader}>
             <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>Monthly budgets</Text>
             <Text style={[styles.sectionMonth, { color: theme.mutedText }]}>{label}</Text>

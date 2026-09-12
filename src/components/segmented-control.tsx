@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: spacing.sm,
   },
-  label: { ...typography.caption, flexShrink: 1, fontWeight: '700' },
+  label: { ...typography.captionStrong, flexShrink: 1 },
   badge: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minWidth: 22, paddingHorizontal: spacing.xs },
-  badgeLabel: { ...typography.label, fontWeight: '700' },
+  badgeLabel: { ...typography.labelStrong },
 });

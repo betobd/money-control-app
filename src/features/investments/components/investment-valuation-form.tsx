@@ -1,11 +1,9 @@
 import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +23,8 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { InvestmentValuationError } from '../investment-valuation.service';
 import { investmentValuationService } from '../investments';
 import { useInvestmentDetails } from '../use-investments';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 /** Sanitizes raw money input for the given currency: digits and optional dot (USD). */
 function sanitizeMoneyInput(value: string, currency: CurrencyCode): string {
@@ -117,13 +117,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Close valuation form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>Update Value</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close valuation form" title="Update Value" />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.help, { color: theme.secondaryText }]}>{view.account.name}</Text>
@@ -179,9 +173,9 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
         </Card>
       </ScrollView>
 
-      <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+      <FixedFooter bottomInset={insets.bottom}>
         <Button busy={saving} fullWidth label="Save valuation" onPress={() => void save()} size="lg" variant="primary" />
-      </View>
+      </FixedFooter>
     </KeyboardAvoidingView>
   );
 }
@@ -199,8 +193,6 @@ function PreviewRow({ label, value, color }: { label: string; value: string; col
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
   headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xl },
   field: { gap: spacing.sm },
@@ -213,5 +205,4 @@ const styles = StyleSheet.create({
   previewValue: { ...typography.moneyRow, flexShrink: 1, textAlign: 'right' },
   error: { ...typography.caption },
   help: { ...typography.caption },
-  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
 });

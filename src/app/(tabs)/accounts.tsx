@@ -14,7 +14,6 @@ import { formatMoneyNumber } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountCard } from '@/features/accounts/components/account-card';
 import { AccountsErrorState, EmptyAccountsState, LoadingAccountCard } from '@/features/accounts/components/account-states';
-import { AddAccountButton } from '@/features/accounts/components/add-account-button';
 import { NetWorthSummary } from '@/features/accounts/components/net-worth-summary';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { InvestmentCard } from '@/features/investments/components/investment-card';
@@ -146,7 +145,7 @@ export default function AccountsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
-      <PrimaryScreenHeader title="Accounts" />
+      <PrimaryScreenHeader onAdd={{ accessibilityLabel: 'Add account', onPress: () => router.push('/account-form') }} title="Accounts" />
 
       {actionError ? (
         <Text accessibilityLiveRegion="assertive" style={[styles.actionError, { color: theme.destructive }]}>
@@ -179,7 +178,7 @@ export default function AccountsScreen() {
 
       {loading ? <View style={styles.accounts}><LoadingAccountCard /><LoadingAccountCard /></View> : null}
       {!loading && error ? <AccountsErrorState message={error} onRetry={() => void reload()} /> : null}
-      {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState /> : null}
+      {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState onCreate={() => router.push('/account-form')} /> : null}
       {!loading && !error && activeAccounts.length > 0 ? (
         <View accessibilityLabel="Active accounts" style={styles.accounts}>
           {activeAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
@@ -219,7 +218,6 @@ export default function AccountsScreen() {
         </View>
       ) : null}
 
-      <AddAccountButton onPress={() => router.push('/account-form')} />
 
       <ActionSheet
         actions={menu ? menuActions(menu) : []}

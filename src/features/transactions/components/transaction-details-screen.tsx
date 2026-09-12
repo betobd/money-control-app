@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActionTileRow } from '@/components/action-tile';
 import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
@@ -49,6 +50,7 @@ import type {
 import { useTransactionDetails } from '@/features/transactions/use-transaction-details';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
 
 type AccountPickerField = 'account' | 'source' | 'destination' | null;
 
@@ -120,23 +122,12 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel={editing ? 'Cancel editing' : 'Close transaction details'}
-          accessibilityRole="button"
-          onPress={() => editing ? setEditing(false) : router.back()}
-          style={styles.headerButton}>
-          <SymbolView
-            name={{ ios: editing ? 'xmark' : 'chevron.left', android: editing ? 'close' : 'arrow_back', web: editing ? 'close' : 'arrow_back' }}
-            size={24}
-            tintColor={theme.primaryText}
-          />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>
-          {editing ? 'Edit Transaction' : 'Transaction Details'}
-        </Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader
+        leading={editing ? 'close' : 'back'}
+        leadingAccessibilityLabel={editing ? 'Cancel editing' : 'Close transaction details'}
+        onLeadingPress={() => editing ? setEditing(false) : router.back()}
+        title={editing ? 'Edit Transaction' : 'Transaction Details'}
+      />
 
       {editing && transaction.type !== 'refund' ? (
         <TransactionEditForm
@@ -286,41 +277,38 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
           ) : null}
 
           {transaction.status === 'posted' ? (
-            <View style={styles.actions}>
-              <View style={styles.actionRow}>
-                {isExpense ? (
-                  <ActionTile
-                    disabled={!canAddRefund}
-                    icon={{ ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' }}
-                    label="Refund"
-                    onPress={() => router.push({
-                      pathname: '/refund-form',
-                      params: { originalTransactionId: transaction.id },
-                    })}
-                  />
-                ) : null}
-                <ActionTile
-                  disabled={!canEdit}
-                  icon={{ ios: 'pencil', android: 'edit', web: 'edit' }}
-                  label="Edit"
-                  onPress={() => {
+            <ActionTileRow
+              actions={[
+                ...(isExpense ? [{
+                  label: 'Refund',
+                  icon: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' } as const,
+                  disabled: !canAddRefund,
+                  onPress: () => router.push({
+                    pathname: '/refund-form',
+                    params: { originalTransactionId: transaction.id },
+                  }),
+                }] : []),
+                {
+                  label: 'Edit',
+                  icon: { ios: 'pencil', android: 'edit', web: 'edit' },
+                  disabled: !canEdit,
+                  onPress: () => {
                     setActionError(undefined);
                     setEditing(true);
-                  }}
-                />
-                <ActionTile
-                  busy={voiding}
-                  disabled={!canVoid}
-                  icon={{ ios: 'slash.circle', android: 'block', web: 'block' }}
-                  label={voiding ? 'Voiding…' : 'Void'}
-                  onPress={confirmVoid}
-                  tone="destructive"
-                />
-              </View>
-              {actionHints.map((hint) => (
-                <Text key={hint} style={[styles.lockedExplanation, { color: theme.secondaryText }]}>{hint}</Text>
-              ))}
-            </View>
+                  },
+                },
+                {
+                  label: 'Void',
+                  accessibilityLabel: voiding ? 'Voiding' : isRefund ? 'Void refund' : 'Void transaction',
+                  icon: { ios: 'slash.circle', android: 'block', web: 'block' },
+                  busy: voiding,
+                  disabled: !canVoid,
+                  onPress: confirmVoid,
+                  tone: 'destructive',
+                },
+              ]}
+              hints={actionHints}
+            />
           ) : null}
         </ScrollView>
       )}
@@ -576,51 +564,6 @@ function TransactionEditForm({
   );
 }
 
-/**
- * One compact icon action. Three of these fit on a row, where the previous
- * full-width stacked buttons dominated the screen and pushed the detail rows
- * out of view.
- */
-function ActionTile({
-  busy = false,
-  disabled = false,
-  icon,
-  label,
-  onPress,
-  tone = 'primary',
-}: {
-  busy?: boolean;
-  disabled?: boolean;
-  icon: SymbolViewProps['name'];
-  label: string;
-  onPress: () => void;
-  tone?: 'primary' | 'destructive';
-}) {
-  const theme = useAppTheme();
-  const background = disabled
-    ? theme.disabledSurface
-    : tone === 'destructive' ? theme.tintDestructive : theme.tintPrimary;
-  const foreground = disabled
-    ? theme.disabledText
-    : tone === 'destructive' ? theme.destructive : theme.primaryAction;
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.actionTile, { backgroundColor: background }]}>
-      {busy ? (
-        <ActivityIndicator color={foreground} />
-      ) : (
-        <SymbolView name={icon} size={22} tintColor={foreground} />
-      )}
-      <Text numberOfLines={1} style={[styles.actionTileLabel, { color: foreground }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 function DetailRow({ label, value }: { label: string; value: string }) {
   const theme = useAppTheme();
   return (
@@ -669,9 +612,6 @@ function actionErrorMessage(cause: unknown, fallback: string): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.md },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   detailsContent: { gap: spacing.md, paddingHorizontal: spacing.md },
   statusBadge: {
     alignItems: 'center',
@@ -682,7 +622,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: spacing.md,
   },
-  statusText: { ...typography.caption, fontWeight: '700' },
+  statusText: { ...typography.captionStrong },
   amountCard: { alignItems: 'center', borderRadius: borderRadii.lg, gap: spacing.sm, padding: spacing.lg },
   detailAmount: { ...typography.moneyHero },
   voidedAmount: { textDecorationLine: 'line-through' },
@@ -702,15 +642,10 @@ const styles = StyleSheet.create({
   refundLinkAmount: { ...typography.moneyRow },
   refundExplanation: { borderRadius: borderRadii.md, gap: spacing.sm, padding: spacing.md },
   refundExplanationText: { ...typography.caption },
-  originalLink: { ...typography.caption, fontWeight: '700' },
-  lockedExplanation: { ...typography.caption, textAlign: 'center' },
+  originalLink: { ...typography.captionStrong },
   detailRow: { borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.xs, paddingVertical: spacing.sm + spacing.xs },
   detailLabel: { ...typography.overline },
   detailValue: { ...typography.body, fontFamily: typography.caption.fontFamily, fontSize: 14, lineHeight: 20 },
-  actions: { gap: spacing.md },
-  actionRow: { flexDirection: 'row', gap: spacing.sm },
-  actionTile: { alignItems: 'center', borderRadius: borderRadii.md, flex: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 72, paddingHorizontal: spacing.sm },
-  actionTileLabel: { ...typography.caption, fontWeight: '700' },
   error: { ...typography.caption },
   editArea: { flex: 1 },
   editContent: { gap: spacing.lg, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },

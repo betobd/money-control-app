@@ -40,6 +40,7 @@ import {
   NoTransactionResultsState,
   TransactionErrorState,
 } from './transaction-states';
+import { Button } from '@/components/button';
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -233,18 +234,13 @@ export function TransactionsScreen() {
         ListFooterComponent={transactions.length > 0 ? (
           <View style={styles.footer}>
             {hasMore ? (
-              <Pressable
+              <Button
                 accessibilityLabel="Load more transactions"
-                accessibilityRole="button"
-                accessibilityState={{ disabled: loadingMore }}
-                disabled={loadingMore}
+                busy={loadingMore}
+                label="Load more"
                 onPress={() => void loadMore()}
-                style={styles.loadMoreButton}>
-                {loadingMore ? <ActivityIndicator color={theme.primaryAction} size="small" /> : null}
-                <Text style={[styles.loadMoreLabel, { color: theme.primaryAction }]}>
-                  {loadingMore ? 'Loading…' : 'Load more'}
-                </Text>
-              </Pressable>
+                variant="tonal"
+              />
             ) : (
               <Text style={[styles.endLabel, { color: theme.mutedText }]}>End of transaction history</Text>
             )}
@@ -318,7 +314,7 @@ const styles = StyleSheet.create({
   activeCountRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   activeCount: { ...typography.label },
   inlineAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingHorizontal: spacing.sm },
-  inlineActionLabel: { ...typography.caption, fontWeight: '700' },
+  inlineActionLabel: { ...typography.captionStrong },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   fullFiltersButton: {
     alignItems: 'center',
@@ -328,7 +324,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: spacing.sm + spacing.xs,
   },
-  fullFiltersLabel: { ...typography.caption, fontWeight: '700' },
+  fullFiltersLabel: { ...typography.captionStrong },
   refreshing: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   refreshingLabel: { ...typography.caption },
   errorBanner: { minHeight: 48, justifyContent: 'center' },
@@ -342,7 +338,5 @@ const styles = StyleSheet.create({
   transactionItem: { paddingBottom: spacing.sm - 2 },
   emptyArea: { gap: spacing.sm },
   footer: { alignItems: 'center', paddingVertical: spacing.xl },
-  loadMoreButton: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, minHeight: 48, paddingHorizontal: spacing.lg },
-  loadMoreLabel: { ...typography.body, fontWeight: '700' },
   endLabel: { ...typography.caption, textAlign: 'center' },
 });

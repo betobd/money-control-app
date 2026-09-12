@@ -1,9 +1,6 @@
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,6 +21,7 @@ import { baseCurrencyLockMessage, settingsService } from '@/features/settings/se
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useExchangeRates } from '../use-exchange-rate';
 import { toDirectedRate, type ExchangeRateRecord, type ExchangeRateStatus } from '../exchange-rate.types';
+import { ScreenHeader } from '@/components/screen-header';
 
 function formatFetchedAt(value: string): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -38,7 +36,6 @@ function sourceLabel(record: ExchangeRateRecord): string {
 }
 
 export function ExchangeRateSettingsScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const dialog = useDialog();
@@ -87,24 +84,7 @@ export function ExchangeRateSettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => router.back()}
-          style={styles.headerButton}>
-          <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-            size={24}
-            tintColor={busy ? theme.disabledText : theme.primaryText}
-          />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
-          Currency & Rates
-        </Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" leadingDisabled={busy} title="Currency & Rates" />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -297,9 +277,6 @@ function RateCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 56, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
   feedback: { ...typography.caption, borderRadius: borderRadii.md, overflow: 'hidden', padding: spacing.md },
   sectionTitle: { ...typography.sectionTitle, marginBottom: spacing.sm },

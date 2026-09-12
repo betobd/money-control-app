@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { alignItems: 'center', borderRadius: borderRadii.card, borderWidth: borderWidths.thin, flexBasis: '47%', flexGrow: 1, gap: spacing.xs, justifyContent: 'center', minHeight: 126, padding: spacing.sm, position: 'relative' },
   icon: { alignItems: 'center', borderRadius: borderRadii.full, height: 42, justifyContent: 'center', width: 42 },
-  optionLabel: { ...typography.caption, fontWeight: '700', textAlign: 'center' },
+  optionLabel: { ...typography.captionStrong, textAlign: 'center' },
   parent: { ...typography.label, maxWidth: '100%', textAlign: 'center' },
   archived: { ...typography.label },
   check: { alignItems: 'center', borderRadius: borderRadii.full, height: 22, justifyContent: 'center', position: 'absolute', right: 6, top: 6, width: 22 },

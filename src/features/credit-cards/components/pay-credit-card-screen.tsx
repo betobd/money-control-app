@@ -3,7 +3,6 @@ import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { Button } from '@/components/button';
 import { DateField } from '@/components/date-field';
 import { toUserMessage } from '@/errors/user-error';
-import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -41,6 +40,7 @@ import type {
 } from '../credit-card.types';
 import { useCreditCard } from '../use-credit-card';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
 
 export function PayCreditCardScreen({ accountId }: { accountId: string }) {
   const dialog = useDialog();
@@ -196,13 +196,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}
     >
-      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
-        <Pressable accessibilityLabel="Close card payment" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Pay {details.account.name}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close card payment" title={`Pay ${details.account.name}`} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
@@ -382,9 +376,6 @@ function Value({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
-  header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md },
   summary: { borderRadius: borderRadii.card, gap: spacing.sm, padding: spacing.md },
   field: { gap: spacing.sm },
@@ -401,6 +392,6 @@ const styles = StyleSheet.create({
   value: { flexShrink: 1, fontFamily: fonts.mono.bold, textAlign: 'right' },
   retry: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   body: { ...typography.body },
-  bodyStrong: { ...typography.body, fontWeight: '700' },
+  bodyStrong: { ...typography.bodyStrong },
   help: { ...typography.caption },
 });

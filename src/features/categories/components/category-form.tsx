@@ -13,6 +13,8 @@ import { CategoryValidationError } from '../category.service';
 import { categoryService } from '../categories';
 import type { Category, CategoryType, CategoryValidationErrors } from '../category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 type CategoryFormProps = {
   categoryId?: string;
@@ -101,7 +103,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
     ? (parentId ? 'Edit Subcategory' : 'Edit Category')
     : (parentId ? 'New Subcategory' : 'New Category');
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-    <View style={styles.header}><Pressable accessibilityLabel="Close category form" onPress={() => router.back()} style={styles.headerButton}><SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} /></Pressable><Text style={[styles.headerTitle, { color: theme.primaryText }]}>{heading}</Text><View style={styles.headerButton} /></View>
+    <ScreenHeader leading="close" leadingAccessibilityLabel="Close category form" title={heading} />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl }]} keyboardShouldPersistTaps="handled">
       {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
       <View style={styles.field}><Overline color={theme.mutedText}>{parentId ? 'Subcategory name' : 'Category name'}</Overline><TextInput accessibilityLabel="Category name" onChangeText={setName} value={name} style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.name ? theme.destructive : theme.hairline, color: theme.primaryText }]} />{errors.name ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.name}</Text> : null}</View>
@@ -185,9 +187,9 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
       selected={icon}
       visible={iconPickerOpen}
     />
-    <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
+    <FixedFooter bottomInset={insets.bottom}>
       <Button busy={saving} fullWidth label={parentId ? 'Save subcategory' : 'Save category'} onPress={() => void save()} size="lg" variant="primary" />
-    </View>
+    </FixedFooter>
   </KeyboardAvoidingView>;
 }
-const styles = StyleSheet.create({ flex: { flex: 1 }, loading: { alignItems: 'center', flex: 1, justifyContent: 'center' }, header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm }, headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, field: { gap: spacing.sm }, input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md }, row: { flexDirection: 'row', gap: spacing.sm }, choice: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flex: 1, justifyContent: 'center', minHeight: 48 }, parentList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, parentOption: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', maxWidth: '100%', minHeight: 44, paddingHorizontal: spacing.md }, lockedValue: { borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md }, hint: { ...typography.caption }, iconField: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md }, iconPreview: { alignItems: 'center', borderRadius: borderRadii.md, height: 44, justifyContent: 'center', width: 44 }, iconFieldLabel: { ...typography.body, flex: 1 }, error: { ...typography.caption }, footer: { borderTopWidth: borderWidths.thin, paddingHorizontal: spacing.md, paddingTop: spacing.md }, save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 }, saveText: { ...typography.body, fontWeight: '700' } });
+const styles = StyleSheet.create({ flex: { flex: 1 }, loading: { alignItems: 'center', flex: 1, justifyContent: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, field: { gap: spacing.sm }, input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md }, row: { flexDirection: 'row', gap: spacing.sm }, choice: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flex: 1, justifyContent: 'center', minHeight: 48 }, parentList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, parentOption: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', maxWidth: '100%', minHeight: 44, paddingHorizontal: spacing.md }, lockedValue: { borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md }, hint: { ...typography.caption }, iconField: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.md, minHeight: 64, paddingHorizontal: spacing.md }, iconPreview: { alignItems: 'center', borderRadius: borderRadii.md, height: 44, justifyContent: 'center', width: 44 }, iconFieldLabel: { ...typography.body, flex: 1 }, error: { ...typography.caption }, save: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 }, saveText: { ...typography.bodyStrong } });

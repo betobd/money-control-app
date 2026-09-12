@@ -1,7 +1,7 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { accountTypeLabels } from '@/features/accounts/account-format';
 import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
@@ -115,6 +115,6 @@ const styles = StyleSheet.create({
   accountCopy: { flex: 1, minWidth: 0 },
   name: { ...typography.body, fontFamily: typography.sectionTitle.fontFamily, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   type: { ...typography.caption, fontSize: 12, lineHeight: 16 },
-  balance: { ...typography.moneyRow, fontWeight: '500', textAlign: 'right' },
+  balance: { ...typography.moneyRow, fontFamily: fonts.mono.medium, fontWeight: '500', textAlign: 'right' },
   empty: { ...typography.body, padding: spacing.lg, textAlign: 'center' },
 });

@@ -1,4 +1,4 @@
-import { SymbolView } from 'expo-symbols';
+import { EmptyState } from '@/components/empty-state';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -7,16 +7,13 @@ import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export function EmptyBudgetsState({ onCreate }: { onCreate: () => void }) {
-  const theme = useAppTheme();
   return (
-    <View style={[styles.empty, { backgroundColor: theme.surface }]}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.tintPrimary }]}>
-        <SymbolView name={{ ios: 'chart.bar', android: 'monitoring', web: 'monitoring' }} size={28} tintColor={theme.primaryAction} />
-      </View>
-      <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>No budgets for this month</Text>
-      <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>Create a category budget to start planning your monthly spending.</Text>
-      <Button accessibilityLabel="Create the first budget" label="Create budget" onPress={onCreate} variant="primary" />
-    </View>
+    <EmptyState
+      action={{ label: 'Create budget', onPress: onCreate, accessibilityLabel: 'Create the first budget' }}
+      body="Create a category budget to start planning your monthly spending."
+      icon={{ ios: 'chart.bar', android: 'monitoring', web: 'monitoring' }}
+      title="No budgets for this month"
+    />
   );
 }
 

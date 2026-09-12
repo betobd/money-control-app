@@ -1,19 +1,16 @@
-import { SymbolView } from 'expo-symbols';
 import { toUserMessage } from '@/errors/user-error';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { spacing, typography } from '@/constants/theme';
 import { resolveTransactionDateRange } from '@/features/transactions/transaction-date';
 import type {
   TransactionFilterOptions,
@@ -33,6 +30,9 @@ import {
   typeFilterOptions,
   type FilterOption,
 } from './transaction-filter-controls';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
+import { Button } from '@/components/button';
 
 type FilterPicker = 'account' | 'category' | null;
 
@@ -86,30 +86,14 @@ export function TransactionFilterModal({
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={[styles.screen, { backgroundColor: theme.appBackground }]}>
-        <View
-          accessibilityLabel="Transaction filters"
-          accessibilityRole="header"
-          style={[styles.header, { borderBottomColor: theme.hairline, paddingTop: insets.top + spacing.sm }]}>
-          <Pressable
-            accessibilityLabel="Close transaction filters"
-            accessibilityRole="button"
-            onPress={onClose}
-            style={styles.headerButton}>
-            <SymbolView
-              name={{ ios: 'xmark', android: 'close', web: 'close' }}
-              size={24}
-              tintColor={theme.primaryText}
-            />
-          </Pressable>
-          <Text style={[styles.title, { color: theme.primaryText }]}>Filters</Text>
-          <Pressable
-            accessibilityLabel="Clear all transaction filters"
-            accessibilityRole="button"
-            onPress={onClearAll}
-            style={styles.clearButton}>
-            <Text style={[styles.clearLabel, { color: theme.primaryAction }]}>Clear all</Text>
-          </Pressable>
-        </View>
+        <ScreenHeader
+          action={{ kind: 'text', label: 'Clear all', accessibilityLabel: 'Clear all transaction filters', onPress: onClearAll }}
+          leading="close"
+          leadingAccessibilityLabel="Close transaction filters"
+          onLeadingPress={onClose}
+          title="Filters"
+          topInset={insets.top + spacing.sm}
+        />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -192,15 +176,16 @@ export function TransactionFilterModal({
           </FilterSection>
         </ScrollView>
 
-        <View style={[styles.footer, { borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
-          <Pressable
+        <FixedFooter bottomInset={insets.bottom}>
+          <Button
             accessibilityLabel="Apply transaction filters"
-            accessibilityRole="button"
+            fullWidth
+            label="Apply filters"
             onPress={apply}
-            style={[styles.applyButton, { backgroundColor: theme.primaryAction }]}>
-            <Text style={[styles.applyLabel, { color: theme.onPrimaryAction }]}>Apply filters</Text>
-          </Pressable>
-        </View>
+            size="lg"
+            variant="primary"
+          />
+        </FixedFooter>
 
         <FilterOptionSheet
           onClose={() => setPicker(null)}
@@ -262,20 +247,6 @@ function buildCategoryOptions(categories: TransactionFilterOptions['categories']
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: {
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    minHeight: 64,
-    paddingHorizontal: spacing.sm,
-  },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
-  clearButton: { alignItems: 'center', minHeight: 48, justifyContent: 'center', minWidth: 80 },
-  clearLabel: { ...typography.caption, fontWeight: '700' },
   content: { gap: spacing.xl, padding: spacing.md, paddingBottom: spacing.xl },
   error: { ...typography.caption },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  applyButton: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 56 },
-  applyLabel: { ...typography.body, fontWeight: '700' },
 });

@@ -214,9 +214,9 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   branch: { borderRadius: 1, height: 2, width: spacing.sm + 2 },
-  rowName: { ...typography.body, flex: 1, fontWeight: '700' },
+  rowName: { ...typography.bodyStrong, flex: 1 },
   subrowName: { ...typography.body, flex: 1, fontSize: 14 },
   manage: { alignItems: 'center', justifyContent: 'center', minHeight: 44 },
-  manageText: { ...typography.caption, fontWeight: '700' },
+  manageText: { ...typography.captionStrong },
   empty: { ...typography.body, padding: spacing.lg, textAlign: 'center' },
 });

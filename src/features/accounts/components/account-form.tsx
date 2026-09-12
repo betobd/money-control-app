@@ -1,4 +1,3 @@
-import { SymbolView } from 'expo-symbols';
 import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
 import { useRouter } from 'expo-router';
@@ -33,6 +32,8 @@ import {
   type CurrencyCode,
 } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 /** Sanitizes raw input for the given currency: digits, optional dot (for USD), optional sign. */
 function sanitizeMoneyInput(value: string, currency: CurrencyCode, allowNegative: boolean): string {
@@ -154,13 +155,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Close account form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>{isEditing ? 'Edit Account' : 'New Account'}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close account form" title={isEditing ? 'Edit Account' : 'New Account'} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -296,7 +291,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         ) : null}
       </ScrollView>
 
-      <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+      <FixedFooter bottomInset={insets.bottom}>
         <Button
           accessibilityLabel={isEditing ? 'Save account changes' : 'Create account'}
           busy={saving}
@@ -306,7 +301,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
           size="lg"
           variant="primary"
         />
-      </View>
+      </FixedFooter>
       <CurrencyPicker
         onClose={() => setCurrencyPickerOpen(false)}
         onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); clearError('creditLimit'); }}
@@ -333,9 +328,6 @@ function FormField({ children, error, label, theme }: { children: React.ReactNod
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xl },
   field: { gap: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
@@ -358,5 +350,4 @@ const styles = StyleSheet.create({
   typeText: { ...typography.caption, flexShrink: 1, fontFamily: fonts.sans.bold, fontWeight: '700' },
   error: { ...typography.caption },
   help: { ...typography.caption },
-  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
 });

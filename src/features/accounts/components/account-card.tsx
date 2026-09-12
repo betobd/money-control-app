@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from '@/components/pressable-scale';
 
 import { ProgressBar } from '@/components/progress-bar';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { accountTypeLabels } from '@/features/accounts/account-format';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
@@ -157,6 +157,6 @@ const styles = StyleSheet.create({
   amount: { ...typography.moneyHero, flexShrink: 1, fontSize: 24, lineHeight: 30 },
   currency: { ...typography.caption, marginLeft: spacing.xs },
   estimate: { ...typography.caption },
-  debtNote: { ...typography.caption, fontWeight: '600' },
+  debtNote: { ...typography.caption, fontFamily: fonts.sans.semibold, fontWeight: '600' },
   cardDetails: { gap: spacing.sm, paddingTop: spacing.xs },
 });

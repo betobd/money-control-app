@@ -1,4 +1,5 @@
-import { SymbolView } from 'expo-symbols';
+
+import { EmptyState } from '@/components/empty-state';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -6,21 +7,14 @@ import { Skeleton } from '@/components/skeleton';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
-export function EmptyAccountsState() {
-  const theme = useAppTheme();
-
+export function EmptyAccountsState({ onCreate }: { onCreate: () => void }) {
   return (
-    <View style={[styles.empty, { backgroundColor: theme.surface }]}>
-      <View style={[styles.emptyIcon, { backgroundColor: theme.tintPrimary }]}>
-        <SymbolView
-          name={{ ios: 'wallet.bifold', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-          size={28}
-          tintColor={theme.primaryAction}
-        />
-      </View>
-      <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>No accounts yet</Text>
-      <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>Add an account to start tracking balances.</Text>
-    </View>
+    <EmptyState
+      action={{ label: 'Add account', onPress: onCreate, accessibilityLabel: 'Add your first account' }}
+      body="Add an account to start tracking balances."
+      icon={{ ios: 'wallet.bifold', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
+      title="No accounts yet"
+    />
   );
 }
 

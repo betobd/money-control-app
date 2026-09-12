@@ -2,13 +2,11 @@ import { router } from 'expo-router';
 import { getBaseCurrency } from '@/features/settings/settings';
 import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -30,6 +28,7 @@ import type {
   CreditCardStatementDefaults,
   CreditCardStatementErrors,
 } from '../credit-card.types';
+import { ScreenHeader } from '@/components/screen-header';
 
 function editStringFromMinor(minor: number, currency: CurrencyCode): string {
   const definition = getCurrency(currency);
@@ -136,13 +135,7 @@ export function UpdateStatementScreen({ accountId }: { accountId: string }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}
     >
-      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
-        <Pressable accessibilityLabel="Close statement form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Update statement</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close statement form" title="Update statement" />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
@@ -184,15 +177,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
   retry: { borderRadius: borderRadii.md, minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.lg },
-  bodyStrong: { ...typography.body, fontWeight: '700' },
-  header: { alignItems: 'center', borderBottomWidth: borderWidths.thin, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
+  bodyStrong: { ...typography.bodyStrong },
   content: { gap: spacing.md, padding: spacing.md },
   field: { gap: spacing.sm, marginTop: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   amountInput: { fontFamily: fonts.mono.medium },
   body: { ...typography.body },
-  strong: { ...typography.body, fontWeight: '700' },
+  strong: { ...typography.bodyStrong },
   help: { ...typography.caption },
 });

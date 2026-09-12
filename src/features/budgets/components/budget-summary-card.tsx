@@ -68,6 +68,6 @@ const styles = StyleSheet.create({
   amountValue: { ...typography.moneyRow, fontSize: 15, lineHeight: 20 },
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   progressLabel: { ...typography.caption },
-  progressValue: { ...typography.caption, fontWeight: '700' },
+  progressValue: { ...typography.captionStrong },
   note: { ...typography.label, marginTop: spacing.xs },
 });

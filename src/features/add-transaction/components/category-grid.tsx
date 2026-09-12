@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PressableScale } from '@/components/pressable-scale';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { getCategoryIcon } from '@/features/categories/category-icons';
@@ -195,8 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   viewAllText: {
-    ...typography.caption,
-    fontWeight: '700',
+    ...typography.captionStrong,
   },
   grid: {
     flexDirection: 'row',
@@ -213,8 +212,7 @@ const styles = StyleSheet.create({
     width: '48.5%',
   },
   categoryLabel: {
-    ...typography.caption,
-    fontWeight: '700',
+    ...typography.captionStrong,
   },
   childMarker: {
     bottom: spacing.xs,
@@ -236,7 +234,7 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     ...typography.caption,
-    fontWeight: '600',
+    fontFamily: fonts.sans.semibold, fontWeight: '600',
   },
   chipError: { ...typography.caption },
   empty: { ...typography.caption, paddingVertical: spacing.md },

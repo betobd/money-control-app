@@ -1,13 +1,14 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { useRouter, type Href } from 'expo-router';
 import { Fragment } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/card';
 import { IconChip } from '@/components/icon-chip';
 import { PressableScale } from '@/components/pressable-scale';
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { ScreenHeader } from '@/components/screen-header';
 
 type MenuItem = {
   accessibilityLabel: string;
@@ -99,13 +100,7 @@ export function MoreScreen() {
   const theme = useAppTheme();
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Close More" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>More</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close More" title="More" />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Card padding={0}>
           {menuItems.map((item, index) => (
@@ -134,9 +129,6 @@ export function MoreScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' },
   content: { padding: spacing.md },
   row: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 76, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   separator: { height: StyleSheet.hairlineWidth, marginLeft: spacing.md + 44 + spacing.md },

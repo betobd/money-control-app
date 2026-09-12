@@ -148,10 +148,22 @@ export const typography = {
     fontWeight: '400',
     lineHeight: 24,
   },
+  bodyStrong: {
+    fontFamily: fonts.sans.bold,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 24,
+  },
   label: {
     fontFamily: fonts.sans.semibold,
     fontSize: 12,
     fontWeight: '600',
+    lineHeight: 16,
+  },
+  labelStrong: {
+    fontFamily: fonts.sans.bold,
+    fontSize: 12,
+    fontWeight: '700',
     lineHeight: 16,
   },
   sectionTitle: {
@@ -170,6 +182,20 @@ export const typography = {
     fontFamily: fonts.sans.medium,
     fontSize: 14,
     fontWeight: '500',
+    lineHeight: 20,
+  },
+  /*
+   * Emphasis variants. Each names the bold *file*, never just a heavier weight:
+   * `{ ...typography.caption, fontWeight: '700' }` keeps Manrope Medium and asks
+   * Android for a weight that file does not contain, so it draws faux-bold glyphs
+   * wider than the layout measured. A label sized to its text then wraps and its
+   * last word is clipped — which is how "+ Add subcategory" rendered as "+ Add".
+   * The lint rule in eslint.config.js rejects the unpaired form.
+   */
+  captionStrong: {
+    fontFamily: fonts.sans.bold,
+    fontSize: 14,
+    fontWeight: '700',
     lineHeight: 20,
   },
   overline: {

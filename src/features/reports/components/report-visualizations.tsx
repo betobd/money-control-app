@@ -509,8 +509,8 @@ const styles = StyleSheet.create({
   categoryIcon: { alignItems: 'center', borderRadius: borderRadii.md, height: 40, justifyContent: 'center', width: 40 },
   categoryContent: { flex: 1, gap: spacing.xs },
   categoryHeader: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
-  categoryName: { ...typography.caption, flex: 1, fontWeight: '700' },
-  categoryAmount: { ...typography.caption, fontWeight: '700' },
+  categoryName: { ...typography.captionStrong, flex: 1 },
+  categoryAmount: { ...typography.captionStrong },
   categoryMeta: { ...typography.label },
   breakdown: {
     gap: spacing.sm,
@@ -547,6 +547,6 @@ const styles = StyleSheet.create({
 
   budgetRow: { gap: spacing.xs, paddingVertical: spacing.xs },
   budgetHeader: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
-  budgetName: { ...typography.caption, flex: 1, fontWeight: '700' },
+  budgetName: { ...typography.captionStrong, flex: 1 },
   budgetPercent: { fontFamily: fonts.mono.bold, fontSize: 12, lineHeight: 16 },
 });

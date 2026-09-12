@@ -38,6 +38,7 @@ import {
 import { budgetPerformance } from '../report-insights';
 import { useReportBudgets } from '../use-report-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { ScreenHeader } from '@/components/screen-header';
 
 export function ReportsScreen() {
   const router = useRouter();
@@ -235,26 +236,15 @@ export function ReportsScreen() {
 }
 
 function ReportsHeader({ onBack, topInset }: { onBack: () => void; topInset: number }) {
-  const theme = useAppTheme();
   return (
-    <View style={[styles.header, { paddingTop: topInset }]}>
-      <Pressable
-        accessibilityLabel="Back from Reports"
-        accessibilityRole="button"
-        onPress={onBack}
-        style={styles.headerButton}>
-        <SymbolView
-          name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-          size={24}
-          tintColor={theme.primaryText}
-        />
-      </Pressable>
-      <View style={styles.headerText}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Reports</Text>
-        <Text style={[styles.subtitle, { color: theme.secondaryText }]}>Persisted financial history</Text>
-      </View>
-      <View style={styles.headerButton} />
-    </View>
+    <ScreenHeader
+      leading="back"
+      leadingAccessibilityLabel="Back from Reports"
+      onLeadingPress={onBack}
+      subtitle="Persisted financial history"
+      title="Reports"
+      topInset={topInset}
+    />
   );
 }
 
@@ -487,11 +477,6 @@ function formatPercentage(basisPoints: number): string {
 }
 
 const styles = StyleSheet.create({
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 72, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerText: { alignItems: 'center', flex: 1 },
-  title: { ...typography.sectionTitle, fontSize: 24 },
-  subtitle: { ...typography.label },
   content: { gap: spacing.xl, paddingHorizontal: spacing.md, paddingTop: spacing.lg },
   updating: { ...typography.caption, paddingHorizontal: spacing.md, paddingTop: spacing.sm, textAlign: 'center' },
   inlineError: {
@@ -504,11 +489,10 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   errorText: { ...typography.caption, flex: 1 },
-  retryButton: { justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.sm },
-  retryText: { ...typography.caption, fontWeight: '700' },
+  retryText: { ...typography.captionStrong },
   emptyNotice: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
   emptyText: { flex: 1, gap: spacing.xs },
-  emptyTitle: { ...typography.caption, fontWeight: '700' },
+  emptyTitle: { ...typography.captionStrong },
   emptyDescription: { ...typography.caption },
   section: { gap: spacing.sm },
   sectionHeading: { gap: spacing.xs },
@@ -546,8 +530,8 @@ const styles = StyleSheet.create({
   comparisons: {},
   comparisonRow: { borderBottomWidth: StyleSheet.hairlineWidth, gap: spacing.xs, minHeight: 72, paddingVertical: spacing.sm },
   comparisonValues: { alignItems: 'baseline', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
-  comparisonLabel: { ...typography.caption, fontWeight: '700' },
-  comparisonCurrent: { ...typography.caption, fontWeight: '700' },
+  comparisonLabel: { ...typography.captionStrong },
+  comparisonCurrent: { ...typography.captionStrong },
   comparisonChange: { ...typography.label },
   stateScreen: { flex: 1 },
   skeletons: { gap: spacing.lg, padding: spacing.md },

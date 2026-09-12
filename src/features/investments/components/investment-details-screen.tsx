@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActionTileRow } from '@/components/action-tile';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
@@ -20,6 +21,7 @@ import { investmentValuationService } from '../investments';
 import type { InvestmentValuation } from '../investment.types';
 import { useInvestmentDetails } from '../use-investments';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
 
 export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
   const dialog = useDialog();
@@ -85,7 +87,7 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
       <View style={[styles.center, { backgroundColor: theme.appBackground, padding: spacing.lg }]}>
         <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Unable to load investment</Text>
         <Text style={[styles.body, { color: theme.secondaryText }]}>{error ?? 'This account is not an investment.'}</Text>
-        <Action label="Retry" onPress={() => void reload()} primary />
+        <Button label="Retry" onPress={() => void reload()} variant="primary" />
       </View>
     );
   }
@@ -104,13 +106,7 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
-        <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: theme.primaryText }]}>{account.name}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" title={account.name} />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         {actionError ? (
@@ -168,13 +164,15 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
 
         {!isArchived ? (
           <Section title="Actions">
-            <View style={styles.actions}>
-              <Action icon={{ ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }} label="Update value" onPress={() => router.push({ pathname: '/investment-valuation-form', params: { accountId } })} primary />
-              <Action icon={{ ios: 'plus.circle.fill', android: 'add_circle', web: 'add_circle' }} label="Add contribution" onPress={() => router.push('/add-transaction')} />
-              <Action icon={{ ios: 'minus.circle.fill', android: 'do_not_disturb_on', web: 'do_not_disturb_on' }} label="Withdraw" onPress={() => router.push('/add-transaction')} />
-              <Action icon={{ ios: 'pencil', android: 'edit', web: 'edit' }} label="Edit" onPress={() => router.push({ pathname: '/investment-form', params: { id: accountId } })} />
-              <Action icon={{ ios: 'archivebox.fill', android: 'archive', web: 'archive' }} label="Archive" onPress={confirmArchive} destructive />
-            </View>
+            <ActionTileRow
+              actions={[
+                { label: 'Update value', accessibilityLabel: 'Update current value', icon: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }, onPress: () => router.push({ pathname: '/investment-valuation-form', params: { accountId } }), tone: 'primary' },
+                { label: 'Contribute', accessibilityLabel: 'Add contribution', icon: { ios: 'plus.circle.fill', android: 'add_circle', web: 'add_circle' }, onPress: () => router.push('/add-transaction') },
+                { label: 'Withdraw', icon: { ios: 'minus.circle.fill', android: 'do_not_disturb_on', web: 'do_not_disturb_on' }, onPress: () => router.push('/add-transaction') },
+                { label: 'Edit', accessibilityLabel: 'Edit investment', icon: { ios: 'pencil', android: 'edit', web: 'edit' }, onPress: () => router.push({ pathname: '/investment-form', params: { id: accountId } }) },
+                { label: 'Archive', accessibilityLabel: 'Archive investment', icon: { ios: 'archivebox.fill', android: 'archive', web: 'archive' }, onPress: confirmArchive, tone: 'destructive' },
+              ]}
+            />
           </Section>
         ) : null}
 
@@ -233,25 +231,9 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Hand-rolled before; now the shared Button so sizing matches the rest of the app. */
-function Action({ label, onPress, icon, primary = false, destructive = false }: { label: string; onPress: () => void; icon?: SymbolViewProps['name']; primary?: boolean; destructive?: boolean }) {
-  return (
-    <Button
-      icon={icon}
-      label={label}
-      onPress={onPress}
-      size="md"
-      variant={primary ? 'primary' : destructive ? 'destructive' : 'secondary'}
-    />
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center' },
-  header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md },
   hero: { gap: spacing.xs },
   amount: { ...typography.moneyHero, fontVariant: ['tabular-nums'] },
@@ -264,7 +246,6 @@ const styles = StyleSheet.create({
   metricLabel: { ...typography.caption, flexShrink: 1 },
   metricValue: { ...typography.moneyRow, flexShrink: 1, textAlign: 'right' },
   noteBlock: { gap: spacing.xs },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   action: { alignItems: 'center', borderRadius: borderRadii.full, flexGrow: 1, justifyContent: 'center', minHeight: 52, minWidth: 145, paddingHorizontal: spacing.md },
   actionText: { ...typography.body, fontFamily: fonts.sans.bold, fontWeight: '700' },
   empty: { borderRadius: borderRadii.card, padding: spacing.md },
@@ -275,6 +256,6 @@ const styles = StyleSheet.create({
   moneyText: { ...typography.moneyRow },
   error: { ...typography.caption },
   body: { ...typography.body },
-  bodyStrong: { ...typography.body, fontWeight: '700' },
+  bodyStrong: { ...typography.bodyStrong },
   caption: { ...typography.caption },
 });

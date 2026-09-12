@@ -10,9 +10,15 @@ type PrimaryScreenHeaderProps = {
   title?: string;
   /** Optional element rendered between the title and the More button (e.g. a month pill). */
   accessory?: ReactNode;
+  /**
+   * "Create another" for this tab. The same header `+` every non-tab screen uses
+   * (see docs/design-system.md), so creating is found in one place app-wide.
+   * Transactions has none: the tab bar's Add already owns that action.
+   */
+  onAdd?: { accessibilityLabel: string; onPress: () => void };
 };
 
-export function PrimaryScreenHeader({ title = 'Money Control', accessory }: PrimaryScreenHeaderProps) {
+export function PrimaryScreenHeader({ title = 'Money Control', accessory, onAdd }: PrimaryScreenHeaderProps) {
   const router = useRouter();
   const theme = useAppTheme();
 
@@ -22,6 +28,15 @@ export function PrimaryScreenHeader({ title = 'Money Control', accessory }: Prim
         {title}
       </Text>
       {accessory}
+      {onAdd ? (
+        <Pressable
+          accessibilityLabel={onAdd.accessibilityLabel}
+          accessibilityRole="button"
+          onPress={onAdd.onPress}
+          style={styles.action}>
+          <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={26} tintColor={theme.primaryAction} />
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityLabel="More"
         accessibilityHint="Open app management options"

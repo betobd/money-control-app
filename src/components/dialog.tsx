@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/bottom-sheet';
 import { PressableScale } from '@/components/pressable-scale';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 
 export type DialogTone = 'default' | 'destructive';
@@ -114,7 +114,7 @@ export function DialogHost({ dialog }: { dialog: Dialog }) {
                 styles.button,
                 { backgroundColor: destructive ? theme.destructive : theme.primaryAction },
               ])}>
-              <Text style={[styles.label, { color: theme.onPrimaryAction, fontWeight: '700' }]}>
+              <Text style={[styles.label, { color: theme.onPrimaryAction, fontFamily: fonts.sans.bold, fontWeight: '700' }]}>
                 {request.confirmLabel}
               </Text>
             </PressableScale>

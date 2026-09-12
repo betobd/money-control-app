@@ -1,10 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,11 +12,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { BackupSummary } from '../backup.types';
 import { useBackup } from '../use-backup';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
 
 const countLabels: { key: keyof BackupSummary; label: string }[] = [
   { key: 'accounts', label: 'Accounts' },
@@ -47,7 +46,6 @@ function formatCreatedAt(value: string): string {
 
 export function BackupScreen() {
   const dialog = useDialog();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const {
@@ -89,22 +87,7 @@ export function BackupScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => router.back()}
-          style={styles.headerButton}>
-          <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-            size={24}
-            tintColor={busy ? theme.disabledText : theme.primaryText}
-          />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Backup & Restore</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" leadingDisabled={busy} title="Backup & Restore" />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -283,28 +266,22 @@ function SecondaryButton({ busy, disabled, label, onPress, theme }: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
   feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
   warningCard: { borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
-  warningTitle: { ...typography.body, fontWeight: '700' },
+  warningTitle: { ...typography.bodyStrong },
   flex: { flex: 1, gap: spacing.xs },
   body: { ...typography.body },
   caption: { ...typography.caption },
   card: { gap: spacing.md },
   sectionTitle: { ...typography.sectionTitle },
-  subheading: { ...typography.caption, fontWeight: '700' },
+  subheading: { ...typography.captionStrong },
   countList: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.sm },
   countRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 32 },
-  count: { ...typography.body, fontWeight: '700' },
+  count: { ...typography.bodyStrong },
   destructiveNotice: { borderRadius: borderRadii.md, gap: spacing.xs, padding: spacing.md },
-  primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
-  linkButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
-  linkLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
+  buttonLabel: { ...typography.bodyStrong, textAlign: 'center' },
+  linkLabel: { ...typography.bodyStrong, textAlign: 'center' },
   previewRow: { gap: spacing.xs },
-  previewValue: { ...typography.body, fontWeight: '600' },
+  previewValue: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600' },
 });

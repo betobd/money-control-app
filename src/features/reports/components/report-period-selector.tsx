@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: spacing.md,
   },
-  chipText: { ...typography.caption, fontWeight: '700' },
+  chipText: { ...typography.captionStrong },
   customPanel: {
     gap: spacing.md,
     marginHorizontal: spacing.md,
@@ -145,6 +145,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: spacing.md,
   },
-  applyText: { ...typography.caption, fontWeight: '700' },
+  applyText: { ...typography.captionStrong },
   periodLabel: { ...typography.caption, paddingHorizontal: spacing.md, textAlign: 'center' },
 });

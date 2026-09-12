@@ -1,7 +1,5 @@
-import { StyleSheet, View } from 'react-native';
-
 import { Button } from '@/components/button';
-import { spacing } from '@/constants/theme';
+import { FixedFooter } from '@/components/fixed-footer';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -23,15 +21,7 @@ export function FixedSaveBar({ bottomInset, onPress, type, disabled = false, sav
   const typeLabel = type[0].toUpperCase() + type.slice(1);
 
   return (
-    <View
-      style={[
-        styles.bar,
-        {
-          backgroundColor: theme.appBackground,
-          borderTopColor: theme.hairline,
-          paddingBottom: Math.max(bottomInset, spacing.md),
-        },
-      ]}>
+    <FixedFooter bottomInset={bottomInset}>
       <Button
         accessibilityLabel={`Save ${typeLabel}`}
         busy={saving}
@@ -44,14 +34,7 @@ export function FixedSaveBar({ bottomInset, onPress, type, disabled = false, sav
         style={inactive ? undefined : { backgroundColor: tone }}
         variant="primary"
       />
-    </View>
+    </FixedFooter>
   );
 }
 
-const styles = StyleSheet.create({
-  bar: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-  },
-});

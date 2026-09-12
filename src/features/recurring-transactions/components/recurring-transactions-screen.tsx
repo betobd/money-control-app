@@ -1,9 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { SymbolView } from 'expo-symbols';
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { EmptyState } from '@/components/empty-state';
 import { SegmentedControl } from '@/components/segmented-control';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { spacing, typography } from '@/constants/theme';
@@ -28,6 +27,7 @@ import type {
   RecurringOccurrenceListItem,
   RecurringRuleListItem,
 } from '../recurring-transaction.types';
+import { ScreenHeader } from '@/components/screen-header';
 
 type RecurringTab = 'due' | 'rules' | 'history';
 
@@ -115,25 +115,12 @@ export function RecurringTransactionsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Close recurring transactions"
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
-          Recurring
-        </Text>
-        <Pressable
-          accessibilityLabel="Create recurring transaction"
-          accessibilityRole="button"
-          onPress={() => router.push('/recurring-form')}
-          style={styles.headerButton}>
-          <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={25} tintColor={theme.primaryAction} />
-        </Pressable>
-      </View>
+      <ScreenHeader
+        action={{ kind: 'add', accessibilityLabel: 'Create recurring transaction', onPress: () => router.push('/recurring-form') }}
+        leading="close"
+        leadingAccessibilityLabel="Close recurring transactions"
+        title="Recurring"
+      />
 
       {loading && !hasLoaded ? (
         <View style={styles.center}><ActivityIndicator color={theme.primaryAction} /></View>
@@ -185,14 +172,20 @@ export function RecurringTransactionsScreen() {
 
             {tab === 'rules' ? (
               <>
-                <View style={styles.sectionTop}>
-                  <SectionHeading count={activeRules.length} title="Active rules" />
-                  <Pressable accessibilityRole="button" onPress={() => router.push('/recurring-form')} style={styles.textButton}>
-                    <Text style={[styles.textButtonLabel, { color: theme.primaryAction }]}>Create</Text>
-                  </Pressable>
-                </View>
+                {/* Creating another rule is the header +; the labeled button only
+                    appears when there is nothing yet (docs/design-system.md). */}
+                {rules.length > 0 ? <SectionHeading count={activeRules.length} title="Active rules" /> : null}
                 {activeRules.length === 0 ? (
-                  <EmptyCard text="Create a rule for expenses, income, or transfers you expect regularly." />
+                  rules.length === 0 ? (
+                    <EmptyState
+                      action={{ label: 'Create rule', onPress: () => router.push('/recurring-form'), accessibilityLabel: 'Create your first recurring rule' }}
+                      body="Create a rule for expenses, income, or transfers you expect regularly."
+                      icon={{ ios: 'arrow.triangle.2.circlepath', android: 'autorenew', web: 'autorenew' }}
+                      title="No recurring rules yet"
+                    />
+                  ) : (
+                    <EmptyCard text="No active rules right now. Paused and ended rules are listed below." />
+                  )
                 ) : activeRules.map((rule) => (
                   <RuleCard
                     key={rule.id}
@@ -415,21 +408,15 @@ function typeColor(type: RecurringRuleListItem['type'], theme: ReturnType<typeof
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, fontSize: 22, textAlign: 'center' },
   tabs: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   content: { gap: spacing.md, padding: spacing.md },
   sectionTitle: { ...typography.sectionTitle, marginTop: spacing.sm },
-  sectionTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  textButton: { alignItems: 'center', minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.sm },
-  textButtonLabel: { ...typography.caption, fontWeight: '700' },
   card: { gap: spacing.md },
   cardHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.md },
-  cardTitle: { ...typography.body, fontWeight: '700' },
+  cardTitle: { ...typography.bodyStrong },
   meta: { ...typography.caption },
   amount: { ...typography.moneyRow },
-  status: { ...typography.label, fontWeight: '700', textTransform: 'uppercase' },
+  status: { ...typography.labelStrong, textTransform: 'uppercase' },
   right: { alignItems: 'flex-end', gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   historyRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 68 },

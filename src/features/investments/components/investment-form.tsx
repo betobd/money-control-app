@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,6 +34,8 @@ import {
   type InvestmentValidationErrors,
 } from '../investment.types';
 import { investmentService } from '../investments';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 /** Guided (editable) default liquidity for a given investment type. */
 function defaultLiquidityFor(type: InvestmentType): InvestmentLiquidity {
@@ -157,13 +158,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Close investment form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>{isEditing ? 'Edit Investment' : 'New Investment'}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close investment form" title={isEditing ? 'Edit Investment' : 'New Investment'} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? (
@@ -291,7 +286,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
         </FormField>
       </ScrollView>
 
-      <View style={[styles.saveBar, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+      <FixedFooter bottomInset={insets.bottom}>
         <Button
           accessibilityLabel={isEditing ? 'Save investment changes' : 'Create investment'}
           busy={saving}
@@ -301,7 +296,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
           size="lg"
           variant="primary"
         />
-      </View>
+      </FixedFooter>
       <CurrencyPicker
         onClose={() => setCurrencyPickerOpen(false)}
         onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); }}
@@ -328,9 +323,6 @@ function FormField({ children, error, label, theme }: { children: React.ReactNod
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xl },
   field: { gap: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
@@ -362,5 +354,4 @@ const styles = StyleSheet.create({
   segmentText: { ...typography.caption, fontFamily: fonts.sans.bold, fontWeight: '700' },
   error: { ...typography.caption },
   help: { ...typography.caption },
-  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
 });

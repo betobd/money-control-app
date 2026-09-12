@@ -11,6 +11,7 @@ import {
   searchCategoryIcons,
   type CategoryIcon,
 } from '../category-icons';
+import { ScreenHeader } from '@/components/screen-header';
 
 type IconPickerProps = {
   visible: boolean;
@@ -45,17 +46,7 @@ export function IconPicker({ visible, selected, onSelect, onClose }: IconPickerP
   return (
     <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet" visible={visible}>
       <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <Pressable
-            accessibilityLabel="Close icon picker"
-            accessibilityRole="button"
-            onPress={close}
-            style={styles.headerButton}>
-            <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-          </Pressable>
-          <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Choose icon</Text>
-          <View style={styles.headerButton} />
-        </View>
+        <ScreenHeader leading="close" leadingAccessibilityLabel="Close icon picker" onLeadingPress={close} title="Choose icon" />
 
         <View style={styles.searchWrapper}>
           <TextInput
@@ -123,9 +114,6 @@ export function IconPicker({ visible, selected, onSelect, onClose }: IconPickerP
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   searchWrapper: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   search: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 52, paddingHorizontal: spacing.md },
   content: { gap: spacing.lg, padding: spacing.md },

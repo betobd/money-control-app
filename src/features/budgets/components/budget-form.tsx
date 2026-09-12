@@ -1,13 +1,11 @@
 import { useRouter } from 'expo-router';
 import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -31,6 +29,8 @@ import { categoryService } from '@/features/categories/categories';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; initialMonth: string }) {
   const dialog = useDialog();
@@ -141,13 +141,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground }]}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable accessibilityLabel="Close budget form" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>{editing ? 'Edit Budget' : 'Create Budget'}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Close budget form" title={editing ? 'Edit Budget' : 'Create Budget'} topInset={insets.top + spacing.sm} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
@@ -225,7 +219,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         ) : null}
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
+      <FixedFooter bottomInset={insets.bottom}>
         <Button
           accessibilityLabel={editing ? 'Save budget changes' : 'Create budget'}
           busy={saving}
@@ -235,7 +229,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           size="lg"
           variant="primary"
         />
-      </View>
+      </FixedFooter>
       <DialogHost dialog={dialog} />
     </KeyboardAvoidingView>
   );
@@ -244,9 +238,6 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xxl },
   field: { gap: spacing.sm },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
@@ -257,5 +248,4 @@ const styles = StyleSheet.create({
   recurringTitle: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600' },
   recurringHint: { ...typography.caption, fontSize: 12, lineHeight: 16 },
   error: { ...typography.caption },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
 });

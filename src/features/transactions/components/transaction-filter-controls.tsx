@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
     paddingHorizontal: spacing.md,
   },
-  choiceLabel: { ...typography.caption, flexShrink: 1, fontWeight: '700' },
+  choiceLabel: { ...typography.captionStrong, flexShrink: 1 },
   selectionRow: {
     alignItems: 'center',
     borderRadius: borderRadii.md,
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   sheetContent: { gap: spacing.lg, padding: spacing.md },
   dateFields: { gap: spacing.md },
   dateField: { gap: spacing.sm },
-  dateLabel: { ...typography.caption, fontWeight: '700' },
+  dateLabel: { ...typography.captionStrong },
   dateInput: {
     ...typography.body,
     borderRadius: borderRadii.md,

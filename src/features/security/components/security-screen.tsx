@@ -1,9 +1,7 @@
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { AppLockActionError } from '../app-lock.service';
 import { useAppLock } from '../app-lock-provider';
@@ -26,6 +24,8 @@ import {
 import { PinValidationError } from '../pin-verification.service';
 import { PinInput } from './pin-input';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
+import { Button } from '@/components/button';
 
 type Flow = 'enable' | 'change' | 'biometric' | 'disable' | null;
 
@@ -58,7 +58,6 @@ export function SecurityScreen() {
 
 function SecurityScreenContent() {
   const dialog = useDialog();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const {
@@ -216,13 +215,7 @@ function SecurityScreenContent() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Back" accessibilityRole="button" disabled={busy} onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={busy ? theme.disabledText : theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Security</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" leadingDisabled={busy} title="Security" />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -236,12 +229,12 @@ function SecurityScreenContent() {
           <StatusRow label="Status" value={enabled ? 'Enabled' : 'Disabled'} theme={theme} />
           <Text style={[styles.body, { color: theme.secondaryText }]}>App Lock is optional and protects casual access to the app interface. It is not an online account or Android device lock.</Text>
           {!enabled ? (
-            <PrimaryButton disabled={busy} label="Enable App Lock" onPress={() => startFlow('enable')} theme={theme} />
+            <PrimaryButton disabled={busy} label="Enable App Lock" onPress={() => startFlow('enable')} />
           ) : (
             <View style={styles.buttonGroup}>
-              <SecondaryButton disabled={busy} label="Change PIN" onPress={() => startFlow('change')} theme={theme} />
-              <SecondaryButton disabled={busy} label="Lock now" onPress={lockNow} theme={theme} />
-              <DestructiveButton disabled={busy} label="Disable App Lock" onPress={() => startFlow('disable')} theme={theme} />
+              <SecondaryButton disabled={busy} label="Change PIN" onPress={() => startFlow('change')} />
+              <SecondaryButton disabled={busy} label="Lock now" onPress={lockNow} />
+              <DestructiveButton disabled={busy} label="Disable App Lock" onPress={() => startFlow('disable')} />
             </View>
           )}
         </Section>
@@ -258,7 +251,7 @@ function SecurityScreenContent() {
               </>
             ) : null}
             <View style={styles.inlineActions}>
-              <SecondaryButton disabled={busy} label="Cancel" onPress={closeFlow} theme={theme} />
+              <SecondaryButton disabled={busy} label="Cancel" onPress={closeFlow} />
               <PrimaryButton
                 busy={busy}
                 disabled={busy}
@@ -269,7 +262,6 @@ function SecurityScreenContent() {
                   if (flow === 'biometric') void submitBiometric();
                   if (flow === 'disable') confirmDisable();
                 }}
-                theme={theme}
               />
             </View>
           </Section>
@@ -284,7 +276,6 @@ function SecurityScreenContent() {
               disabled={busy || (!config?.biometricUnlockEnabled && availability?.status !== 'available')}
               label={config?.biometricUnlockEnabled ? 'Disable biometric unlock' : 'Enable biometric unlock'}
               onPress={() => startFlow('biometric')}
-              theme={theme}
             />
           ) : null}
         </Section>
@@ -304,7 +295,7 @@ function SecurityScreenContent() {
                     disabled={busy}
                     onPress={() => void updateDelay(delay)}
                     style={[styles.delayRow, { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface }]}>
-                    <Text style={[styles.body, { color: theme.primaryText, fontWeight: selected ? '700' : '400' }]}>{delayLabels[delay]}</Text>
+                    <Text style={[styles.body, { color: theme.primaryText, fontFamily: selected ? fonts.sans.bold : fonts.sans.regular, fontWeight: selected ? '700' : '400' }]}>{delayLabels[delay]}</Text>
                     {selected ? <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={22} tintColor={theme.primaryAction} /> : null}
                   </Pressable>
                 );
@@ -355,7 +346,7 @@ function StatusRow({ label, theme, value }: { label: string; theme: Theme; value
   return (
     <View style={styles.statusRow}>
       <Text style={[styles.body, { color: theme.secondaryText }]}>{label}</Text>
-      <Text style={[styles.body, { color: theme.primaryText, fontWeight: '700' }]}>{value}</Text>
+      <Text style={[styles.body, { color: theme.primaryText, fontFamily: fonts.sans.bold, fontWeight: '700' }]}>{value}</Text>
     </View>
   );
 }
@@ -379,46 +370,29 @@ function Limit({ text, theme, title }: { text: string; theme: Theme; title: stri
   );
 }
 
-function PrimaryButton({ busy = false, disabled, label, onPress, theme }: { busy?: boolean; disabled: boolean; label: string; onPress: () => void; theme: Theme }) {
-  return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ busy, disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { backgroundColor: disabled ? theme.disabledSurface : theme.primaryAction }]}>
-      {busy ? <ActivityIndicator color={theme.onPrimaryAction} /> : <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.onPrimaryAction }]}>{label}</Text>}
-    </Pressable>
-  );
+function PrimaryButton({ busy = false, disabled, label, onPress }: { busy?: boolean; disabled: boolean; label: string; onPress: () => void }) {
+  return <Button busy={busy} disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="primary" />;
 }
 
-function SecondaryButton({ disabled, label, onPress, theme }: { disabled: boolean; label: string; onPress: () => void; theme: Theme }) {
-  return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { backgroundColor: disabled ? theme.disabledSurface : theme.elevatedSurface }]}>
-      <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.primaryAction }]}>{label}</Text>
-    </Pressable>
-  );
+function SecondaryButton({ disabled, label, onPress }: { disabled: boolean; label: string; onPress: () => void }) {
+  return <Button disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="tonal" />;
 }
 
-function DestructiveButton({ disabled, label, onPress, theme }: { disabled: boolean; label: string; onPress: () => void; theme: Theme }) {
-  return (
-    <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.button, { backgroundColor: disabled ? theme.disabledSurface : theme.tintDestructive }]}>
-      <Text style={[styles.buttonLabel, { color: disabled ? theme.disabledText : theme.destructive }]}>{label}</Text>
-    </Pressable>
-  );
+function DestructiveButton({ disabled, label, onPress }: { disabled: boolean; label: string; onPress: () => void }) {
+  return <Button disabled={disabled} fullWidth label={label} onPress={onPress} size="lg" variant="destructive" />;
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
   feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
   card: { gap: spacing.md },
   sectionTitle: { ...typography.sectionTitle },
   body: { ...typography.body },
   caption: { ...typography.caption },
-  label: { ...typography.caption, fontWeight: '700' },
+  label: { ...typography.captionStrong },
   statusRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 32 },
   buttonGroup: { gap: spacing.sm },
-  button: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
   pinField: { gap: spacing.sm },
   inlineActions: { gap: spacing.sm },
   delayList: { gap: spacing.sm },

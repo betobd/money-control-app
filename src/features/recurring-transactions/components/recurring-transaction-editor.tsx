@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Button } from '@/components/button';
 import { toUserMessage } from '@/errors/user-error';
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -36,6 +35,8 @@ import type {
   RecurringRuleValidationErrors,
   RecurringTransactionShape,
 } from '../recurring-transaction.types';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
 
 type OccurrenceEditInput = RecurringTransactionShape & { scheduledDate: string };
 type EditorInitial = {
@@ -225,13 +226,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.appBackground }]}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable accessibilityLabel={`Close ${props.title}`} accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.headerTitle, { color: theme.primaryText }]}>{props.title}</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel={`Close ${props.title}`} title={props.title} topInset={insets.top + spacing.sm} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
@@ -343,7 +338,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.sm }]}>
+      <FixedFooter bottomInset={insets.bottom}>
         <Button
           accessibilityLabel="Save recurring transaction"
           busy={saving}
@@ -353,7 +348,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
           size="lg"
           variant="primary"
         />
-      </View>
+      </FixedFooter>
 
       <AccountPicker
         accounts={pickerAccounts}
@@ -369,16 +364,12 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.lg, padding: spacing.md, paddingBottom: spacing.xxl },
   field: { gap: spacing.sm },
   optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   option: { alignItems: 'center', borderRadius: borderRadii.md, borderWidth: borderWidths.thin, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  optionLabel: { ...typography.caption, fontWeight: '700' },
+  optionLabel: { ...typography.captionStrong },
   input: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 56, paddingHorizontal: spacing.md },
   note: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 96, padding: spacing.md },
   error: { ...typography.caption },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, padding: spacing.md },
 });

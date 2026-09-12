@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
@@ -13,6 +12,8 @@ import { formatEstimatedReturn, investmentTypeLabels } from '../investment-forma
 import { investmentTypes, type InvestmentAllocationSlice, type InvestmentType } from '../investment.types';
 import { useInvestments } from '../use-investments';
 import { InvestmentCard } from './investment-card';
+import { EmptyState } from '@/components/empty-state';
+import { ScreenHeader } from '@/components/screen-header';
 
 function allocationTypeLabel(key: string): string {
   return (investmentTypes as readonly string[]).includes(key)
@@ -36,15 +37,13 @@ export function InvestmentsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
-        <Pressable accessibilityLabel="Back" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[styles.headerTitle, { color: theme.primaryText }]}>Investments</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader
+        action={{ kind: 'add', accessibilityLabel: 'Add investment', onPress: () => router.push('/investment-form') }}
+        leading="back"
+        title="Investments"
+      />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.xl }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         {loading ? (
           <View accessibilityLabel="Loading investments" style={styles.center}>
             <ActivityIndicator color={theme.primaryAction} size="large" />
@@ -53,7 +52,7 @@ export function InvestmentsScreen() {
           <View style={[styles.stateCard, { backgroundColor: theme.surface }]}>
             <Text style={[styles.stateTitle, { color: theme.primaryText }]}>Unable to load investments</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>{error}</Text>
-            <Action label="Retry" onPress={() => void reload()} primary />
+            <Button label="Retry" onPress={() => void reload()} variant="primary" />
           </View>
         ) : (
           <>
@@ -116,12 +115,12 @@ export function InvestmentsScreen() {
             </Card>
 
             {portfolio.accounts.length === 0 ? (
-              <View style={[styles.stateCard, { backgroundColor: theme.surface }]}>
-                <Text style={[styles.stateTitle, { color: theme.primaryText }]}>No investments yet</Text>
-                <Text style={[styles.body, { color: theme.secondaryText }]}>
-                  Track brokerage accounts, deposits, funds, and pensions. Add one to start following its value and estimated return.
-                </Text>
-              </View>
+              <EmptyState
+                action={{ label: 'Add investment', onPress: () => router.push('/investment-form'), accessibilityLabel: 'Add your first investment' }}
+                body="Track brokerage accounts, deposits, funds, and pensions. Add one to start following its value and estimated return."
+                icon={{ ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }}
+                title="No investments yet"
+              />
             ) : (
               <View style={styles.list}>
                 {portfolio.accounts.map((view) => (
@@ -138,21 +137,6 @@ export function InvestmentsScreen() {
         )}
       </ScrollView>
 
-      {/* Pinned rather than trailing the list: with several investments the only
-          way to add one was to scroll past all of them. */}
-      {loading ? null : (
-        <View style={[styles.footer, { backgroundColor: theme.appBackground, borderTopColor: theme.hairline, paddingBottom: insets.bottom + spacing.md }]}>
-          <Button
-            accessibilityHint="Opens the investment form"
-            fullWidth
-            icon={{ ios: 'plus', android: 'add', web: 'add' }}
-            label="Add investment"
-            onPress={() => router.push('/investment-form')}
-            size="lg"
-            variant="primary"
-          />
-        </View>
-      )}
     </View>
   );
 }
@@ -190,17 +174,9 @@ function AllocationBlock({
   );
 }
 
-function Action({ label, onPress, primary = false }: { label: string; onPress: () => void; primary?: boolean }) {
-  return <Button label={label} onPress={onPress} variant={primary ? 'primary' : 'secondary'} />;
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  headerTitle: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
-  footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl },
   summary: { gap: spacing.sm },
   amountRow: { alignItems: 'baseline', flexDirection: 'row', maxWidth: '100%' },

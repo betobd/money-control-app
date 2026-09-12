@@ -45,8 +45,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   brand: {
-    ...typography.body,
-    fontWeight: '700',
+    ...typography.bodyStrong,
     textAlign: 'center',
   },
   heading: {

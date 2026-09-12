@@ -51,6 +51,6 @@ export function TransferAccountFields({
 
 const styles = StyleSheet.create({
   group: { gap: spacing.md },
-  description: { ...typography.caption, fontWeight: '700' },
+  description: { ...typography.captionStrong },
   helper: { ...typography.caption },
 });

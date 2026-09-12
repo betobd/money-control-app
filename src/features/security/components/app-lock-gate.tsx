@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   BackHandler,
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { canRenderProtectedContent } from '../app-lock-gate-policy';
 import { useAppLock } from '../app-lock-provider';
@@ -136,9 +135,7 @@ function AppLockGate() {
         <Card padding={spacing.lg} style={styles.card}>
           <Text accessibilityLiveRegion="assertive" selectable style={[styles.error, { color: theme.destructive }]}>{state.message}</Text>
           <PrimaryButton label="Retry secure storage" onPress={() => void retryConfiguration()} theme={theme} />
-          <Pressable accessibilityRole="button" onPress={forgotPin} style={styles.textButton}>
-            <Text style={[styles.link, { color: theme.primaryAction }]}>Help / Forgot PIN</Text>
-          </Pressable>
+          <Button label="Help / Forgot PIN" onPress={forgotPin} size="md" variant="ghost" />
         </Card>
       ) : (
         <Card padding={spacing.lg} style={styles.card}>
@@ -170,26 +167,21 @@ function AppLockGate() {
             theme={theme}
           />
           {config?.biometricUnlockEnabled ? (
-            <Pressable
+            <Button
               accessibilityLabel="Unlock Money Control with device biometrics"
-              accessibilityRole="button"
               disabled={busy}
+              fullWidth
+              icon={{ ios: 'touchid', android: 'fingerprint', web: 'fingerprint' }}
+              label="Use device biometrics"
               onPress={() => {
                 setPin('');
                 void unlockWithBiometrics();
               }}
-              style={[styles.biometricButton, { backgroundColor: theme.elevatedSurface }]}>
-              <SymbolView
-                name={{ ios: 'touchid', android: 'fingerprint', web: 'fingerprint' }}
-                size={24}
-                tintColor={busy ? theme.disabledText : theme.primaryAction}
-              />
-              <Text style={[styles.buttonLabel, { color: busy ? theme.disabledText : theme.primaryAction }]}>Use device biometrics</Text>
-            </Pressable>
+              size="lg"
+              variant="tonal"
+            />
           ) : null}
-          <Pressable accessibilityRole="button" onPress={forgotPin} style={styles.textButton}>
-            <Text style={[styles.link, { color: theme.primaryAction }]}>Help / Forgot PIN</Text>
-          </Pressable>
+          <Button label="Help / Forgot PIN" onPress={forgotPin} size="md" variant="ghost" />
         </Card>
       )}
 
@@ -217,17 +209,12 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, gap: spacing.lg, justifyContent: 'center', paddingHorizontal: spacing.lg },
   heading: { alignItems: 'center', gap: spacing.sm },
   lockIcon: { alignItems: 'center', borderRadius: borderRadii.lg, height: 72, justifyContent: 'center', width: 72 },
-  appName: { ...typography.caption, fontWeight: '700' },
+  appName: { ...typography.captionStrong },
   title: { ...typography.title, fontSize: 28, textAlign: 'center' },
   description: { ...typography.body, textAlign: 'center' },
   centeredState: { alignItems: 'center', gap: spacing.md, minHeight: 180, justifyContent: 'center' },
   card: { gap: spacing.md },
-  label: { ...typography.caption, fontWeight: '700' },
-  error: { ...typography.body, fontWeight: '600', textAlign: 'center' },
-  primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  biometricButton: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
-  textButton: { alignItems: 'center', justifyContent: 'center', minHeight: 48 },
-  link: { ...typography.body, fontWeight: '700' },
+  label: { ...typography.captionStrong },
+  error: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600', textAlign: 'center' },
   limit: { ...typography.caption, textAlign: 'center' },
 });

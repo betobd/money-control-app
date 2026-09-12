@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/card';
 import { ProgressBar } from '@/components/progress-bar';
-import { spacing, typography } from '@/constants/theme';
+import { fonts, spacing, typography } from '@/constants/theme';
 import { formatBase } from '@/features/accounts/account-format';
 import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types';
 import type { MonthlyBudgetView } from '@/features/budgets/monthly-budget.types';
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.moneyRow,
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: fonts.mono.medium, fontWeight: '500',
     lineHeight: 18,
   },
   breakdown: {

@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import {
   budgetMonthLabel,
   shiftBudgetMonth,
@@ -31,6 +31,7 @@ import type { DataExportKind } from '@/features/data-export/data-export.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useDataExport } from '../use-data-export';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
 
 function formatEstimatedSize(bytes: number): string {
   if (bytes < 1024) return `about ${bytes} B`;
@@ -106,22 +107,7 @@ export function DataExportScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}> 
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Back"
-          accessibilityRole="button"
-          disabled={busy}
-          onPress={() => router.back()}
-          style={styles.headerButton}>
-          <SymbolView
-            name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
-            size={24}
-            tintColor={busy ? theme.disabledText : theme.primaryText}
-          />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Data Export</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" leadingDisabled={busy} title="Data Export" />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -488,32 +474,26 @@ function ExportButton({ disabled, kind, label, onPress, operation, theme }: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingHorizontal: spacing.md },
   feedback: { ...typography.caption, borderRadius: borderRadii.md, padding: spacing.md },
   warning: { borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, padding: spacing.md },
   distinction: { gap: spacing.sm },
-  linkButton: { alignItems: 'flex-start', justifyContent: 'center', minHeight: 48 },
-  linkText: { ...typography.body, fontWeight: '700' },
+  linkText: { ...typography.bodyStrong },
   card: { gap: spacing.md },
   cardHeading: { alignItems: 'flex-start', flexDirection: 'row', gap: spacing.sm },
   cardTitle: { ...typography.sectionTitle },
   body: { ...typography.body },
   caption: { ...typography.caption },
   flex: { flex: 1, gap: spacing.xs },
-  count: { ...typography.caption, borderRadius: borderRadii.full, fontWeight: '700', minWidth: 40, overflow: 'hidden', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: 'center' },
+  count: { ...typography.captionStrong, borderRadius: borderRadii.full, minWidth: 40, overflow: 'hidden', paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, textAlign: 'center' },
   detailList: { gap: spacing.xs },
-  secondaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
-  primaryButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md },
-  buttonLabel: { ...typography.body, fontWeight: '700', textAlign: 'center' },
+  buttonLabel: { ...typography.bodyStrong, textAlign: 'center' },
   toggleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 52 },
-  emptyText: { ...typography.body, fontWeight: '600' },
-  warningText: { ...typography.caption, fontWeight: '700' },
+  emptyText: { ...typography.body, fontFamily: fonts.sans.semibold, fontWeight: '600' },
+  warningText: { ...typography.captionStrong },
   monthSelector: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   monthButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  monthLabel: { ...typography.body, flex: 1, fontWeight: '700', textAlign: 'center' },
+  monthLabel: { ...typography.bodyStrong, flex: 1, textAlign: 'center' },
   notBackup: { ...typography.label, textTransform: 'uppercase' },
   footerNote: { ...typography.caption, textAlign: 'center' },
 });

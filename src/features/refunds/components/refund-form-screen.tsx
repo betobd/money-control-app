@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { DateField } from '@/components/date-field';
 import { toUserMessage } from '@/errors/user-error';
-import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,6 +31,9 @@ import { RefundActionError, RefundValidationError } from '../refund.service';
 import { refundService } from '../refunds';
 import { useRefundSummary } from '../use-refund-summary';
 import type { RefundValidationErrors } from '../refund.types';
+import { ScreenHeader } from '@/components/screen-header';
+import { FixedFooter } from '@/components/fixed-footer';
+import { Button } from '@/components/button';
 
 export function RefundFormScreen({ originalTransactionId }: { originalTransactionId: string }) {
   const insets = useSafeAreaInsets();
@@ -112,17 +114,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityLabel="Cancel refund"
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Add refund</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="close" leadingAccessibilityLabel="Cancel refund" title="Add refund" />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -220,20 +212,18 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
         ) : null}
       </ScrollView>
 
-      <View style={[styles.saveBar, { borderTopColor: theme.hairline, paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
-        <Pressable
+      <FixedFooter bottomInset={insets.bottom}>
+        <Button
           accessibilityLabel="Save refund"
-          accessibilityRole="button"
-          accessibilityState={{ disabled: saving }}
-          disabled={saving}
+          busy={saving}
+          fullWidth
+          icon={{ ios: 'checkmark', android: 'check', web: 'check' }}
+          label="Save refund"
           onPress={() => void save()}
-          style={[styles.saveButton, { backgroundColor: theme.primaryAction }]}>
-          {saving ? <ActivityIndicator color={theme.onPrimaryAction} /> : null}
-          <Text style={[styles.saveLabel, { color: theme.onPrimaryAction }]}>
-            {saving ? 'Saving…' : 'Save refund'}
-          </Text>
-        </Pressable>
-      </View>
+          size="lg"
+          variant="primary"
+        />
+      </FixedFooter>
     </KeyboardAvoidingView>
   );
 }
@@ -250,9 +240,6 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.md },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.sectionTitle, flex: 1, textAlign: 'center' },
   content: { gap: spacing.md, paddingBottom: spacing.xl, paddingHorizontal: spacing.md },
   contextCard: { borderRadius: borderRadii.lg, gap: spacing.xs, padding: spacing.md },
   contextTitle: { ...typography.sectionTitle },
@@ -269,9 +256,6 @@ const styles = StyleSheet.create({
   amountInput: { ...typography.money, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 64, paddingHorizontal: spacing.md },
   noteInput: { ...typography.body, borderRadius: borderRadii.md, borderWidth: borderWidths.thin, minHeight: 104, padding: spacing.md },
   error: { ...typography.caption },
-  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: spacing.md, paddingTop: spacing.md },
-  saveButton: { alignItems: 'center', borderRadius: borderRadii.full, flexDirection: 'row', gap: spacing.sm, justifyContent: 'center', minHeight: 56 },
-  saveLabel: { ...typography.body, fontWeight: '700' },
   centered: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
   backAction: { justifyContent: 'center', minHeight: 48, paddingHorizontal: spacing.md },
 });

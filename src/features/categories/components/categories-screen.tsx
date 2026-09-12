@@ -5,8 +5,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActionSheet, actionIcons, type SheetAction } from '@/components/action-sheet';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { EmptyState } from '@/components/empty-state';
 import { IconChip } from '@/components/icon-chip';
 import { PressableScale } from '@/components/pressable-scale';
+import { SegmentedControl } from '@/components/segmented-control';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -15,6 +17,7 @@ import { CategoryActionError, type CategoryDeletionBlocker } from '../category.s
 import { categoryService } from '../categories';
 import { buildCategoryTree, type Category, type CategoryType } from '../category.types';
 import { useCategories } from '../use-categories';
+import { ScreenHeader } from '@/components/screen-header';
 
 /**
  * Why permanent deletion is unavailable, phrased for the user.
@@ -179,30 +182,34 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Close categories" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'xmark', android: 'close', web: 'close' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.primaryText }]}>Categories</Text>
-        <Pressable accessibilityLabel="Add category" onPress={() => router.push({ pathname: '/category-form', params: { type } })} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={26} tintColor={theme.primaryAction} />
-        </Pressable>
-      </View>
+      <ScreenHeader
+        action={{ kind: 'add', accessibilityLabel: 'Add category', onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
+        leading="close"
+        leadingAccessibilityLabel="Close categories"
+        title="Categories"
+      />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-        <View style={[styles.selector, { backgroundColor: theme.elevatedSurface }]}>
-          {(['expense', 'income'] as CategoryType[]).map((value) => (
-            <Pressable key={value} onPress={() => setType(value)} style={[styles.selectorButton, type === value && { backgroundColor: value === 'income' ? theme.income : theme.expense }]}>
-              <Text style={{ color: type === value ? theme.onPrimaryAction : theme.secondaryText, fontWeight: '700' }}>{value === 'expense' ? 'Expense' : 'Income'}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <SegmentedControl
+          accessibilityLabel="Category type"
+          onChange={setType}
+          segments={[
+            { value: 'expense', label: 'Expense' },
+            { value: 'income', label: 'Income' },
+          ]}
+          value={type}
+        />
 
         {actionError ? <Text style={[styles.error, { color: theme.destructive }]}>{actionError}</Text> : null}
         {loading ? <ActivityIndicator color={theme.primaryAction} /> : null}
         {error ? <Text style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
         {!loading && !error && tree.length === 0 ? (
-          <Text style={[styles.empty, { color: theme.secondaryText }]}>No active {type} categories.</Text>
+          <EmptyState
+            action={{ label: 'Add category', onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
+            body={`Group your ${type === 'income' ? 'income' : 'spending'} so Reports and Budgets can break it down.`}
+            icon={{ ios: 'square.grid.2x2.fill', android: 'category', web: 'category' }}
+            title={`No active ${type} categories`}
+          />
         ) : null}
 
         {tree.map((category) => (
@@ -304,25 +311,21 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { alignItems: 'center', flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm },
-  headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 },
-  title: { ...typography.title, flex: 1, fontSize: 26, textAlign: 'center' },
   content: { gap: spacing.md, padding: spacing.md },
-  selector: { borderRadius: borderRadii.md, flexDirection: 'row', padding: spacing.xs },
-  selectorButton: { alignItems: 'center', borderRadius: borderRadii.sm, flex: 1, justifyContent: 'center', minHeight: 48 },
   card: { borderRadius: borderRadii.card, overflow: 'hidden' },
   cardHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm + spacing.xs, minHeight: 72, paddingHorizontal: spacing.md },
   identity: { flex: 1, minWidth: 0 },
-  name: { ...typography.body, fontWeight: '700' },
+  name: { ...typography.bodyStrong },
   status: { ...typography.caption },
   subcategories: { borderTopWidth: borderWidths.thin, paddingLeft: spacing.md + 44 + spacing.xs },
   subcategoryRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, minHeight: 48, paddingRight: spacing.md },
   subcategoryName: { ...typography.body, flex: 1, fontSize: 14 },
   addSubcategory: { alignItems: 'center', borderTopWidth: borderWidths.thin, flexDirection: 'row', gap: spacing.xs + 2, justifyContent: 'center', minHeight: 44 },
-  addSubcategoryLabel: { ...typography.caption, fontWeight: '700' },
+  // captionStrong, not caption + fontWeight: the unpaired form clipped this label
+  // to "+ Add" on Android (see typography.captionStrong).
+  addSubcategoryLabel: { ...typography.captionStrong },
   archivedRow: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.sm + spacing.xs, minHeight: 60, paddingHorizontal: spacing.md },
   archivedToggle: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 48 },
   sectionTitle: { ...typography.sectionTitle },
   error: { ...typography.caption },
-  empty: { ...typography.body, paddingVertical: spacing.xl, textAlign: 'center' },
 });

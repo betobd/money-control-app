@@ -1,5 +1,3 @@
-import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -16,17 +14,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
-import { borderRadii, spacing, typography } from '@/constants/theme';
+import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppLock } from '@/features/security/app-lock-provider';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import type { NotificationCategory } from '../notification-settings.service';
 import type { NotificationPermissionState } from '../notification.types';
 import { useNotificationSettings } from '../use-notification-settings';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { ScreenHeader } from '@/components/screen-header';
+import { Button } from '@/components/button';
 
 export function NotificationSettingsScreen() {
   const dialog = useDialog();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const appLock = useAppLock();
@@ -60,13 +59,7 @@ export function NotificationSettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <View style={[styles.header, { borderBottomColor: theme.hairline }]}>
-        <Pressable accessibilityLabel="Back from notification settings" accessibilityRole="button" onPress={() => router.back()} style={styles.headerButton}>
-          <SymbolView name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.primaryText} />
-        </Pressable>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>Notifications</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader leading="back" leadingAccessibilityLabel="Back from notification settings" title="Notifications" />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
         <Section title="Android permission">
@@ -82,11 +75,11 @@ export function NotificationSettingsScreen() {
                   confirmLabel: 'Continue',
                   onConfirm: () => void model.enable(),
                 });
-              }} primary theme={theme} />
+              }} primary />
             ) : settings.notificationsEnabled ? (
-              <ActionButton disabled={model.busy} label="Pause all reminders" onPress={() => void model.disable()} theme={theme} />
+              <ActionButton disabled={model.busy} label="Pause all reminders" onPress={() => void model.disable()} />
             ) : (
-              <ActionButton disabled={model.busy} label="Resume notifications" onPress={() => void model.enable()} primary theme={theme} />
+              <ActionButton disabled={model.busy} label="Resume notifications" onPress={() => void model.enable()} primary />
             )}
           </Card>
         </Section>
@@ -128,8 +121,8 @@ export function NotificationSettingsScreen() {
 
         <Section title="Test and delivery">
           <View style={styles.actions}>
-            <ActionButton disabled={model.busy || model.permission !== 'granted'} label="Send test notification" onPress={() => void model.test()} primary theme={theme} />
-            <ActionButton disabled={model.busy} label="Cancel pending test" onPress={() => void model.cancelTest()} theme={theme} />
+            <ActionButton disabled={model.busy || model.permission !== 'granted'} label="Send test notification" onPress={() => void model.test()} primary />
+            <ActionButton disabled={model.busy} label="Cancel pending test" onPress={() => void model.cancelTest()} />
           </View>
           <Text style={[styles.body, { color: theme.secondaryText }]}>Reminder times follow the device’s local clock. Recurring financial dates remain Bogotá calendar dates. Android may delay delivery during Doze or battery optimization.</Text>
         </Section>
@@ -138,7 +131,7 @@ export function NotificationSettingsScreen() {
           <View style={[styles.errorCard, { backgroundColor: theme.tintDestructive }]}>
             <Text accessibilityLiveRegion="assertive" style={[styles.eyebrow, { color: theme.destructive }]}>Some reminders need attention</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>Money Control could not finish the last notification update. Financial data was saved normally.</Text>
-            <ActionButton disabled={model.busy} label="Dismiss message" onPress={() => void model.clearError()} theme={theme} />
+            <ActionButton disabled={model.busy} label="Dismiss message" onPress={() => void model.clearError()} />
           </View>
         ) : null}
         {model.error ? <Text accessibilityLiveRegion="assertive" style={[styles.notice, { color: theme.destructive }]}>{model.error}</Text> : null}
@@ -181,15 +174,15 @@ function Segment({ label, onPress, selected, theme }: { label: string; onPress: 
   return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} onPress={onPress} style={[styles.segment, { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface }]}><Text style={[styles.caption, { color: selected ? theme.primaryText : theme.secondaryText }]}>{label}</Text></Pressable>;
 }
 
-function ActionButton({ disabled, label, onPress, primary = false, theme }: { disabled: boolean; label: string; onPress: () => void; primary?: boolean; theme: Theme }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[styles.actionButton, { backgroundColor: disabled ? theme.disabledSurface : primary ? theme.primaryAction : theme.elevatedSurface }]}><Text style={[styles.actionLabel, { color: disabled ? theme.disabledText : primary ? theme.onPrimaryAction : theme.primaryText }]}>{label}</Text></Pressable>;
+function ActionButton({ disabled, label, onPress, primary = false }: { disabled: boolean; label: string; onPress: () => void; primary?: boolean }) {
+  return <Button disabled={disabled} label={label} onPress={onPress} variant={primary ? 'primary' : 'secondary'} />;
 }
 
 function TimePickerModal({ initialValue, onClose, onSave, theme, visible }: { initialValue: string; onClose: () => void; onSave: (value: string) => void; theme: Theme; visible: boolean }) {
   const [initialHour, initialMinute] = initialValue.split(':').map(Number);
   const [hour, setHour] = useState(initialHour);
   const [minute, setMinute] = useState(Math.round(initialMinute / 5) * 5 % 60);
-  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}><View style={[styles.modalBackdrop, { backgroundColor: theme.overlay }]}><View style={[styles.modal, { backgroundColor: theme.appBackground }]}><Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>Choose local time</Text><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Hour</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>{Array.from({ length: 24 }, (_, value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setHour(value)} selected={hour === value} theme={theme} />)}</ScrollView><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Minute</Text><View style={styles.pickerRow}>{Array.from({ length: 12 }, (_, index) => index * 5).map((value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setMinute(value)} selected={minute === value} theme={theme} />)}</View><View style={styles.actions}><ActionButton disabled={false} label="Cancel" onPress={onClose} theme={theme} /><ActionButton disabled={false} label={`Save ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`} onPress={() => onSave(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)} primary theme={theme} /></View></View></View></Modal>;
+  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}><View style={[styles.modalBackdrop, { backgroundColor: theme.overlay }]}><View style={[styles.modal, { backgroundColor: theme.appBackground }]}><Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>Choose local time</Text><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Hour</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>{Array.from({ length: 24 }, (_, value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setHour(value)} selected={hour === value} theme={theme} />)}</ScrollView><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Minute</Text><View style={styles.pickerRow}>{Array.from({ length: 12 }, (_, index) => index * 5).map((value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setMinute(value)} selected={minute === value} theme={theme} />)}</View><View style={styles.actions}><ActionButton disabled={false} label="Cancel" onPress={onClose} /><ActionButton disabled={false} label={`Save ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`} onPress={() => onSave(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)} primary /></View></View></View></Modal>;
 }
 
 function permissionTitle(value: NotificationPermissionState): string {
@@ -209,5 +202,5 @@ function permissionDescription(value: NotificationPermissionState): string {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 }, center: { alignItems: 'center', flex: 1, justifyContent: 'center' }, header: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 64, paddingHorizontal: spacing.sm }, headerButton: { alignItems: 'center', height: 48, justifyContent: 'center', width: 48 }, title: { ...typography.sectionTitle, flex: 1, fontSize: 22, textAlign: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, section: { gap: spacing.sm }, sectionTitle: { ...typography.sectionTitle }, card: { gap: spacing.sm }, cardTitle: { ...typography.body, fontWeight: '700' }, eyebrow: { ...typography.overline }, body: { ...typography.body }, caption: { ...typography.caption }, notice: { ...typography.caption, fontWeight: '600' }, toggleRow: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, minHeight: 72, padding: spacing.md }, flex: { flex: 1 }, options: { gap: spacing.sm, paddingLeft: spacing.md }, valueButton: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: spacing.md }, optionLabel: { ...typography.label, textTransform: 'uppercase' }, segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, segment: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, minWidth: 56, paddingHorizontal: spacing.md }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, actionButton: { alignItems: 'center', borderRadius: borderRadii.md, justifyContent: 'center', minHeight: 52, paddingHorizontal: spacing.md }, actionLabel: { ...typography.body, fontWeight: '700' }, errorCard: { borderRadius: borderRadii.md, gap: spacing.sm, padding: spacing.md }, modalBackdrop: { flex: 1, justifyContent: 'flex-end' }, modal: { borderTopLeftRadius: borderRadii.lg, borderTopRightRadius: borderRadii.lg, gap: spacing.md, maxHeight: '80%', padding: spacing.lg }, pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  screen: { flex: 1 }, center: { alignItems: 'center', flex: 1, justifyContent: 'center' }, content: { gap: spacing.lg, padding: spacing.md }, section: { gap: spacing.sm }, sectionTitle: { ...typography.sectionTitle }, card: { gap: spacing.sm }, cardTitle: { ...typography.bodyStrong }, eyebrow: { ...typography.overline }, body: { ...typography.body }, caption: { ...typography.caption }, notice: { ...typography.caption, fontFamily: fonts.sans.semibold, fontWeight: '600' }, toggleRow: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', gap: spacing.md, minHeight: 72, padding: spacing.md }, flex: { flex: 1 }, options: { gap: spacing.sm, paddingLeft: spacing.md }, valueButton: { alignItems: 'center', borderRadius: borderRadii.md, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: spacing.md }, optionLabel: { ...typography.label, textTransform: 'uppercase' }, segmented: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, segment: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 48, minWidth: 56, paddingHorizontal: spacing.md }, actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }, errorCard: { borderRadius: borderRadii.md, gap: spacing.sm, padding: spacing.md }, modalBackdrop: { flex: 1, justifyContent: 'flex-end' }, modal: { borderTopLeftRadius: borderRadii.lg, borderTopRightRadius: borderRadii.lg, gap: spacing.md, maxHeight: '80%', padding: spacing.lg }, pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
 });
