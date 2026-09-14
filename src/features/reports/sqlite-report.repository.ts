@@ -5,6 +5,7 @@ import { accounts, categories, investmentValuations, transactions } from '@/data
 import { alias } from 'drizzle-orm/sqlite-core';
 import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
+import { getMessages } from '@/i18n/messages';
 import type { ReportRepository } from './report.repository';
 import type {
   CategoryExpenseAggregate,
@@ -21,13 +22,11 @@ import type {
 const INVESTMENT_INCOME_CATEGORY_ID = 'default-income-investment';
 
 const UNKNOWN_CATEGORY_ID = 'unknown-category';
-const UNKNOWN_CATEGORY_NAME = 'Unknown category';
 const UNKNOWN_CATEGORY_ICON = 'other';
 const originalTransactions = alias(transactions, 'report_original_transactions');
 const originalCategories = alias(categories, 'report_original_categories');
 const subcategories = alias(categories, 'report_subcategories');
 const originalSubcategories = alias(categories, 'report_original_subcategories');
-const NO_SUBCATEGORY_NAME = 'No subcategory';
 
 function groupingExpression(grouping: ReportGrouping): SQL<string> {
   return grouping === 'day'
@@ -89,7 +88,7 @@ export class SQLiteReportRepository implements ReportRepository {
       largestExpense: largest
         ? {
             amount: safeInteger(largest.amount, 'Largest expense'),
-            categoryName: largest.categoryName ?? UNKNOWN_CATEGORY_NAME,
+            categoryName: largest.categoryName ?? getMessages().reports.unknownCategory,
             accountName: largest.accountName,
             transactionDate: largest.transactionDate,
           }
@@ -167,12 +166,12 @@ export class SQLiteReportRepository implements ReportRepository {
 
     return rows.map((row) => ({
       categoryId: row.categoryId ?? UNKNOWN_CATEGORY_ID,
-      categoryName: row.categoryName ?? UNKNOWN_CATEGORY_NAME,
+      categoryName: row.categoryName ?? getMessages().reports.unknownCategory,
       icon: row.icon ?? UNKNOWN_CATEGORY_ICON,
       subcategoryId: row.subcategoryId ?? null,
       // A subcategory id with no name means the row was archived and hard-deleted,
       // which the schema forbids; fall back rather than render an empty label.
-      subcategoryName: row.subcategoryId ? row.subcategoryName ?? NO_SUBCATEGORY_NAME : null,
+      subcategoryName: row.subcategoryId ? row.subcategoryName ?? getMessages().reports.noSubcategory : null,
       total: safeInteger(row.total, 'Category spending'),
       transactionCount: safeInteger(row.transactionCount, 'Category transaction count'),
     }));

@@ -28,6 +28,8 @@ import { TransactionTypeSelector } from '@/features/add-transaction/components/t
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useCategoryTree } from '@/features/categories/use-categories';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { RecurringRuleValidationError } from '../recurring-transaction.service';
 import type {
@@ -86,22 +88,25 @@ const RENDERED_ERROR_FIELDS = new Set<string>([
   'note',
 ]);
 
-const frequencyOptions: {
+function frequencyOptions(t: Messages): {
   label: string;
   frequency: RecurringFrequency;
   interval: number;
-}[] = [
-  { label: 'Daily', frequency: 'daily', interval: 1 },
-  { label: 'Weekly', frequency: 'weekly', interval: 1 },
-  { label: 'Every 2 weeks', frequency: 'weekly', interval: 2 },
-  { label: 'Monthly', frequency: 'monthly', interval: 1 },
-  { label: 'Yearly', frequency: 'yearly', interval: 1 },
-];
+}[] {
+  return [
+    { label: t.recurring.optionDaily, frequency: 'daily', interval: 1 },
+    { label: t.recurring.optionWeekly, frequency: 'weekly', interval: 1 },
+    { label: t.recurring.optionEveryTwoWeeks, frequency: 'weekly', interval: 2 },
+    { label: t.recurring.optionMonthly, frequency: 'monthly', interval: 1 },
+    { label: t.recurring.optionYearly, frequency: 'yearly', interval: 1 },
+  ];
+}
 
 export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const baseCurrency = useBaseCurrency();
   const { accounts } = useAccounts();
   const expenseTree = useCategoryTree('expense', false).tree;
@@ -170,7 +175,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
     setGeneralError(undefined);
     const parsed = parseMoney(digits || '0', editorCurrency);
     if (!parsed.ok) {
-      setErrors({ amount: 'Enter a valid amount greater than zero.' });
+      setErrors({ amount: t.recurring.errorAmount });
       setSaving(false);
       return;
     }
@@ -216,10 +221,10 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         const visible = Object.keys(cause.fields).some((field) => RENDERED_ERROR_FIELDS.has(field));
         if (!visible) {
           const first = Object.values(cause.fields).find(Boolean);
-          setGeneralError(first ?? 'Unable to save recurring transaction.');
+          setGeneralError(first ?? t.recurring.saveError);
         }
       } else {
-        setGeneralError(toUserMessage(cause, 'Unable to save recurring transaction.'));
+        setGeneralError(toUserMessage(cause, t.recurring.saveError));
       }
     } finally {
       setSaving(false);
@@ -228,7 +233,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.appBackground }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel={`Close ${props.title}`} title={props.title} topInset={insets.top + spacing.sm} />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.common.closeScreen(props.title)} title={props.title} topInset={insets.top + spacing.sm} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
@@ -240,16 +245,16 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
             <FormFieldButton
               error={errors.accountId}
               icon={{ ios: 'arrow.up.circle.fill', android: 'arrow_upward', web: 'arrow_upward' }}
-              label="Source account"
+              label={t.recurring.sourceAccount}
               onPress={() => setPicker('source')}
-              value={selectedAccount?.name ?? 'Select account'}
+              value={selectedAccount?.name ?? t.recurring.selectAccount}
             />
             <FormFieldButton
               error={errors.destinationAccountId}
               icon={{ ios: 'arrow.down.circle.fill', android: 'arrow_downward', web: 'arrow_downward' }}
-              label="Destination account"
+              label={t.recurring.destinationAccount}
               onPress={() => setPicker('destination')}
-              value={selectedDestination?.name ?? 'Select account'}
+              value={selectedDestination?.name ?? t.recurring.selectAccount}
             />
           </>
         ) : (
@@ -269,30 +274,30 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
               onManage={() => router.push({ pathname: '/categories', params: { type } })}
               onSelect={selectCategory}
               selection={effectiveSelection}
-              title={type === 'income' ? 'Select income category' : 'Select expense category'}
+              title={type === 'income' ? t.recurring.selectIncomeCategory : t.recurring.selectExpenseCategory}
               visible={categoryPickerVisible}
             />
             <FormFieldButton
               error={errors.accountId}
               icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-              label={type === 'income' ? 'Destination account' : 'Source account'}
+              label={type === 'income' ? t.recurring.destinationAccount : t.recurring.sourceAccount}
               onPress={() => setPicker('account')}
-              value={selectedAccount?.name ?? 'Select account'}
+              value={selectedAccount?.name ?? t.recurring.selectAccount}
             />
           </>
         )}
 
         {props.mode === 'rule' ? (
           <View style={styles.field}>
-            <Overline color={theme.mutedText}>Frequency</Overline>
+            <Overline color={theme.mutedText}>{t.recurring.frequencyLabel}</Overline>
             <View accessibilityRole="radiogroup" style={styles.optionGrid}>
-              {frequencyOptions.map((option) => {
+              {frequencyOptions(t).map((option) => {
                 const selected = option.frequency === frequency && option.interval === interval;
                 return (
                   <Pressable
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
-                    key={option.label}
+                    key={`${option.frequency}-${option.interval}`}
                     onPress={() => {
                       setFrequency(option.frequency);
                       setInterval(option.interval);
@@ -315,22 +320,22 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
         <DateField
           error={errors.startDate}
-          label={props.mode === 'rule' ? 'Start date' : 'Scheduled date'}
+          label={props.mode === 'rule' ? t.recurring.startDate : t.recurring.scheduledDate}
           onChange={setDate}
           value={date}
         />
         {props.mode === 'rule' ? (
-          <DateField clearable error={errors.endDate} label="End date (optional)" onChange={setEndDate} value={endDate} />
+          <DateField clearable error={errors.endDate} label={t.recurring.endDateOptional} onChange={setEndDate} value={endDate} />
         ) : null}
 
         <View style={styles.field}>
-          <Overline color={theme.mutedText}>Note (optional)</Overline>
+          <Overline color={theme.mutedText}>{t.recurring.noteOptional}</Overline>
           <TextInput
-            accessibilityLabel="Recurring transaction note"
+            accessibilityLabel={t.recurring.noteAccessibility}
             maxLength={200}
             multiline
             onChangeText={setNote}
-            placeholder="Add a description…"
+            placeholder={t.recurring.notePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[styles.note, { backgroundColor: theme.surface, borderColor: errors.note ? theme.destructive : theme.hairline, color: theme.primaryText }]}
             textAlignVertical="top"
@@ -342,10 +347,10 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
       <FixedFooter bottomInset={insets.bottom}>
         <Button
-          accessibilityLabel="Save recurring transaction"
+          accessibilityLabel={t.recurring.saveRecurring}
           busy={saving}
           fullWidth
-          label="Save"
+          label={t.common.save}
           onPress={() => void save()}
           size="lg"
           variant="primary"
@@ -357,7 +362,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
         onClose={() => setPicker(null)}
         onSelect={selectAccount}
         selectedId={picker === 'destination' ? destinationAccountId : accountId}
-        title={picker === 'destination' ? 'Select destination account' : picker === 'source' ? 'Select source account' : 'Select account'}
+        title={picker === 'destination' ? t.recurring.selectDestinationAccount : picker === 'source' ? t.recurring.selectSourceAccount : t.recurring.selectAccount}
         visible={picker !== null}
       />
     </KeyboardAvoidingView>

@@ -6,6 +6,7 @@ import { borderRadii, borderWidths, spacing, typography } from '@/constants/them
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { foldForSearch } from '@/features/categories/category-search';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export type BudgetCategoryOption = {
   id: string;
@@ -27,6 +28,7 @@ type Props = {
 
 export function BudgetCategorySelector({ categories, error, onChange, onSearchChange, search, selectedId }: Props) {
   const theme = useAppTheme();
+  const t = useMessages();
   // Folded like every other category search, and matched against the parent name
   // too so typing "Hogar" surfaces what is inside it.
   const normalized = foldForSearch(search);
@@ -35,11 +37,11 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
     || (category.parentName !== null && foldForSearch(category.parentName).includes(normalized)));
   return (
     <View style={styles.field}>
-      <Overline color={theme.mutedText}>Expense category</Overline>
+      <Overline color={theme.mutedText}>{t.budgets.expenseCategory}</Overline>
       <TextInput
-        accessibilityLabel="Search expense categories"
+        accessibilityLabel={t.budgets.searchExpenseCategories}
         onChangeText={onSearchChange}
-        placeholder="Search categories"
+        placeholder={t.budgets.searchCategories}
         placeholderTextColor={theme.mutedText}
         style={[styles.search, { backgroundColor: theme.surface, borderColor: error ? theme.destructive : theme.hairline, color: theme.primaryText }]}
         value={search}
@@ -49,7 +51,7 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
           const selected = category.id === selectedId;
           return (
             <Pressable
-              accessibilityLabel={`${category.name}${category.isArchived ? ', archived' : ''}`}
+              accessibilityLabel={t.budgets.categoryOption(category.name, category.isArchived)}
               accessibilityRole="radio"
               accessibilityState={{ selected }}
               key={category.id}
@@ -65,14 +67,14 @@ export function BudgetCategorySelector({ categories, error, onChange, onSearchCh
                 <SymbolView name={getCategoryIcon(category.icon)} size={22} tintColor={selected ? theme.primaryAction : theme.primaryText} />
               </View>
               <Text numberOfLines={2} style={[styles.optionLabel, { color: theme.primaryText }]}>{category.name}</Text>
-              {category.parentName ? <Text numberOfLines={1} style={[styles.parent, { color: theme.mutedText }]}>in {category.parentName}</Text> : null}
-              {category.isArchived ? <Text style={[styles.archived, { color: theme.mutedText }]}>Archived</Text> : null}
+              {category.parentName ? <Text numberOfLines={1} style={[styles.parent, { color: theme.mutedText }]}>{t.budgets.inParent(category.parentName)}</Text> : null}
+              {category.isArchived ? <Text style={[styles.archived, { color: theme.mutedText }]}>{t.budgets.archived}</Text> : null}
               {selected ? <View style={[styles.check, { backgroundColor: theme.primaryAction }]}><SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={12} tintColor={theme.onPrimaryAction} /></View> : null}
             </Pressable>
           );
         })}
       </View>
-      {visible.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No matching active expense categories.</Text> : null}
+      {visible.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>{t.budgets.noMatchingCategories}</Text> : null}
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
     </View>
   );

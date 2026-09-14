@@ -26,29 +26,35 @@ import { PinInput } from './pin-input';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 import { Button } from '@/components/button';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 type Flow = 'enable' | 'change' | 'biometric' | 'disable' | null;
 
-const delayLabels: Record<AppLockDelay, string> = {
-  0: 'Immediately',
-  30_000: 'After 30 seconds',
-  60_000: 'After 1 minute',
-  300_000: 'After 5 minutes',
-  900_000: 'After 15 minutes',
-};
+type Copy = Messages['security']['screen'];
 
-function availabilityText(availability: BiometricAvailability | null): string {
-  if (!availability) return 'Checking device support…';
-  if (availability.status === 'noHardware') return 'No biometric hardware detected';
-  if (availability.status === 'notEnrolled') return 'Biometric hardware found, but no biometrics are enrolled';
-  if (availability.status === 'notStrongEnough') return 'Enrolled biometrics do not meet the strong-security requirement';
-  const types = availability.types.map((type) => type === 'face' ? 'facial authentication' : type).join(', ');
-  return `Strong biometrics available${types ? `: ${types}` : ''}`;
+function delayLabel(copy: Copy, delay: AppLockDelay): string {
+  if (delay === 0) return copy.delayImmediately;
+  if (delay === 30_000) return copy.delay30Seconds;
+  if (delay === 60_000) return copy.delay1Minute;
+  if (delay === 300_000) return copy.delay5Minutes;
+  return copy.delay15Minutes;
 }
 
-function safeError(error: unknown): string {
+function availabilityText(copy: Copy, availability: BiometricAvailability | null): string {
+  if (!availability) return copy.checkingSupport;
+  if (availability.status === 'noHardware') return copy.noHardware;
+  if (availability.status === 'notEnrolled') return copy.notEnrolled;
+  if (availability.status === 'notStrongEnough') return copy.notStrongEnough;
+  const types = availability.types.map((type) => (
+    type === 'face' ? copy.typeFace : type === 'iris' ? copy.typeIris : copy.typeFingerprint
+  )).join(', ');
+  return copy.strongAvailable(types);
+}
+
+function safeError(copy: Copy, error: unknown): string {
   if (error instanceof PinValidationError || error instanceof AppLockActionError) return error.message;
-  return 'The security setting could not be updated. Your existing App Lock configuration was preserved.';
+  return copy.updateFailed;
 }
 
 export function SecurityScreen() {
@@ -60,6 +66,8 @@ function SecurityScreenContent() {
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const copy = t.security.screen;
   const {
     changePin,
     config,
@@ -72,7 +80,7 @@ function SecurityScreenContent() {
     setLockDelay,
   } = useAppLock();
   const [availability, setAvailability] = useState<BiometricAvailability | null>(null);
-  const [availabilityError, setAvailabilityError] = useState<string>();
+  const [availabilityFailed, setAvailabilityFailed] = useState(false);
   const [flow, setFlow] = useState<Flow>(null);
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -90,7 +98,7 @@ function SecurityScreenContent() {
         if (!cancelled) setAvailability(result);
       },
       () => {
-        if (!cancelled) setAvailabilityError('Device biometric status could not be checked.');
+        if (!cancelled) setAvailabilityFailed(true);
       },
     );
     return () => {
@@ -126,9 +134,9 @@ function SecurityScreenContent() {
     try {
       await enableAppLock(newPin, confirmation);
       closeFlow();
-      setNotice('App Lock enabled. You can now enable strong device biometrics if available.');
+      setNotice(copy.enabledNotice);
     } catch (cause) {
-      setError(safeError(cause));
+      setError(safeError(copy, cause));
       setNewPin('');
       setConfirmation('');
     } finally {
@@ -142,9 +150,9 @@ function SecurityScreenContent() {
     try {
       await changePin(currentPin, newPin, confirmation);
       closeFlow();
-      setNotice('PIN changed. Your previous PIN no longer unlocks Money Control.');
+      setNotice(copy.pinChangedNotice);
     } catch (cause) {
-      setError(safeError(cause));
+      setError(safeError(copy, cause));
       setCurrentPin('');
       setNewPin('');
       setConfirmation('');
@@ -161,9 +169,9 @@ function SecurityScreenContent() {
     try {
       await setBiometricEnabled(currentPin, nextEnabled);
       closeFlow();
-      setNotice(nextEnabled ? 'Biometric unlock enabled.' : 'Biometric unlock disabled. Device biometrics were not changed.');
+      setNotice(nextEnabled ? copy.biometricEnabledNotice : copy.biometricDisabledNotice);
     } catch (cause) {
-      setError(safeError(cause));
+      setError(safeError(copy, cause));
       setCurrentPin('');
     } finally {
       setBusy(false);
@@ -172,13 +180,13 @@ function SecurityScreenContent() {
 
   function confirmDisable(): void {
     if (currentPin.length !== 6) {
-      setError('Enter your complete 6-digit current PIN.');
+      setError(copy.enterCurrentPin);
       return;
     }
     dialog.confirm({
-      title: 'Disable App Lock?',
-      message: 'Money Control will stop requiring a local unlock. Financial data and backup files will not be deleted.',
-      confirmLabel: 'Disable App Lock',
+      title: copy.disableTitle,
+      message: copy.disableMessage,
+      confirmLabel: copy.disableAppLock,
       tone: 'destructive',
       onConfirm: () => void submitDisable(),
       onCancel: clearPinState,
@@ -191,9 +199,9 @@ function SecurityScreenContent() {
     try {
       await disableAppLock(currentPin);
       closeFlow();
-      setNotice('App Lock disabled. Financial data was not changed.');
+      setNotice(copy.disabledNotice);
     } catch (cause) {
-      setError(safeError(cause));
+      setError(safeError(copy, cause));
       setCurrentPin('');
     } finally {
       setBusy(false);
@@ -205,9 +213,9 @@ function SecurityScreenContent() {
     setError(undefined);
     try {
       await setLockDelay(delay);
-      setNotice(`Automatic locking set to ${delayLabels[delay].toLowerCase()}.`);
+      setNotice(copy.lockingSetNotice(delayLabel(copy, delay)));
     } catch (cause) {
-      setError(safeError(cause));
+      setError(safeError(copy, cause));
     } finally {
       setBusy(false);
     }
@@ -215,7 +223,7 @@ function SecurityScreenContent() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="back" leadingDisabled={busy} title="Security" />
+      <ScreenHeader leading="back" leadingDisabled={busy} title={copy.title} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -225,37 +233,37 @@ function SecurityScreenContent() {
         {error ? <Text accessibilityLiveRegion="assertive" selectable style={[styles.feedback, { backgroundColor: theme.tintDestructive, color: theme.destructive }]}>{error}</Text> : null}
         {notice ? <Text accessibilityLiveRegion="polite" selectable style={[styles.feedback, { backgroundColor: theme.tintIncome, color: theme.income }]}>{notice}</Text> : null}
 
-        <Section title="App Lock" theme={theme}>
-          <StatusRow label="Status" value={enabled ? 'Enabled' : 'Disabled'} theme={theme} />
-          <Text style={[styles.body, { color: theme.secondaryText }]}>App Lock is optional and protects casual access to the app interface. It is not an online account or Android device lock.</Text>
+        <Section title={copy.appLockSection} theme={theme}>
+          <StatusRow label={copy.status} value={enabled ? copy.enabled : copy.disabled} theme={theme} />
+          <Text style={[styles.body, { color: theme.secondaryText }]}>{copy.appLockDescription}</Text>
           {!enabled ? (
-            <PrimaryButton disabled={busy} label="Enable App Lock" onPress={() => startFlow('enable')} />
+            <PrimaryButton disabled={busy} label={copy.enableAppLock} onPress={() => startFlow('enable')} />
           ) : (
             <View style={styles.buttonGroup}>
-              <SecondaryButton disabled={busy} label="Change PIN" onPress={() => startFlow('change')} />
-              <SecondaryButton disabled={busy} label="Lock now" onPress={lockNow} />
-              <DestructiveButton disabled={busy} label="Disable App Lock" onPress={() => startFlow('disable')} />
+              <SecondaryButton disabled={busy} label={copy.changePin} onPress={() => startFlow('change')} />
+              <SecondaryButton disabled={busy} label={copy.lockNow} onPress={lockNow} />
+              <DestructiveButton disabled={busy} label={copy.disableAppLock} onPress={() => startFlow('disable')} />
             </View>
           )}
         </Section>
 
         {flow ? (
-          <Section title={flowTitle(flow, config?.biometricUnlockEnabled ?? false)} theme={theme}>
+          <Section title={flowTitle(copy, flow, config?.biometricUnlockEnabled ?? false)} theme={theme}>
             {(flow === 'change' || flow === 'biometric' || flow === 'disable') ? (
-              <LabeledPin label="Current PIN" value={currentPin} onChange={setCurrentPin} onInvalid={() => setError('PIN must contain numbers only.')} />
+              <LabeledPin label={copy.currentPin} value={currentPin} onChange={setCurrentPin} onInvalid={() => setError(t.security.errors.pinNumbersOnly)} />
             ) : null}
             {(flow === 'enable' || flow === 'change') ? (
               <>
-                <LabeledPin label="New 6-digit PIN" value={newPin} onChange={setNewPin} onInvalid={() => setError('PIN must contain numbers only.')} />
-                <LabeledPin label="Confirm new PIN" value={confirmation} onChange={setConfirmation} onInvalid={() => setError('PIN must contain numbers only.')} />
+                <LabeledPin label={copy.newPin} value={newPin} onChange={setNewPin} onInvalid={() => setError(t.security.errors.pinNumbersOnly)} />
+                <LabeledPin label={copy.confirmNewPin} value={confirmation} onChange={setConfirmation} onInvalid={() => setError(t.security.errors.pinNumbersOnly)} />
               </>
             ) : null}
             <View style={styles.inlineActions}>
-              <SecondaryButton disabled={busy} label="Cancel" onPress={closeFlow} />
+              <SecondaryButton disabled={busy} label={t.common.cancel} onPress={closeFlow} />
               <PrimaryButton
                 busy={busy}
                 disabled={busy}
-                label={flowSubmitLabel(flow, config?.biometricUnlockEnabled ?? false)}
+                label={flowSubmitLabel(copy, flow, config?.biometricUnlockEnabled ?? false)}
                 onPress={() => {
                   if (flow === 'enable') void submitEnable();
                   if (flow === 'change') void submitChange();
@@ -267,35 +275,35 @@ function SecurityScreenContent() {
           </Section>
         ) : null}
 
-        <Section title="Device biometrics" theme={theme}>
-          <StatusRow label="Unlock preference" value={config?.biometricUnlockEnabled ? 'Enabled' : 'Disabled'} theme={theme} />
-          <Text style={[styles.body, { color: availabilityError ? theme.destructive : theme.secondaryText }]}>{availabilityError ?? availabilityText(availability)}</Text>
-          <Text style={[styles.caption, { color: theme.mutedText }]}>Money Control requires strong biometrics where Android reports a security level. The local PIN always remains available.</Text>
+        <Section title={copy.biometricsSection} theme={theme}>
+          <StatusRow label={copy.unlockPreference} value={config?.biometricUnlockEnabled ? copy.enabled : copy.disabled} theme={theme} />
+          <Text style={[styles.body, { color: availabilityFailed ? theme.destructive : theme.secondaryText }]}>{availabilityFailed ? copy.statusCheckFailed : availabilityText(copy, availability)}</Text>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{copy.biometricsRequirement}</Text>
           {enabled ? (
             <SecondaryButton
               disabled={busy || (!config?.biometricUnlockEnabled && availability?.status !== 'available')}
-              label={config?.biometricUnlockEnabled ? 'Disable biometric unlock' : 'Enable biometric unlock'}
+              label={config?.biometricUnlockEnabled ? copy.disableBiometricUnlock : copy.enableBiometricUnlock}
               onPress={() => startFlow('biometric')}
             />
           ) : null}
         </Section>
 
         {enabled && config ? (
-          <Section title="Automatic locking" theme={theme}>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>Lock after Money Control has remained outside the active foreground for:</Text>
+          <Section title={copy.automaticLocking} theme={theme}>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{copy.lockAfter}</Text>
             <View accessibilityRole="radiogroup" style={styles.delayList}>
               {APP_LOCK_DELAYS.map((delay) => {
                 const selected = config.lockDelayMs === delay;
                 return (
                   <Pressable
                     key={delay}
-                    accessibilityLabel={delayLabels[delay]}
+                    accessibilityLabel={delayLabel(copy, delay)}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected, disabled: busy }}
                     disabled={busy}
                     onPress={() => void updateDelay(delay)}
                     style={[styles.delayRow, { backgroundColor: selected ? theme.tintPrimary : theme.elevatedSurface }]}>
-                    <Text style={[styles.body, { color: theme.primaryText, fontFamily: selected ? fonts.sans.bold : fonts.sans.regular, fontWeight: selected ? '700' : '400' }]}>{delayLabels[delay]}</Text>
+                    <Text style={[styles.body, { color: theme.primaryText, fontFamily: selected ? fonts.sans.bold : fonts.sans.regular, fontWeight: selected ? '700' : '400' }]}>{delayLabel(copy, delay)}</Text>
                     {selected ? <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={22} tintColor={theme.primaryAction} /> : null}
                   </Pressable>
                 );
@@ -304,12 +312,12 @@ function SecurityScreenContent() {
           </Section>
         ) : null}
 
-        <Section title="Privacy and limitations" theme={theme}>
+        <Section title={copy.privacySection} theme={theme}>
           {privacyError ? <Text accessibilityLiveRegion="polite" selectable style={[styles.body, { color: theme.warning }]}>{privacyError}</Text> : null}
-          <Limit title="Local interface protection" text="App Lock does not replace Android device security and cannot protect a rooted or otherwise compromised device." theme={theme} />
-          <Limit title="Database is not encrypted" text="The SQLite database remains plaintext inside the app sandbox in this phase." theme={theme} />
-          <Limit title="Backups remain plaintext" text="Exported JSON backups contain financial data, do not include the PIN or App Lock records, and remain readable outside Money Control." theme={theme} />
-          <Limit title="Future notifications" text="Future financial notifications must hide sensitive content when App Lock privacy requires it." theme={theme} />
+          <Limit title={copy.localProtectionTitle} text={copy.localProtectionText} theme={theme} />
+          <Limit title={copy.databaseTitle} text={copy.databaseText} theme={theme} />
+          <Limit title={copy.backupsTitle} text={copy.backupsText} theme={theme} />
+          <Limit title={copy.notificationsTitle} text={copy.notificationsText} theme={theme} />
         </Section>
       </ScrollView>
       <DialogHost dialog={dialog} />
@@ -319,18 +327,18 @@ function SecurityScreenContent() {
 
 type Theme = ReturnType<typeof useAppTheme>;
 
-function flowTitle(flow: Exclude<Flow, null>, biometricEnabled: boolean): string {
-  if (flow === 'enable') return 'Create App Lock PIN';
-  if (flow === 'change') return 'Change PIN';
-  if (flow === 'disable') return 'Confirm PIN to disable';
-  return biometricEnabled ? 'Confirm PIN to disable biometrics' : 'Confirm PIN to enable biometrics';
+function flowTitle(copy: Copy, flow: Exclude<Flow, null>, biometricEnabled: boolean): string {
+  if (flow === 'enable') return copy.createPinTitle;
+  if (flow === 'change') return copy.changePin;
+  if (flow === 'disable') return copy.confirmToDisable;
+  return biometricEnabled ? copy.confirmToDisableBiometrics : copy.confirmToEnableBiometrics;
 }
 
-function flowSubmitLabel(flow: Exclude<Flow, null>, biometricEnabled: boolean): string {
-  if (flow === 'enable') return 'Create PIN and enable';
-  if (flow === 'change') return 'Change PIN';
-  if (flow === 'disable') return 'Continue';
-  return biometricEnabled ? 'Disable biometrics' : 'Continue to biometric prompt';
+function flowSubmitLabel(copy: Copy, flow: Exclude<Flow, null>, biometricEnabled: boolean): string {
+  if (flow === 'enable') return copy.createAndEnable;
+  if (flow === 'change') return copy.changePin;
+  if (flow === 'disable') return copy.continue;
+  return biometricEnabled ? copy.disableBiometrics : copy.continueToBiometricPrompt;
 }
 
 function Section({ children, theme, title }: { children: React.ReactNode; theme: Theme; title: string }) {

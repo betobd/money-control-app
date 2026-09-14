@@ -2,8 +2,13 @@ import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import type { BudgetView } from '@/features/budgets/budget.types';
 import type { RecurringOccurrenceListItem, RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
+import { getMessages } from '@/i18n/messages';
 import type { LocalNotificationContent, NotificationContentMode } from './notification.types';
 import type { CreditCardDetails } from '@/features/credit-cards/credit-card.types';
+
+// Content is built in the active language when a notification is scheduled.
+// NotificationCoordinator.languageChanged re-schedules pending work after a
+// language change so its text follows.
 
 type RecurringContentSource = Pick<
   RecurringOccurrenceListItem | RecurringRuleListItem,
@@ -16,18 +21,14 @@ export function recurringReminderContent(
   timing: 'upcoming' | 'due' | 'overdue',
   occurrenceId?: string,
 ): LocalNotificationContent {
-  const privateBody = timing === 'upcoming'
-    ? 'You have an upcoming recurring transaction to review.'
-    : timing === 'overdue'
-      ? 'You have an overdue recurring transaction to review.'
-      : 'You have a recurring transaction to review.';
-  const timingText = timing === 'upcoming' ? 'is coming up' : timing === 'overdue' ? 'is overdue' : 'is due today';
+  const t = getMessages().notifications.content;
+  const amount = formatMoneyWithSymbol(source.amount, source.currency);
   const detail = source.type === 'transfer'
-    ? `A recurring transfer of ${formatMoneyWithSymbol(source.amount, source.currency)} ${timingText}.`
-    : `${source.categoryName ?? 'A recurring transaction'} for ${formatMoneyWithSymbol(source.amount, source.currency)} ${timingText}.`;
+    ? t.recurringTransfer(amount, timing)
+    : t.recurringCategory(source.categoryName ?? null, amount, timing);
   return {
-    title: 'Money Control reminder',
-    body: mode === 'private' ? privateBody : detail,
+    title: t.reminderTitle,
+    body: mode === 'private' ? t.recurringPrivate(timing) : detail,
     data: { version: 1, target: 'recurring', ...(occurrenceId ? { occurrenceId } : {}) },
     priority: timing === 'upcoming' ? 'default' : 'high',
   };
@@ -38,8 +39,9 @@ export function budgetAlertContent(
   threshold: 80 | 100,
   mode: NotificationContentMode,
 ): LocalNotificationContent {
+  const t = getMessages().notifications.content;
   const over = threshold === 100;
-  const privateBody = over ? 'A budget has reached its limit.' : 'A budget is close to its limit.';
+  const privateBody = over ? t.budgetReachedPrivate : t.budgetNearingPrivate;
   const month = budgetMonthLabel(budget.month);
   // A subcategory budget names its parent: two categories may each have an
   // "Otros", and "Otros has reached its budget" would say nothing.
@@ -47,10 +49,10 @@ export function budgetAlertContent(
     ? `${budget.categoryParentName} › ${budget.categoryName}`
     : budget.categoryName;
   const detailedBody = over
-    ? `${label} has reached its ${month} budget.`
-    : `${label} has used ${Math.round(budget.percentageUsed)}% of its ${month} budget.`;
+    ? t.budgetReachedDetail(label, month)
+    : t.budgetNearingDetail(label, Math.round(budget.percentageUsed), month);
   return {
-    title: over ? 'Budget limit reached' : 'Budget nearing limit',
+    title: over ? t.budgetReachedTitle : t.budgetNearingTitle,
     body: mode === 'private' ? privateBody : detailedBody,
     data: { version: 1, target: 'budgets' },
     priority: over ? 'high' : 'default',
@@ -58,18 +60,20 @@ export function budgetAlertContent(
 }
 
 export function dailyReminderContent(): LocalNotificationContent {
+  const messages = getMessages();
   return {
-    title: 'Money Control',
-    body: 'Take a moment to review your finances.',
+    title: messages.common.appName,
+    body: messages.notifications.content.dailyBody,
     data: { version: 1, target: 'home' },
     priority: 'low',
   };
 }
 
 export function testNotificationContent(): LocalNotificationContent {
+  const t = getMessages().notifications.content;
   return {
-    title: 'Money Control test',
-    body: 'Local reminders are ready on this device.',
+    title: t.testTitle,
+    body: t.testBody,
     data: { version: 1, target: 'home' },
     priority: 'default',
   };
@@ -81,15 +85,14 @@ export function creditCardReminderContent(
   kind: 'closing' | 'due',
   date: string,
 ): LocalNotificationContent {
-  const privateBody = kind === 'closing'
-    ? 'A credit card statement closes soon.'
-    : 'A credit card payment is due soon.';
+  const t = getMessages().notifications.content;
+  const privateBody = kind === 'closing' ? t.cardClosingPrivate : t.cardDuePrivate;
   const remaining = card.latestStatement?.remainingStatement ?? 0;
   const detailedBody = kind === 'closing'
-    ? `${card.account.name} closes on ${date}.`
-    : `${card.account.name} has ${formatMoneyWithSymbol(remaining, card.account.currency)} remaining, due ${date}.`;
+    ? t.cardClosingDetail(card.account.name, date)
+    : t.cardDueDetail(card.account.name, formatMoneyWithSymbol(remaining, card.account.currency), date);
   return {
-    title: kind === 'closing' ? 'Statement closing soon' : 'Credit card payment due',
+    title: kind === 'closing' ? t.cardClosingTitle : t.cardDueTitle,
     body: mode === 'private' ? privateBody : detailedBody,
     data: { version: 1, target: 'credit-card', cardId: card.account.id },
     priority: kind === 'due' ? 'high' : 'default',

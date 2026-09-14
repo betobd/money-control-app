@@ -10,6 +10,7 @@ import { getCategoryIcon } from '@/features/categories/category-icons';
 import { filterCategoryTree } from '@/features/categories/category-search';
 import type { CategoryTree } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type CategoryPickerProps = {
   visible: boolean;
@@ -32,7 +33,7 @@ type CategoryPickerProps = {
  */
 export function CategoryPicker({
   visible,
-  title = 'Select category',
+  title,
   categories,
   selection,
   onSelect,
@@ -40,6 +41,8 @@ export function CategoryPicker({
   onManage,
 }: CategoryPickerProps) {
   const theme = useAppTheme();
+  const t = useMessages();
+  const tp = t.addTransaction.categoryPicker;
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const results = filterCategoryTree(categories, query);
@@ -58,7 +61,7 @@ export function CategoryPicker({
   return (
     <Modal animationType="slide" onRequestClose={close} transparent visible={visible}>
       <Pressable
-        accessibilityLabel="Close category picker"
+        accessibilityLabel={tp.close}
         onPress={close}
         style={[styles.backdrop, { backgroundColor: theme.overlay }]}
       />
@@ -70,19 +73,19 @@ export function CategoryPicker({
         <View style={[styles.grabber, { backgroundColor: theme.border }]} />
         <View style={styles.heading}>
           <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
-            {title}
+            {title ?? t.addTransaction.selectCategory}
           </Text>
           <Pressable accessibilityRole="button" onPress={close} style={styles.close}>
-            <Text style={{ color: theme.primaryAction }}>Close</Text>
+            <Text style={{ color: theme.primaryAction }}>{t.common.close}</Text>
           </Pressable>
         </View>
 
         <TextInput
-          accessibilityLabel="Search categories"
+          accessibilityLabel={tp.searchLabel}
           autoCorrect={false}
           clearButtonMode="while-editing"
           onChangeText={setQuery}
-          placeholder="Search categories…"
+          placeholder={tp.searchPlaceholder}
           placeholderTextColor={theme.mutedText}
           style={[
             styles.search,
@@ -94,7 +97,7 @@ export function CategoryPicker({
         <ScrollView accessibilityRole="radiogroup" keyboardShouldPersistTaps="handled">
           {results.length === 0 ? (
             <Text style={[styles.empty, { color: theme.secondaryText }]}>
-              {query ? `No categories match “${query.trim()}”.` : 'No active categories yet.'}
+              {query ? tp.noMatches(query.trim()) : tp.noActive}
             </Text>
           ) : null}
           {results.map((category) => {
@@ -103,7 +106,7 @@ export function CategoryPicker({
             return (
               <View key={category.id} style={styles.treeGroup}>
                 <PressableScale
-                  accessibilityLabel={`${category.name} category`}
+                  accessibilityLabel={t.addTransaction.categoryGrid.categoryA11y(category.name)}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: categorySelected }}
                   onPress={() => choose({ categoryId: category.id, subcategoryId: null })}
@@ -128,7 +131,7 @@ export function CategoryPicker({
                   const selected = selection?.subcategoryId === subcategory.id;
                   return (
                     <PressableScale
-                      accessibilityLabel={`${subcategory.name}, subcategory of ${category.name}`}
+                      accessibilityLabel={tp.subcategoryA11y(subcategory.name, category.name)}
                       accessibilityRole="radio"
                       accessibilityState={{ checked: selected }}
                       key={subcategory.id}
@@ -165,7 +168,7 @@ export function CategoryPicker({
               onManage();
             }}
             style={styles.manage}>
-            <Text style={[styles.manageText, { color: theme.primaryAction }]}>Manage categories</Text>
+            <Text style={[styles.manageText, { color: theme.primaryAction }]}>{t.addTransaction.manageCategories}</Text>
           </Pressable>
         ) : null}
       </View>

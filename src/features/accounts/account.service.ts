@@ -9,6 +9,7 @@ import { accountTypes } from './account.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
+import { getMessages } from '@/i18n/messages';
 
 export type EstimatedNetWorth = {
   /** Consolidated base-currency total, or null when it cannot be computed. */
@@ -51,27 +52,28 @@ function normalizeName(name: string): string {
 
 export function validateAccountInput(input: AccountInput): AccountValidationErrors {
   const errors: AccountValidationErrors = {};
-  if (!input.name.trim()) errors.name = 'Enter an account name.';
+  const messages = getMessages().accounts.validation;
+  if (!input.name.trim()) errors.name = messages.nameRequired;
   // `other` is a legacy/backup value only; new accounts must use a creatable type.
-  if (!(accountTypes as readonly string[]).includes(input.type)) errors.type = 'Select a supported account type.';
-  if (!isSupportedCurrency(input.currency)) errors.currency = 'Select a supported currency.';
+  if (!(accountTypes as readonly string[]).includes(input.type)) errors.type = messages.typeUnsupported;
+  if (!isSupportedCurrency(input.currency)) errors.currency = messages.currencyUnsupported;
   if (!Number.isSafeInteger(input.openingBalance)) {
-    errors.openingBalance = 'Opening balance must be a whole, safe amount.';
+    errors.openingBalance = messages.openingBalanceInvalid;
   }
   if (input.type === 'credit_card') {
     if (!Number.isSafeInteger(input.creditLimit) || (input.creditLimit ?? 0) <= 0) {
-      errors.creditLimit = 'Credit limit must be a positive whole, safe amount.';
+      errors.creditLimit = messages.creditLimitInvalid;
     }
     if (!Number.isInteger(input.statementClosingDay) || (input.statementClosingDay ?? 0) < 1 || (input.statementClosingDay ?? 0) > 31) {
-      errors.statementClosingDay = 'Closing day must be a whole number from 1 to 31.';
+      errors.statementClosingDay = messages.closingDayInvalid;
     }
     if (!Number.isInteger(input.paymentDueDay) || (input.paymentDueDay ?? 0) < 1 || (input.paymentDueDay ?? 0) > 31) {
-      errors.paymentDueDay = 'Payment due day must be a whole number from 1 to 31.';
+      errors.paymentDueDay = messages.dueDayInvalid;
     }
   } else if (input.creditLimit !== null) {
-    errors.creditLimit = 'Credit limit is only available for credit cards.';
+    errors.creditLimit = messages.creditLimitCardOnly;
   } else if (input.statementClosingDay !== null || input.paymentDueDay !== null) {
-    errors.statementClosingDay = 'Card cycle settings are only available for credit cards.';
+    errors.statementClosingDay = messages.cycleCardOnly;
   }
   return errors;
 }
@@ -139,7 +141,7 @@ export class AccountService {
 
   async update(id: string, input: AccountInput): Promise<void> {
     const current = await this.repository.findById(id);
-    if (!current) throw new Error('Account not found.');
+    if (!current) throw new Error(getMessages().accounts.errors.notFound);
     const normalized = await this.validate(input, id, current.isArchived);
 
     if (normalized.currency !== current.currency) {
@@ -148,7 +150,7 @@ export class AccountService {
         eligibility.hasFinancialReferences || current.openingBalance !== 0;
       if (hasFinancialHistory) {
         throw new AccountValidationError({
-          currency: 'The currency cannot be changed after this account has financial activity.',
+          currency: getMessages().accounts.validation.currencyLocked,
         });
       }
     }
@@ -159,7 +161,7 @@ export class AccountService {
       && await this.repository.hasCreditCardStatements(id)
     ) {
       throw new AccountValidationError({
-        type: 'A credit card with statement history cannot change account type.',
+        type: getMessages().accounts.validation.cardTypeLocked,
       });
     }
 
@@ -168,7 +170,7 @@ export class AccountService {
       const currentDebt = withBalance && withBalance.balance < 0 ? Math.abs(withBalance.balance) : 0;
       if (normalized.creditLimit < currentDebt) {
         throw new AccountValidationError({
-          creditLimit: 'Credit limit cannot be lower than the card’s current debt.',
+          creditLimit: getMessages().accounts.validation.creditLimitBelowDebt,
         });
       }
     }
@@ -178,7 +180,7 @@ export class AccountService {
       (await this.repository.hasPostedTransactions(id))
     ) {
       throw new AccountValidationError({
-        openingBalance: 'Opening balance cannot change after posted account activity.',
+        openingBalance: getMessages().accounts.validation.openingBalanceLocked,
       });
     }
 
@@ -188,7 +190,7 @@ export class AccountService {
 
   async archive(id: string): Promise<void> {
     const account = await this.repository.findById(id);
-    if (!account) throw new Error('Account not found.');
+    if (!account) throw new Error(getMessages().accounts.errors.notFound);
     if (!account.isArchived) {
       await this.repository.archive(id, this.now());
       notifyFinancialDataChanged({ kind: 'account', operation: 'archive', accountId: id });
@@ -197,15 +199,15 @@ export class AccountService {
 
   async restore(id: string): Promise<void> {
     const account = await this.repository.findById(id);
-    if (!account) throw new AccountActionError('account_not_found', 'Account not found.');
+    if (!account) throw new AccountActionError('account_not_found', getMessages().accounts.errors.notFound);
     if (!account.isArchived) {
-      throw new AccountActionError('account_not_archived', 'Only archived accounts can be restored.');
+      throw new AccountActionError('account_not_archived', getMessages().accounts.errors.onlyArchivedRestore);
     }
     const duplicate = await this.repository.findActiveByNormalizedName(normalizeName(account.name), id);
     if (duplicate) {
       throw new AccountActionError(
         'restore_name_conflict',
-        'An active account already uses this name. Rename the archived account before restoring it.',
+        getMessages().accounts.errors.restoreNameConflict,
       );
     }
     await this.repository.restore(id, this.now());
@@ -225,18 +227,18 @@ export class AccountService {
   async permanentlyDelete(id: string): Promise<void> {
     const eligibility = await this.repository.getDeletionEligibility(id);
     if (!eligibility.account) {
-      throw new AccountActionError('account_not_found', 'Account not found.');
+      throw new AccountActionError('account_not_found', getMessages().accounts.errors.notFound);
     }
     if (eligibility.hasFinancialReferences) {
       throw new AccountActionError(
         'deletion_has_activity',
-        'This account has financial activity or references and cannot be permanently deleted.',
+        getMessages().accounts.errors.deletionHasActivity,
       );
     }
     if (eligibility.account.openingBalance !== 0 || eligibility.account.balance !== 0) {
       throw new AccountActionError(
         'deletion_non_zero_balance',
-        'Only accounts with zero opening and current balances can be permanently deleted.',
+        getMessages().accounts.errors.deletionNonZeroBalance,
       );
     }
     await this.repository.permanentlyDelete(id);
@@ -307,14 +309,14 @@ export class AccountService {
       && normalized.openingBalance < 0
       && normalized.creditLimit < Math.abs(normalized.openingBalance)
     ) {
-      errors.creditLimit = 'Credit limit cannot be lower than the opening card debt.';
+      errors.creditLimit = getMessages().accounts.validation.creditLimitBelowOpeningDebt;
     }
     if (!errors.name && !isArchived) {
       const duplicate = await this.repository.findActiveByNormalizedName(
         normalizeName(normalized.name),
         excludingId,
       );
-      if (duplicate) errors.name = 'An active account already uses this name.';
+      if (duplicate) errors.name = getMessages().accounts.validation.nameTaken;
     }
     if (Object.keys(errors).length > 0) throw new AccountValidationError(errors);
     return normalized;

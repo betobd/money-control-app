@@ -5,9 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 import {
   categoryIconCatalog,
   categoryIconGroupNames,
+  categoryIconKeys,
   searchCategoryIcons,
   type CategoryIcon,
 } from '../category-icons';
@@ -30,8 +32,10 @@ type IconPickerProps = {
 export function IconPicker({ visible, selected, onSelect, onClose }: IconPickerProps) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const language = useLanguage();
   const [query, setQuery] = useState('');
-  const matches = searchCategoryIcons(query);
+  const matches = searchCategoryIcons(query, language);
 
   function close() {
     setQuery('');
@@ -46,14 +50,14 @@ export function IconPicker({ visible, selected, onSelect, onClose }: IconPickerP
   return (
     <Modal animationType="slide" onRequestClose={close} presentationStyle="pageSheet" visible={visible}>
       <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-        <ScreenHeader leading="close" leadingAccessibilityLabel="Close icon picker" onLeadingPress={close} title="Choose icon" />
+        <ScreenHeader leading="close" leadingAccessibilityLabel={t.categories.iconPicker.close} onLeadingPress={close} title={t.categories.iconPicker.title} />
 
         <View style={styles.searchWrapper}>
           <TextInput
-            accessibilityLabel="Search category icons"
+            accessibilityLabel={t.categories.iconPicker.search}
             autoCorrect={false}
             onChangeText={setQuery}
-            placeholder={`Search ${Object.keys(categoryIconCatalog).length} icons`}
+            placeholder={t.categories.iconPicker.searchPlaceholder(categoryIconKeys.length)}
             placeholderTextColor={theme.mutedText}
             style={[styles.search, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
             value={query}
@@ -64,22 +68,23 @@ export function IconPicker({ visible, selected, onSelect, onClose }: IconPickerP
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}
           keyboardShouldPersistTaps="handled">
           {matches.length === 0 ? (
-            <Text style={[styles.empty, { color: theme.secondaryText }]}>No matching icons.</Text>
+            <Text style={[styles.empty, { color: theme.secondaryText }]}>{t.categories.iconPicker.empty}</Text>
           ) : null}
           {categoryIconGroupNames.map((group) => {
             const values = matches.filter((value) => categoryIconCatalog[value].group === group);
             if (values.length === 0) return null;
+            const groupLabel = t.categories.iconGroups[group];
             return (
               <View key={group} style={styles.group}>
-                <Text style={[styles.groupLabel, { color: theme.secondaryText }]}>{group}</Text>
+                <Text style={[styles.groupLabel, { color: theme.secondaryText }]}>{groupLabel}</Text>
                 <View accessibilityRole="radiogroup" style={styles.grid}>
                   {values.map((value) => {
                     const definition = categoryIconCatalog[value];
                     const isSelected = selected === value;
                     return (
                       <Pressable
-                        accessibilityHint={`Category icon in ${definition.group}`}
-                        accessibilityLabel={`${definition.label} icon`}
+                        accessibilityHint={t.categories.iconPicker.iconHint(groupLabel)}
+                        accessibilityLabel={t.categories.iconPicker.iconLabel(t.categories.icons[value])}
                         accessibilityRole="radio"
                         accessibilityState={{ selected: isSelected }}
                         key={value}

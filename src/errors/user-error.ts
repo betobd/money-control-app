@@ -1,3 +1,5 @@
+import { getMessages } from '@/i18n/messages';
+
 /**
  * Maps a thrown value to a message safe to show a user.
  *
@@ -14,9 +16,7 @@
 const TECHNICAL_ERROR_PATTERN =
   /sqlite|constraint failed|foreign key|unique constraint|not null constraint|datatype mismatch|no such (table|column|row)|database is locked|disk i\/o|malformed|out of memory|cannot start a transaction|safe integer|safe cop|undefined is not|null is not|is not a function|cannot read propert|cannot read field/i;
 
-const GENERIC_FALLBACK = 'Something went wrong. Please try again.';
-
-export function toUserMessage(cause: unknown, fallback: string = GENERIC_FALLBACK): string {
+export function toUserMessage(cause: unknown, fallback: string = getMessages().common.genericError): string {
   if (cause instanceof Error) {
     const message = cause.message?.trim();
     if (message && !TECHNICAL_ERROR_PATTERN.test(message) && !message.includes('\n at ')) {

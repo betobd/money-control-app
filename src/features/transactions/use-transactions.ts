@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { firstTransactionListPage } from './transaction-list-filters';
 import { transactionService } from './transactions';
 import type {
@@ -43,7 +44,7 @@ export function useTransactions(query: TransactionListQuery) {
       setDatabaseEmpty(isDatabaseEmpty);
     } catch (cause) {
       if (request !== requestSequence.current) return;
-      setError(cause instanceof Error ? cause.message : 'Unable to load transactions.');
+      setError(cause instanceof Error ? cause.message : getMessages().transactions.errors.unableToLoadList);
     } finally {
       if (request === requestSequence.current) setLoading(false);
     }
@@ -65,7 +66,7 @@ export function useTransactions(query: TransactionListQuery) {
       setNextCursor(page.nextCursor);
     } catch (cause) {
       if (request !== requestSequence.current) return;
-      setError(cause instanceof Error ? cause.message : 'Unable to load more transactions.');
+      setError(cause instanceof Error ? cause.message : getMessages().transactions.errors.unableToLoadMore);
     } finally {
       loadMoreInFlight.current = false;
       if (request === requestSequence.current) setLoadingMore(false);

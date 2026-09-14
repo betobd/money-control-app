@@ -5,6 +5,8 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 export type DialogTone = 'default' | 'destructive';
 
@@ -64,10 +66,11 @@ export function useDialog(): Dialog {
   }, [request]);
 
   const confirm = useCallback<Dialog['confirm']>((next) => {
+    const t = getMessages();
     setRequest({
       kind: 'confirm',
-      confirmLabel: 'Confirm',
-      cancelLabel: 'Cancel',
+      confirmLabel: t.common.confirm,
+      cancelLabel: t.common.cancel,
       tone: 'default',
       ...next,
     });
@@ -82,6 +85,7 @@ export function useDialog(): Dialog {
 
 export function DialogHost({ dialog }: { dialog: Dialog }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const { request, dismiss, cancel } = dialog;
   const destructive = request?.kind === 'confirm' && request.tone === 'destructive';
 
@@ -121,11 +125,11 @@ export function DialogHost({ dialog }: { dialog: Dialog }) {
           </>
         ) : (
           <PressableScale
-            accessibilityLabel="Dismiss"
+            accessibilityLabel={t.common.dismiss}
             accessibilityRole="button"
             onPress={dismiss}
             style={StyleSheet.flatten([styles.button, { backgroundColor: theme.elevatedSurface }])}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>OK</Text>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>{t.common.ok}</Text>
           </PressableScale>
         )}
       </View>

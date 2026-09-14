@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import {
+  currencyName,
   formatMoneyEntry,
   formatMoneyWithSymbol,
   getCurrency,
@@ -30,6 +31,8 @@ import { sanitizeAmountEntry } from '@/features/add-transaction/components/amoun
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
+import { getMessages } from '@/i18n/messages';
 import { CreditCardOverpaymentConfirmationRequired } from '../credit-card-payment.service';
 import { creditCardPaymentService } from '../credit-cards';
 import type {
@@ -46,6 +49,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const { accounts } = useAccounts();
   const { details, loading, error: loadError, reload } = useCreditCard(accountId);
   const sources = useMemo(
@@ -82,7 +86,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
   const customAmount = parsedCustom.ok ? parsedCustom.minor : 0;
   const customAmountValid = parsedCustom.ok && customAmount > 0;
   const customAmountError = option === 'other' && customAmountTouched && !customAmountValid
-    ? 'Enter a valid amount greater than zero.'
+    ? t.creditCards.validation.enterPositiveAmount
     : undefined;
   const parsedSourceAmount = parseMoney(sourceAmountDigits || '0', sourceCurrency);
   const sourceAmountValue = parsedSourceAmount.ok ? parsedSourceAmount.minor : 0;
@@ -107,7 +111,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     const timer = setTimeout(() => {
       setOption((current) => current === unavailableOption ? null : current);
       setPreview(undefined);
-      setSelectionMessage(selectedOption.unavailableReason ?? 'That payment option is no longer available.');
+      setSelectionMessage(selectedOption.unavailableReason ?? getMessages().creditCards.pay.optionNoLongerAvailable);
     }, 0);
     return () => clearTimeout(timer);
   }, [option, selectedOption]);
@@ -124,7 +128,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       void creditCardPaymentService.preview(input).then((value) => {
         if (active) setPreview(value);
       }, (cause: unknown) => {
-        if (active) setServiceError(toUserMessage(cause, 'Unable to calculate payment.'));
+        if (active) setServiceError(toUserMessage(cause, getMessages().creditCards.errors.calculatePayment));
       });
     }, 0);
     return () => {
@@ -146,7 +150,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
     if (saving) return;
     const input = buildInput(confirmOverpayment);
     if (!input) {
-      setSelectionMessage('Select an available payment option.');
+      setSelectionMessage(t.creditCards.pay.selectAvailableOption);
       return;
     }
     if (input.option === 'other' && !customAmountValid) {
@@ -162,9 +166,9 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       if (cause instanceof CreditCardOverpaymentConfirmationRequired) {
         setSaving(false);
         dialog.confirm({
-          title: 'Confirm card overpayment',
+          title: t.creditCards.pay.overpaymentTitle,
           message: cause.message,
-          confirmLabel: 'Pay anyway',
+          confirmLabel: t.creditCards.pay.payAnyway,
           onConfirm: () => void submit(true),
           // The submit that raised this left `saving` true; backing out has to
           // release the button or the form stays stuck.
@@ -172,7 +176,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         });
         return;
       }
-      setServiceError(toUserMessage(cause, 'Unable to create card payment.'));
+      setServiceError(toUserMessage(cause, t.creditCards.errors.createPayment));
       setSaving(false);
     }
   }
@@ -183,9 +187,9 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
   if (loadError || !details) {
     return (
       <View style={[styles.center, { backgroundColor: theme.appBackground }]}>
-        <Text style={[styles.body, { color: theme.destructive }]}>{loadError ?? 'Credit card not found.'}</Text>
+        <Text style={[styles.body, { color: theme.destructive }]}>{loadError ?? t.creditCards.errors.cardNotFound}</Text>
         <Pressable accessibilityRole="button" onPress={() => void reload()} style={[styles.retry, { backgroundColor: theme.elevatedSurface }]}>
-          <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>Retry</Text>
+          <Text style={[styles.bodyStrong, { color: theme.primaryText }]}>{t.common.retry}</Text>
         </Pressable>
       </View>
     );
@@ -196,19 +200,19 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}
     >
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close card payment" title={`Pay ${details.account.name}`} />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.creditCards.pay.close} title={t.creditCards.pay.title(details.account.name)} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.summary, { backgroundColor: theme.elevatedSurface }]}>
-          <Value label="Current debt" value={money(details.utilization.currentDebt)} />
-          <Text style={[styles.help, { color: theme.mutedText }]}>The total amount currently owed based on transactions recorded in Money Control.</Text>
-          <Value label="Remaining statement" value={details.latestStatement ? money(details.latestStatement.remainingStatement) : 'No statement recorded'} />
-          <Text style={[styles.help, { color: theme.mutedText }]}>The unpaid portion of the latest statement based on qualifying card payments.</Text>
+          <Value label={t.creditCards.pay.currentDebt} value={money(details.utilization.currentDebt)} />
+          <Text style={[styles.help, { color: theme.mutedText }]}>{t.creditCards.details.currentDebtHelp}</Text>
+          <Value label={t.creditCards.pay.remainingStatement} value={details.latestStatement ? money(details.latestStatement.remainingStatement) : t.creditCards.pay.noStatement} />
+          <Text style={[styles.help, { color: theme.mutedText }]}>{t.creditCards.pay.remainingStatementHelp}</Text>
         </View>
 
-        <Field label="1. Source account">
+        <Field label={t.creditCards.pay.sourceAccountStep}>
           <View style={styles.choices}>
             {sources.map((source) => (
               <SourceChoice
@@ -219,10 +223,10 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
               />
             ))}
           </View>
-          {sources.length === 0 ? <Text style={[styles.help, { color: theme.destructive }]}>Create or restore a non-card account before paying this card.</Text> : null}
+          {sources.length === 0 ? <Text style={[styles.help, { color: theme.destructive }]}>{t.creditCards.pay.noSources}</Text> : null}
         </Field>
 
-        <Field label="2. Payment option">
+        <Field label={t.creditCards.pay.paymentOptionStep}>
           <View accessibilityRole="radiogroup" style={styles.optionList}>
             {options.map((item) => (
               <PaymentOptionChoice
@@ -238,9 +242,9 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         </Field>
 
         {option === 'other' ? (
-          <Field label={`Other amount (${cardCurrency}, credited to card)`}>
+          <Field label={t.creditCards.pay.otherAmount(cardCurrency)}>
             <TextInput
-              accessibilityLabel={`Other card payment amount in ${getCurrency(cardCurrency).name}`}
+              accessibilityLabel={t.creditCards.pay.otherAmountAccessibility(currencyName(cardCurrency))}
               keyboardType={getCurrency(cardCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
               onBlur={() => setCustomAmountTouched(true)}
               onChangeText={(value) => {
@@ -248,7 +252,7 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
                 setCustomAmountTouched(true);
                 setPreview(undefined);
               }}
-              placeholder="Enter amount"
+              placeholder={t.creditCards.pay.enterAmount}
               placeholderTextColor={theme.mutedText}
               style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: customAmountError ? theme.destructive : theme.hairline, color: theme.primaryText }]}
               value={formatMoneyEntry(amountDigits, cardCurrency)}
@@ -258,74 +262,74 @@ export function PayCreditCardScreen({ accountId }: { accountId: string }) {
         ) : null}
 
         {crossCurrency ? (
-          <Field label={`Amount sent from source (${sourceCurrency})`}>
+          <Field label={t.creditCards.pay.sourceAmount(sourceCurrency)}>
             <TextInput
-              accessibilityLabel={`Amount debited from the source account in ${getCurrency(sourceCurrency).name}`}
+              accessibilityLabel={t.creditCards.pay.sourceAmountAccessibility(currencyName(sourceCurrency))}
               keyboardType={getCurrency(sourceCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
               onChangeText={(value) => {
                 setSourceAmountDigits(sanitizeAmountEntry(value, sourceCurrency));
                 setPreview(undefined);
               }}
-              placeholder="Enter amount your account was debited"
+              placeholder={t.creditCards.pay.sourceAmountPlaceholder}
               placeholderTextColor={theme.mutedText}
               style={[styles.input, styles.amountInput, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
               value={formatMoneyEntry(sourceAmountDigits, sourceCurrency)}
             />
             <Text style={[styles.help, { color: theme.mutedText }]}>
-              This card payment converts {sourceCurrency} to {cardCurrency}. Enter the actual amount sent and credited; both are saved.
+              {t.creditCards.pay.conversionHelp(sourceCurrency, cardCurrency)}
             </Text>
           </Field>
         ) : null}
 
-        <DateField label="3. Payment date" onChange={setDate} value={date} />
-        <Field label="Optional note">
+        <DateField label={t.creditCards.pay.paymentDateStep} onChange={setDate} value={date} />
+        <Field label={t.creditCards.pay.note}>
           <TextInput
-            accessibilityLabel="Optional payment note"
+            accessibilityLabel={t.creditCards.pay.noteAccessibility}
             maxLength={200}
             multiline
             onChangeText={setNote}
-            placeholder="e.g. July statement"
+            placeholder={t.creditCards.pay.notePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[styles.input, styles.note, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
             value={note}
           />
         </Field>
 
-        <Field label="4. Review">
+        <Field label={t.creditCards.pay.reviewStep}>
           {preview ? (
             <View style={[styles.review, { backgroundColor: preview.overpaymentAmount > 0 ? theme.tintWarning : theme.surface }]}>
-              <Value label="Source account" value={preview.sourceAccountName} />
-              <Value label="Source available balance" value={`${formatMoneyWithSymbol(preview.sourceBalance, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
-              <Value label="Selected payment option" value={preview.optionLabel} />
-              <Value label={preview.crossCurrency ? 'Amount credited to card' : 'Payment amount'} value={money(preview.amount)} />
+              <Value label={t.creditCards.pay.sourceAccount} value={preview.sourceAccountName} />
+              <Value label={t.creditCards.pay.sourceAvailableBalance} value={`${formatMoneyWithSymbol(preview.sourceBalance, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
+              <Value label={t.creditCards.pay.selectedOption} value={preview.optionLabel} />
+              <Value label={preview.crossCurrency ? t.creditCards.pay.amountCredited : t.creditCards.pay.paymentAmount} value={money(preview.amount)} />
               {preview.crossCurrency ? (
-                <Value label="Amount sent from source" value={`${formatMoneyWithSymbol(preview.sourceAmount, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
+                <Value label={t.creditCards.pay.amountSent} value={`${formatMoneyWithSymbol(preview.sourceAmount, preview.sourceCurrency)} ${preview.sourceCurrency}`} />
               ) : null}
-              <Value label="Current debt" value={money(preview.currentDebt)} />
-              <Value label="Remaining statement" value={details.latestStatement ? money(preview.statementRemaining) : 'No statement recorded'} />
-              <Value label="Expected debt" value={money(preview.expectedDebt)} />
-              <Value label="Expected statement remaining" value={details.latestStatement ? money(preview.expectedStatementRemaining) : 'No statement recorded'} />
-              <Value label="Payment date" value={date} />
+              <Value label={t.creditCards.pay.currentDebt} value={money(preview.currentDebt)} />
+              <Value label={t.creditCards.pay.remainingStatement} value={details.latestStatement ? money(preview.statementRemaining) : t.creditCards.pay.noStatement} />
+              <Value label={t.creditCards.pay.expectedDebt} value={money(preview.expectedDebt)} />
+              <Value label={t.creditCards.pay.expectedStatementRemaining} value={details.latestStatement ? money(preview.expectedStatementRemaining) : t.creditCards.pay.noStatement} />
+              <Value label={t.creditCards.pay.paymentDate} value={date} />
               {preview.amountBeyondStatement > 0 && preview.overpaymentAmount === 0 ? (
-                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>This payment will cover the latest statement and also reduce newer card charges.</Text>
+                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>{t.creditCards.pay.beyondStatement}</Text>
               ) : null}
               {preview.expectedStatementRemaining > 0 && preview.expectedStatementRemaining < preview.statementRemaining ? (
-                <Text style={[styles.help, { color: theme.secondaryText }]}>This payment covers part of the statement, leaving {money(preview.expectedStatementRemaining)}.</Text>
+                <Text style={[styles.help, { color: theme.secondaryText }]}>{t.creditCards.pay.partialStatement(money(preview.expectedStatementRemaining))}</Text>
               ) : null}
               {preview.overpaymentAmount > 0 ? (
-                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>This payment exceeds the current debt by {money(preview.overpaymentAmount)}. The card will have a positive balance.</Text>
+                <Text accessibilityLiveRegion="polite" style={[styles.help, { color: theme.warning }]}>{t.creditCards.overpayment(money(preview.overpaymentAmount))}</Text>
               ) : null}
             </View>
-          ) : <Text style={[styles.help, { color: theme.mutedText }]}>Select an available option to review the payment.</Text>}
+          ) : <Text style={[styles.help, { color: theme.mutedText }]}>{t.creditCards.pay.reviewPlaceholder}</Text>}
           {serviceError ? <Text accessibilityLiveRegion="assertive" style={[styles.help, { color: theme.destructive }]}>{serviceError}</Text> : null}
         </Field>
 
         <Button
-          accessibilityLabel="Confirm credit card payment"
+          accessibilityLabel={t.creditCards.pay.confirmAccessibility}
           busy={saving}
           disabled={!preview}
           fullWidth
-          label="Confirm payment"
+          label={t.creditCards.pay.confirm}
           onPress={() => void submit()}
           size="lg"
           variant="primary"
@@ -347,9 +351,10 @@ function SourceChoice({ label, onPress, selected }: { label: string; onPress: ()
 
 function PaymentOptionChoice({ onPress, selected, value, currency }: { onPress: () => void; selected: boolean; value: CreditCardPaymentOptionView; currency: CurrencyCode }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const detail = value.amount !== null
     ? formatMoneyWithSymbol(value.amount, currency)
-    : value.unavailableReason ?? 'Enter a custom amount';
+    : value.unavailableReason ?? t.creditCards.pay.customAmount;
   return (
     <Pressable
       accessibilityRole="radio"

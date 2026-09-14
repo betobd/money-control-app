@@ -2,6 +2,7 @@ import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transa
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { toBaseCurrencyMinor, type CurrencyCode } from '@/features/currency/currency';
 import { getBaseCurrency } from '@/features/settings/base-currency';
+import { getMessages } from '@/i18n/messages';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type {
   TransactionListCursor,
@@ -18,7 +19,7 @@ import type {
 
 export class RefundValidationError extends Error {
   constructor(public readonly fields: RefundValidationErrors) {
-    super('Refund validation failed.');
+    super(getMessages().refunds.errors.validationFailed);
   }
 }
 
@@ -53,14 +54,15 @@ export class RefundService {
       note: input.note?.trim() || null,
     };
     const errors: RefundValidationErrors = {};
+    const t = getMessages();
     if (!Number.isSafeInteger(normalized.amount) || normalized.amount <= 0) {
-      errors.amount = 'Enter a valid amount greater than zero.';
+      errors.amount = t.transactions.errors.invalidAmount;
     }
     if (!isValidCalendarDate(normalized.transactionDate)) {
-      errors.transactionDate = 'Enter a valid date in YYYY-MM-DD format.';
+      errors.transactionDate = t.transactions.errors.invalidDate;
     }
     if (normalized.note && normalized.note.length > 200) {
-      errors.note = 'Note must be 200 characters or fewer.';
+      errors.note = t.transactions.errors.noteTooLong;
     }
     if (Object.keys(errors).length > 0) throw new RefundValidationError(errors);
 
@@ -82,7 +84,7 @@ export class RefundService {
         !isValidCalendarDate(exchangeRate.effectiveDate)
       ) {
         throw new RefundValidationError({
-          exchangeRate: `Add a ${currency}/${baseCurrency} exchange rate before saving this refund.`,
+          exchangeRate: t.refunds.errors.missingRate(currency, baseCurrency),
         });
       }
       baseAmountMinor = toBaseCurrencyMinor(normalized.amount, currency, baseCurrency, {

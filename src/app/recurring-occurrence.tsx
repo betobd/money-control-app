@@ -7,20 +7,23 @@ import { RecurringTransactionEditor } from '@/features/recurring-transactions/co
 import { recurringTransactionService } from '@/features/recurring-transactions/recurring-transactions';
 import type { RecurringOccurrenceListItem } from '@/features/recurring-transactions/recurring-transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 export default function RecurringOccurrenceRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useAppTheme();
+  const t = useMessages();
   const [occurrence, setOccurrence] = useState<RecurringOccurrenceListItem>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
     recurringTransactionService.getOccurrence(id)
       .then((value) => {
-        if (!value) throw new Error('Recurring occurrence not found.');
+        if (!value) throw new Error(getMessages().recurring.occurrenceNotFound);
         setOccurrence(value);
       })
-      .catch((cause) => setError(toUserMessage(cause, 'Unable to load occurrence.')));
+      .catch((cause) => setError(toUserMessage(cause, getMessages().recurring.occurrenceLoadError)));
   }, [id]);
 
   if (error) return <View style={[styles.center, { backgroundColor: theme.appBackground }]}><Text style={{ color: theme.destructive }}>{error}</Text></View>;
@@ -40,7 +43,7 @@ export default function RecurringOccurrenceRoute() {
       }}
       mode="occurrence"
       onSave={(input) => recurringTransactionService.updateOccurrence(id, input)}
-      title="Edit This Occurrence"
+      title={t.recurring.editOccurrenceTitle}
     />
   );
 }

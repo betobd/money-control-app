@@ -5,8 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
-import { listCurrencies, type CurrencyCode, type CurrencyDefinition } from '@/features/currency/currency';
+import { currencyName, listCurrencies, type CurrencyCode, type CurrencyDefinition } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 import { foldForSearch } from '@/utils/text-search';
 
 type CurrencyPickerProps = {
@@ -21,7 +22,7 @@ type CurrencyPickerProps = {
    * is the difference between a picker and an obstacle.
    */
   suggested?: readonly CurrencyCode[];
-  /** Heading over the suggested codes. */
+  /** Heading over the suggested codes. Defaults to "In use". */
   suggestedLabel?: string;
   /** Codes that cannot be chosen, with the reason shown on the row. */
   disabledCodes?: Readonly<Partial<Record<CurrencyCode, string>>>;
@@ -31,26 +32,31 @@ type Row =
   | { kind: 'heading'; key: string; label: string }
   | { kind: 'currency'; key: string; definition: CurrencyDefinition };
 
+/** Matches the code, the registry's English name, or the name in the active language. */
 function matches(definition: CurrencyDefinition, needle: string): boolean {
   if (!needle) return true;
   return (
     foldForSearch(definition.code).includes(needle) ||
-    foldForSearch(definition.name).includes(needle)
+    foldForSearch(definition.name).includes(needle) ||
+    foldForSearch(currencyName(definition.code)).includes(needle)
   );
 }
 
 /** Searchable list of every supported currency. */
 export function CurrencyPicker({
   visible,
-  title = 'Select currency',
+  title,
   selected,
   onSelect,
   onClose,
   suggested = [],
-  suggestedLabel = 'In use',
+  suggestedLabel,
   disabledCodes,
 }: CurrencyPickerProps) {
   const theme = useAppTheme();
+  // A new catalog on a language change also rebuilds the rows, whose names and
+  // search matches follow the language.
+  const t = useMessages();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
 
@@ -65,15 +71,15 @@ export function CurrencyPicker({
 
     const result: Row[] = [];
     if (top.length > 0) {
-      result.push({ kind: 'heading', key: 'heading-suggested', label: suggestedLabel });
+      result.push({ kind: 'heading', key: 'heading-suggested', label: suggestedLabel ?? t.currency.pickerInUse });
       for (const item of top) result.push({ kind: 'currency', key: `s-${item.code}`, definition: item });
     }
     if (rest.length > 0) {
-      if (top.length > 0) result.push({ kind: 'heading', key: 'heading-all', label: 'All currencies' });
+      if (top.length > 0) result.push({ kind: 'heading', key: 'heading-all', label: t.currency.pickerAllCurrencies });
       for (const item of rest) result.push({ kind: 'currency', key: item.code, definition: item });
     }
     return result;
-  }, [query, suggested, suggestedLabel]);
+  }, [query, suggested, suggestedLabel, t]);
 
   function close() {
     setQuery('');
@@ -89,7 +95,7 @@ export function CurrencyPicker({
   return (
     <Modal animationType="slide" onRequestClose={close} transparent visible={visible}>
       <Pressable
-        accessibilityLabel="Close currency picker"
+        accessibilityLabel={t.currency.pickerClose}
         onPress={close}
         style={[styles.backdrop, { backgroundColor: theme.overlay }]}
       />
@@ -99,7 +105,9 @@ export function CurrencyPicker({
           { backgroundColor: theme.surface, paddingBottom: insets.bottom + spacing.md },
         ]}>
         <View style={[styles.grabber, { backgroundColor: theme.border }]} />
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>{title}</Text>
+        <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
+          {title ?? t.currency.pickerTitle}
+        </Text>
         <View style={[styles.search, { backgroundColor: theme.elevatedSurface, borderColor: theme.hairline }]}>
           <SymbolView
             name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
@@ -107,11 +115,11 @@ export function CurrencyPicker({
             tintColor={theme.mutedText}
           />
           <TextInput
-            accessibilityLabel="Search currencies"
+            accessibilityLabel={t.currency.pickerSearchLabel}
             autoCapitalize="characters"
             autoCorrect={false}
             onChangeText={setQuery}
-            placeholder="Search by name or code"
+            placeholder={t.currency.pickerSearchPlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[styles.searchInput, { color: theme.primaryText }]}
             value={query}
@@ -124,7 +132,7 @@ export function CurrencyPicker({
           keyExtractor={(row) => row.key}
           ListEmptyComponent={
             <Text style={[styles.empty, { color: theme.secondaryText }]}>
-              No currency matches “{query}”.
+              {t.currency.pickerNoMatch(query)}
             </Text>
           }
           renderItem={({ item }) => {
@@ -139,7 +147,7 @@ export function CurrencyPicker({
             return (
               <PressableScale
                 accessibilityHint={disabledReason}
-                accessibilityLabel={`${definition.code}, ${definition.name}`}
+                accessibilityLabel={`${definition.code}, ${currencyName(definition.code)}`}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected, disabled: Boolean(disabledReason) }}
                 disabled={Boolean(disabledReason)}
@@ -152,7 +160,7 @@ export function CurrencyPicker({
                 <Text style={[styles.code, { color: theme.primaryText }]}>{definition.code}</Text>
                 <View style={styles.rowText}>
                   <Text numberOfLines={1} style={[styles.name, { color: theme.primaryText }]}>
-                    {definition.name}
+                    {currencyName(definition.code)}
                   </Text>
                   {disabledReason ? (
                     <Text style={[styles.reason, { color: theme.mutedText }]}>{disabledReason}</Text>

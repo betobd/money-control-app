@@ -5,9 +5,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 type TabItem = {
-  label: string;
+  label: (t: Messages) => string;
   href?: Href;
   pathname: string;
   icon: SymbolViewProps['name'];
@@ -15,24 +17,24 @@ type TabItem = {
 
 const tabs: TabItem[] = [
   {
-    label: 'Home',
+    label: (t) => t.common.tabs.home,
     pathname: '/',
     icon: { ios: 'house.fill', android: 'home', web: 'home' },
   },
   {
-    label: 'Transactions',
+    label: (t) => t.common.tabs.transactions,
     href: '/transactions',
     pathname: '/transactions',
     icon: { ios: 'list.bullet.rectangle.portrait.fill', android: 'receipt_long', web: 'receipt_long' },
   },
   {
-    label: 'Accounts',
+    label: (t) => t.common.tabs.accounts,
     href: '/accounts',
     pathname: '/accounts',
     icon: { ios: 'creditcard.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' },
   },
   {
-    label: 'Budgets',
+    label: (t) => t.common.tabs.budgets,
     href: '/budgets',
     pathname: '/budgets',
     icon: { ios: 'chart.bar.fill', android: 'monitoring', web: 'monitoring' },
@@ -43,6 +45,7 @@ export function PrimaryTabBar({ onHomePress }: { onHomePress: () => void }) {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View
@@ -59,13 +62,13 @@ export function PrimaryTabBar({ onHomePress }: { onHomePress: () => void }) {
       <TabButton item={tabs[1]} selected={pathname === tabs[1].pathname} />
       <View style={styles.addCell}>
         <Pressable
-          accessibilityHint="Opens the Add Transaction modal"
-          accessibilityLabel="Add transaction"
+          accessibilityHint={t.common.tabs.addTransactionHint}
+          accessibilityLabel={t.common.tabs.addTransaction}
           accessibilityRole="button"
           onPress={() => router.push('/add-transaction')}
           style={[styles.addButton, { backgroundColor: theme.primaryAction }]}>
           <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={24} tintColor={theme.onPrimaryAction} />
-          <Text style={[styles.addLabel, { color: theme.onPrimaryAction }]}>Add</Text>
+          <Text style={[styles.addLabel, { color: theme.onPrimaryAction }]}>{t.common.tabs.add}</Text>
         </Pressable>
       </View>
       <TabButton item={tabs[2]} selected={pathname === tabs[2].pathname} />
@@ -84,11 +87,13 @@ function TabButton({
   selected: boolean;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
+  const label = item.label(t);
   const tintColor = selected ? theme.primaryAction : theme.navigationInactive;
 
   return (
     <Pressable
-      accessibilityLabel={item.label}
+      accessibilityLabel={label}
       accessibilityRole="tab"
       accessibilityState={{ selected }}
       onPress={() => {
@@ -102,7 +107,7 @@ function TabButton({
       {selected ? <View style={[styles.indicator, { backgroundColor: theme.primaryAction }]} /> : null}
       <SymbolView name={item.icon} size={22} tintColor={tintColor} />
       <Text numberOfLines={1} style={[styles.tabLabel, { color: tintColor }]}>
-        {item.label}
+        {label}
       </Text>
     </Pressable>
   );

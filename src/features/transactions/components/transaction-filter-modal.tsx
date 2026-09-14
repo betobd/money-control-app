@@ -17,6 +17,8 @@ import type {
   TransactionListFilters,
 } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { DateField } from '@/components/date-field';
 import {
   ChoicePill,
@@ -58,8 +60,9 @@ export function TransactionFilterModal({
   const [picker, setPicker] = useState<FilterPicker>(null);
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
-  const accountOptions = buildAccountOptions(filterOptions.accounts);
-  const categoryOptions = buildCategoryOptions(filterOptions.categories);
+  const t = useMessages();
+  const accountOptions = buildAccountOptions(t, filterOptions.accounts);
+  const categoryOptions = buildCategoryOptions(t, filterOptions.categories);
 
   const apply = () => {
     try {
@@ -72,7 +75,7 @@ export function TransactionFilterModal({
       setDateError(undefined);
       onApply(draft);
     } catch (cause) {
-      setDateError(toUserMessage(cause, 'Enter a valid date range.'));
+      setDateError(toUserMessage(cause, t.transactions.filters.invalidRange));
     }
   };
 
@@ -87,11 +90,11 @@ export function TransactionFilterModal({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={[styles.screen, { backgroundColor: theme.appBackground }]}>
         <ScreenHeader
-          action={{ kind: 'text', label: 'Clear all', accessibilityLabel: 'Clear all transaction filters', onPress: onClearAll }}
+          action={{ kind: 'text', label: t.transactions.list.clearAll, accessibilityLabel: t.transactions.filters.clearAllA11y, onPress: onClearAll }}
           leading="close"
-          leadingAccessibilityLabel="Close transaction filters"
+          leadingAccessibilityLabel={t.transactions.filters.close}
           onLeadingPress={onClose}
-          title="Filters"
+          title={t.transactions.filters.title}
           topInset={insets.top + spacing.sm}
         />
 
@@ -99,11 +102,11 @@ export function TransactionFilterModal({
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <FilterSection title="Transaction type">
+          <FilterSection title={t.transactions.filters.type}>
             <FilterChoiceGroup>
               {typeFilterOptions.map((option) => (
                 <ChoicePill
-                  key={option.label}
+                  key={option.value ?? 'all'}
                   label={option.label}
                   onPress={() => setDraft((current) => ({ ...current, type: option.value }))}
                   selected={draft.type === option.value}
@@ -112,11 +115,11 @@ export function TransactionFilterModal({
             </FilterChoiceGroup>
           </FilterSection>
 
-          <FilterSection title="Status">
+          <FilterSection title={t.transactions.filters.status}>
             <FilterChoiceGroup>
               {statusFilterOptions.map((option) => (
                 <ChoicePill
-                  key={option.label}
+                  key={option.value ?? 'all'}
                   label={option.label}
                   onPress={() => setDraft((current) => ({ ...current, status: option.value }))}
                   selected={draft.status === option.value}
@@ -125,20 +128,20 @@ export function TransactionFilterModal({
             </FilterChoiceGroup>
           </FilterSection>
 
-          <FilterSection title="Scope">
+          <FilterSection title={t.transactions.filters.scope}>
             <FilterValueRow
-              label="Account"
+              label={t.transactions.filters.account}
               onPress={() => setPicker('account')}
               value={labelFor(accountOptions, draft.accountId)}
             />
             <FilterValueRow
-              label="Category"
+              label={t.transactions.filters.category}
               onPress={() => setPicker('category')}
               value={labelFor(categoryOptions, draft.categoryId)}
             />
           </FilterSection>
 
-          <FilterSection title="Date range">
+          <FilterSection title={t.transactions.filters.dateRange}>
             <FilterChoiceGroup>
               {dateFilterOptions.map((option) => (
                 <ChoicePill
@@ -155,13 +158,13 @@ export function TransactionFilterModal({
             {draft.datePreset === 'custom' ? (
               <FilterDateFields>
                 <DateField
-                  label="Start date"
+                  label={t.transactions.filters.startDate}
                   maxDate={draft.customDateTo || undefined}
                   onChange={(value) => setDraft((current) => ({ ...current, customDateFrom: value }))}
                   value={draft.customDateFrom}
                 />
                 <DateField
-                  label="End date"
+                  label={t.transactions.filters.endDate}
                   minDate={draft.customDateFrom || undefined}
                   onChange={(value) => setDraft((current) => ({ ...current, customDateTo: value }))}
                   value={draft.customDateTo}
@@ -178,9 +181,9 @@ export function TransactionFilterModal({
 
         <FixedFooter bottomInset={insets.bottom}>
           <Button
-            accessibilityLabel="Apply transaction filters"
+            accessibilityLabel={t.transactions.filters.applyA11y}
             fullWidth
-            label="Apply filters"
+            label={t.transactions.filters.apply}
             onPress={apply}
             size="lg"
             variant="primary"
@@ -192,7 +195,7 @@ export function TransactionFilterModal({
           onSelect={(accountId) => setDraft((current) => ({ ...current, accountId }))}
           options={accountOptions}
           selectedId={draft.accountId}
-          title="Account"
+          title={t.transactions.filters.account}
           visible={picker === 'account'}
         />
         <FilterOptionSheet
@@ -200,7 +203,7 @@ export function TransactionFilterModal({
           onSelect={(categoryId) => setDraft((current) => ({ ...current, categoryId }))}
           options={categoryOptions}
           selectedId={draft.categoryId}
-          title="Category"
+          title={t.transactions.filters.category}
           visible={picker === 'category'}
         />
       </KeyboardAvoidingView>
@@ -213,12 +216,12 @@ function labelFor(options: readonly FilterOption[], id: string | null): string {
   return options.find((option) => option.id === id)?.label ?? options[0].label;
 }
 
-function buildAccountOptions(accounts: TransactionFilterOptions['accounts']): FilterOption[] {
+function buildAccountOptions(t: Messages, accounts: TransactionFilterOptions['accounts']): FilterOption[] {
   return [
-    { id: null, label: 'All accounts' },
+    { id: null, label: t.transactions.filters.allAccounts },
     ...accounts.map((account) => ({
       id: account.id,
-      label: `${account.name}${account.isArchived ? ' (Archived)' : ''}`,
+      label: account.isArchived ? t.transactions.list.archived(account.name) : account.name,
     })),
   ];
 }
@@ -228,17 +231,17 @@ function buildAccountOptions(accounts: TransactionFilterOptions['accounts']): Fi
  * category. A bare subcategory name ("Taxi") is ambiguous next to the categories
  * it could belong to, and the flat list gave no other clue.
  */
-function buildCategoryOptions(categories: TransactionFilterOptions['categories']): FilterOption[] {
+function buildCategoryOptions(t: Messages, categories: TransactionFilterOptions['categories']): FilterOption[] {
   const names = new Map(categories.map((category) => [category.id, category.name]));
-  const options: FilterOption[] = [{ id: null, label: 'All categories' }];
+  const options: FilterOption[] = [{ id: null, label: t.transactions.filters.allCategories }];
   for (const type of ['expense', 'income'] as const) {
     for (const category of categories.filter((candidate) => candidate.type === type)) {
       const parentName = category.parentCategoryId ? names.get(category.parentCategoryId) : undefined;
       const name = parentName ? `${parentName} · ${category.name}` : category.name;
       options.push({
         id: category.id,
-        label: `${name}${category.isArchived ? ' (Archived)' : ''}`,
-        group: type === 'expense' ? 'Expense' : 'Income',
+        label: category.isArchived ? t.transactions.list.archived(name) : name,
+        group: t.transactions.types[type],
       });
     }
   }

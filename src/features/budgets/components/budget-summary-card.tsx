@@ -7,6 +7,7 @@ import { formatBase } from '@/features/accounts/account-format';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import type { BudgetStatus, BudgetSummary } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 function summaryStatus(summary: BudgetSummary): BudgetStatus {
   if (summary.totalSpent > summary.totalBudget) return 'over-budget';
@@ -17,23 +18,24 @@ function summaryStatus(summary: BudgetSummary): BudgetStatus {
 
 export function BudgetSummaryCard({ summary }: { summary: BudgetSummary }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const status = summaryStatus(summary);
   const remaining = summary.totalRemaining < 0
     ? `-${formatBase(Math.abs(summary.totalRemaining))}`
     : formatBase(summary.totalRemaining);
   return (
     <Card
-      accessibilityLabel={`Total monthly budget ${formatBase(summary.totalBudget)}, spent ${formatBase(summary.totalSpent)}, remaining ${remaining}, ${summary.percentageUsed}% used`}
+      accessibilityLabel={t.budgets.summaryAccessibility(formatBase(summary.totalBudget), formatBase(summary.totalSpent), remaining, summary.percentageUsed)}
       style={styles.card}
       variant="raised">
-      <Overline>Total monthly budget</Overline>
+      <Overline>{t.budgets.totalMonthlyBudget}</Overline>
       <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.total, { color: theme.primaryAction }]}>{formatBase(summary.totalBudget)}</Text>
       <View style={styles.amounts}>
-        <SummaryAmount label="Spent" value={formatBase(summary.totalSpent)} />
-        <SummaryAmount label={summary.totalRemaining < 0 ? 'Over by' : 'Remaining'} destructive={summary.totalRemaining < 0} value={summary.totalRemaining < 0 ? formatBase(Math.abs(summary.totalRemaining)) : remaining} />
+        <SummaryAmount label={t.budgets.spent} value={formatBase(summary.totalSpent)} />
+        <SummaryAmount label={summary.totalRemaining < 0 ? t.budgets.overBy : t.budgets.remaining} destructive={summary.totalRemaining < 0} value={summary.totalRemaining < 0 ? formatBase(Math.abs(summary.totalRemaining)) : remaining} />
       </View>
       <View style={styles.progressLabelRow}>
-        <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>Overall progress</Text>
+        <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>{t.budgets.overallProgress}</Text>
         <Text style={[styles.progressValue, { color: status === 'over-budget' ? theme.destructive : theme.primaryText }]}>{summary.percentageUsed}%</Text>
       </View>
       <BudgetProgressBar percentage={summary.percentageUsed} progressWidth={summary.progressWidth} status={status} />
@@ -41,9 +43,7 @@ export function BudgetSummaryCard({ summary }: { summary: BudgetSummary }) {
           and expected its limit to be added on top of its category's. */}
       {summary.nestedCount > 0 ? (
         <Text style={[styles.note, { color: theme.mutedText }]}>
-          {summary.nestedCount === 1
-            ? '1 sub-limit is counted inside its category, not added to the total.'
-            : `${summary.nestedCount} sub-limits are counted inside their categories, not added to the total.`}
+          {t.budgets.nestedNote(summary.nestedCount)}
         </Text>
       ) : null}
     </Card>

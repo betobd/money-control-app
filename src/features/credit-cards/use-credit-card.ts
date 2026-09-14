@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { useFocusEffect } from 'expo-router';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { subscribeToCreditCardDataChanges } from './credit-card-data-events';
 import { creditCardService } from './credit-cards';
 import type { CreditCardDetails } from './credit-card.types';
@@ -17,7 +18,7 @@ export function useCreditCard(accountId: string) {
     try {
       setDetails(await creditCardService.getDetails(accountId));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load credit card.');
+      setError(cause instanceof Error ? cause.message : getMessages().creditCards.errors.loadCard);
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type SearchFieldProps = {
   value: string;
@@ -12,6 +13,7 @@ type SearchFieldProps = {
 
 export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
@@ -21,12 +23,12 @@ export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) 
         tintColor={theme.secondaryText}
       />
       <TextInput
-        accessibilityLabel="Search transactions"
+        accessibilityLabel={t.transactions.list.searchLabel}
         autoCapitalize="none"
         autoCorrect={false}
         clearButtonMode="never"
         onChangeText={onChangeText}
-        placeholder="Search transactions…"
+        placeholder={t.transactions.list.searchPlaceholder}
         placeholderTextColor={theme.mutedText}
         returnKeyType="search"
         style={[styles.input, { color: theme.primaryText }]}
@@ -34,7 +36,7 @@ export function SearchField({ value, onChangeText, onClear }: SearchFieldProps) 
       />
       {value.length > 0 ? (
         <Pressable
-          accessibilityLabel="Clear transaction search"
+          accessibilityLabel={t.transactions.list.clearSearchLabel}
           accessibilityRole="button"
           hitSlop={8}
           onPress={onClear}

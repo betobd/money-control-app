@@ -6,18 +6,21 @@ import {
   PIN_VERIFIER_VERSION,
   type PinVerifierV1,
 } from './app-lock.types';
+import { getMessages } from '@/i18n/messages';
+
 import type { PinCrypto } from './pin-crypto';
 
 export type RandomBytes = (length: number) => Promise<Uint8Array>;
 
 export class PinValidationError extends Error {
   constructor(public readonly code: 'non_numeric' | 'wrong_length' | 'confirmation_mismatch') {
+    const t = getMessages().security.errors;
     super(
       code === 'non_numeric'
-        ? 'PIN must contain numbers only.'
+        ? t.pinNumbersOnly
         : code === 'wrong_length'
-          ? `PIN must contain exactly ${PIN_LENGTH} digits.`
-          : 'PIN confirmation does not match.',
+          ? t.pinWrongLength(PIN_LENGTH)
+          : t.pinConfirmationMismatch,
     );
     this.name = 'PinValidationError';
   }

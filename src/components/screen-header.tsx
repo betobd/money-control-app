@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 /**
  * The right-hand slot. `add` is the one place a screen offers "create another";
@@ -54,6 +55,7 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
   const icon = leading === 'close'
     ? { ios: 'xmark', android: 'close', web: 'close' } as const
     : { ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' } as const;
@@ -61,7 +63,7 @@ export function ScreenHeader({
   return (
     <View style={[styles.header, { paddingTop: topInset }]}>
       <Pressable
-        accessibilityLabel={leadingAccessibilityLabel ?? (leading === 'close' ? `Close ${title}` : 'Back')}
+        accessibilityLabel={leadingAccessibilityLabel ?? (leading === 'close' ? t.common.closeScreen(title) : t.common.back)}
         accessibilityRole="button"
         accessibilityState={{ disabled: leadingDisabled }}
         disabled={leadingDisabled}

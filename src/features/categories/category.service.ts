@@ -1,5 +1,7 @@
 import { categoryIconKeys, isCategoryIcon, type CategoryIcon } from './category-icons';
 import type { CategoryRepository } from './category.repository';
+import { supportedLanguages, type Language } from '@/i18n/languages';
+import { getLanguage, getMessages, getMessagesFor, type Messages } from '@/i18n/messages';
 import {
   buildCategoryTree,
   categoryTypes,
@@ -47,21 +49,27 @@ export function isCategoryActionError(value: unknown): value is CategoryActionEr
   return value instanceof Error && (value as CategoryActionError).isCategoryActionError === true;
 }
 
-const defaults: { id: string; name: string; type: CategoryType; icon: CategoryIcon }[] = [
-  { id: 'default-expense-food-dining', name: 'Food & Dining', type: 'expense', icon: 'food' },
-  { id: 'default-expense-bills', name: 'Bills', type: 'expense', icon: 'bills' },
-  { id: 'default-expense-transport', name: 'Transport', type: 'expense', icon: 'transport' },
-  { id: 'default-expense-shopping', name: 'Shopping', type: 'expense', icon: 'shopping' },
-  { id: 'default-expense-entertainment', name: 'Entertainment', type: 'expense', icon: 'entertainment' },
-  { id: 'default-expense-health', name: 'Health', type: 'expense', icon: 'health' },
-  { id: 'default-expense-education', name: 'Education', type: 'expense', icon: 'education' },
-  { id: 'default-expense-other', name: 'Other', type: 'expense', icon: 'other' },
-  { id: 'default-income-salary', name: 'Salary', type: 'income', icon: 'salary' },
-  { id: 'default-income-freelance', name: 'Freelance', type: 'income', icon: 'freelance' },
-  { id: 'default-income-gift', name: 'Gift', type: 'income', icon: 'gift' },
-  { id: 'default-income-refund', name: 'Refund', type: 'income', icon: 'refund' },
-  { id: 'default-income-investment', name: 'Investment Income', type: 'income', icon: 'investment' },
-  { id: 'default-income-other', name: 'Other', type: 'income', icon: 'other' },
+type DefaultCategoryId = keyof Messages['categories']['defaultNames'];
+
+/**
+ * The seeded categories. Ids are stable; names come from the catalog, so the set
+ * is seeded in the active language and can follow a language change.
+ */
+const defaults: { id: DefaultCategoryId; type: CategoryType; icon: CategoryIcon }[] = [
+  { id: 'default-expense-food-dining', type: 'expense', icon: 'food' },
+  { id: 'default-expense-bills', type: 'expense', icon: 'bills' },
+  { id: 'default-expense-transport', type: 'expense', icon: 'transport' },
+  { id: 'default-expense-shopping', type: 'expense', icon: 'shopping' },
+  { id: 'default-expense-entertainment', type: 'expense', icon: 'entertainment' },
+  { id: 'default-expense-health', type: 'expense', icon: 'health' },
+  { id: 'default-expense-education', type: 'expense', icon: 'education' },
+  { id: 'default-expense-other', type: 'expense', icon: 'other' },
+  { id: 'default-income-salary', type: 'income', icon: 'salary' },
+  { id: 'default-income-freelance', type: 'income', icon: 'freelance' },
+  { id: 'default-income-gift', type: 'income', icon: 'gift' },
+  { id: 'default-income-refund', type: 'income', icon: 'refund' },
+  { id: 'default-income-investment', type: 'income', icon: 'investment' },
+  { id: 'default-income-other', type: 'income', icon: 'other' },
 ];
 
 function normalizedName(name: string): string { return name.trim().toLocaleLowerCase('es-CO'); }
@@ -88,7 +96,7 @@ export class CategoryService {
    */
   async resolveSelection(selectedId: string): Promise<{ categoryId: string; subcategoryId: string | null }> {
     const selected = await this.repository.findById(selectedId);
-    if (!selected) throw new CategoryActionError('not_found', 'Category not found.');
+    if (!selected) throw new CategoryActionError('not_found', getMessages().categories.errors.notFound);
     return selected.parentCategoryId === null
       ? { categoryId: selected.id, subcategoryId: null }
       : { categoryId: selected.parentCategoryId, subcategoryId: selected.id };
@@ -96,14 +104,62 @@ export class CategoryService {
 
   async seedDefaults(): Promise<boolean> {
     const timestamp = this.now();
+    const names = getMessages().categories.defaultNames;
     return this.repository.seedIfEmpty(defaults.map((item) => ({
       ...item,
+      name: names[item.id],
       parentCategoryId: null,
       isArchived: false,
       archivedAt: null,
       createdAt: timestamp,
       updatedAt: timestamp,
     })));
+  }
+
+  /**
+   * Renames the default categories into `language`, but only those whose name is
+   * still a default name in some supported language — so a name the user typed is
+   * never touched. Archived defaults are renamed too. A rename that would collide
+   * with another active category in the same scope is skipped.
+   *
+   * Takes the language explicitly because the app calls it before switching the
+   * active one.
+   */
+  async localizeDefaultNames(language: Language = getLanguage()): Promise<void> {
+    const target = getMessagesFor(language).categories.defaultNames;
+    const byType = new Map<CategoryType, Category[]>();
+    for (const type of categoryTypes) byType.set(type, await this.repository.list(type, true));
+
+    for (const { id } of defaults) {
+      const current = await this.repository.findById(id);
+      if (!current) continue;
+      const name = normalizedName(current.name);
+      const nextName = target[id];
+      if (name === normalizedName(nextName)) continue;
+      const isDefaultName = supportedLanguages.some(
+        (candidate) => normalizedName(getMessagesFor(candidate).categories.defaultNames[id]) === name,
+      );
+      if (!isDefaultName) continue;
+
+      // Checked in memory rather than with findActiveByNormalizedName: SQLite's
+      // lower() folds only ASCII, so it would miss a clash such as "Éducation".
+      const siblings = byType.get(current.type) ?? [];
+      const collides = siblings.some((other) => other.id !== id
+        && !other.isArchived
+        && other.parentCategoryId === current.parentCategoryId
+        && normalizedName(other.name) === normalizedName(nextName));
+      if (collides) continue;
+
+      await this.repository.update(id, {
+        name: nextName,
+        type: current.type,
+        icon: current.icon,
+        parentCategoryId: current.parentCategoryId,
+        updatedAt: this.now(),
+      });
+      const renamed = siblings.find((other) => other.id === id);
+      if (renamed) renamed.name = nextName;
+    }
   }
 
   async create(input: CategoryInput): Promise<Category> {
@@ -128,19 +184,19 @@ export class CategoryService {
     const hasHistory = await this.repository.hasFinancialReferences(id);
 
     if (current.type !== input.type && hasHistory) {
-      throw new CategoryValidationError({ type: 'Category type cannot change after financial use.' });
+      throw new CategoryValidationError({ type: getMessages().categories.errors.typeLockedByHistory });
     }
     // Re-parenting after financial use would either falsify closed months (by
     // rewriting past transactions' categoryId) or leave rows whose subcategory no
     // longer belongs to their category. Archive and recreate instead.
     if (current.parentCategoryId !== nextParent && hasHistory) {
       throw new CategoryValidationError({
-        parentCategoryId: 'A category cannot move after financial use. Archive it and create a new one instead.',
+        parentCategoryId: getMessages().categories.errors.parentLockedByHistory,
       });
     }
     if (nextParent !== null && await this.repository.hasSubcategories(id)) {
       throw new CategoryValidationError({
-        parentCategoryId: 'A category with subcategories cannot become a subcategory.',
+        parentCategoryId: getMessages().categories.errors.parentHasSubcategories,
       });
     }
 
@@ -206,19 +262,20 @@ export class CategoryService {
 
   async restore(id: string): Promise<void> {
     const category = await this.requireCategory(id);
-    if (!category.isArchived) throw new CategoryActionError('not_archived', 'Only archived categories can be restored.');
+    if (!category.isArchived) throw new CategoryActionError('not_archived', getMessages().categories.errors.notArchived);
     // Restore deliberately does not cascade: bringing a parent back should not
     // resurrect subcategories that were archived on purpose.
     if (category.parentCategoryId !== null) {
       const parent = await this.repository.findById(category.parentCategoryId);
       if (!parent || parent.isArchived) {
-        throw new CategoryActionError('parent_archived', 'Restore the parent category before restoring this subcategory.');
+        throw new CategoryActionError('parent_archived', getMessages().categories.errors.restoreParentFirst);
       }
     }
     if (await this.repository.findActiveByNormalizedName(category.type, category.parentCategoryId, normalizedName(category.name), id)) {
+      const { errors } = getMessages().categories;
       throw new CategoryActionError('restore_conflict', category.parentCategoryId === null
-        ? 'An active category of this type already uses this name. Rename the archived category before restoring it.'
-        : 'An active subcategory of this parent already uses this name. Rename the archived subcategory before restoring it.');
+        ? errors.restoreConflict
+        : errors.restoreSubcategoryConflict);
     }
     await this.repository.restore(id, this.now());
   }
@@ -230,43 +287,44 @@ export class CategoryService {
   async permanentlyDelete(id: string): Promise<void> {
     await this.requireCategory(id);
     if (await this.repository.hasSubcategories(id)) {
-      throw new CategoryActionError('has_subcategories', 'Remove or archive the subcategories before deleting this category.');
+      throw new CategoryActionError('has_subcategories', getMessages().categories.errors.deleteHasSubcategories);
     }
-    if (await this.repository.hasFinancialReferences(id)) throw new CategoryActionError('has_history', 'Categories with financial history cannot be permanently deleted.');
+    if (await this.repository.hasFinancialReferences(id)) throw new CategoryActionError('has_history', getMessages().categories.errors.deleteHasHistory);
     await this.repository.permanentlyDelete(id);
   }
 
-  private async requireCategory(id: string): Promise<Category> { const value = await this.repository.findById(id); if (!value) throw new CategoryActionError('not_found', 'Category not found.'); return value; }
+  private async requireCategory(id: string): Promise<Category> { const value = await this.repository.findById(id); if (!value) throw new CategoryActionError('not_found', getMessages().categories.errors.notFound); return value; }
 
   private async validate(input: CategoryInput, excludingId?: string, archived = false): Promise<CategoryInput & { parentCategoryId: string | null }> {
     const value = { ...input, name: input.name.trim(), parentCategoryId: input.parentCategoryId ?? null };
+    const messages = getMessages().categories.errors;
     const errors: CategoryValidationErrors = {};
-    if (!value.name) errors.name = 'Enter a category name.';
-    if (!categoryTypes.includes(value.type)) errors.type = 'Select expense or income.';
+    if (!value.name) errors.name = messages.nameRequired;
+    if (!categoryTypes.includes(value.type)) errors.type = messages.typeRequired;
     // The catalog is over a hundred entries, so the message names the count
     // rather than listing every key at the user.
-    if (!isCategoryIcon(value.icon)) errors.icon = `Select one of the ${categoryIconKeys.length} available icons.`;
+    if (!isCategoryIcon(value.icon)) errors.icon = messages.iconRequired(categoryIconKeys.length);
 
     if (value.parentCategoryId !== null) {
       const parent = value.parentCategoryId === excludingId
         ? null
         : await this.repository.findById(value.parentCategoryId);
       if (!parent) {
-        errors.parentCategoryId = 'Select an existing parent category.';
+        errors.parentCategoryId = messages.parentMissing;
       } else if (parent.parentCategoryId !== null) {
-        errors.parentCategoryId = 'Subcategories cannot be nested further than two levels.';
+        errors.parentCategoryId = messages.parentTooDeep;
       } else if (parent.isArchived) {
-        errors.parentCategoryId = 'Select an active parent category.';
+        errors.parentCategoryId = messages.parentArchived;
       } else if (parent.type !== value.type) {
-        errors.parentCategoryId = 'A subcategory must have the same type as its parent.';
+        errors.parentCategoryId = messages.parentTypeMismatch;
       }
     }
 
     if (!errors.name && !errors.type && !errors.parentCategoryId && !archived
       && await this.repository.findActiveByNormalizedName(value.type, value.parentCategoryId, normalizedName(value.name), excludingId)) {
       errors.name = value.parentCategoryId === null
-        ? 'An active category of this type already uses this name.'
-        : 'This parent already has an active subcategory with this name.';
+        ? messages.duplicateName
+        : messages.duplicateSubcategoryName;
     }
     if (Object.keys(errors).length) throw new CategoryValidationError(errors);
     return value;

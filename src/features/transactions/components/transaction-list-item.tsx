@@ -14,6 +14,7 @@ import {
 } from '@/features/transactions/transaction-presentation';
 import type { SupportedTransactionType, TransactionListItem as TransactionItem } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type TransactionListItemProps = {
   transaction: TransactionItem;
@@ -21,21 +22,22 @@ type TransactionListItemProps = {
 
 export function TransactionListItem({ transaction }: TransactionListItemProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const tone = getTone(transaction.type, theme);
   const tint = getTint(transaction.type, theme);
   const voided = transaction.status === 'voided';
   const metaLabel = `${transactionAccountLabel(transaction)} · ${
     transaction.type === 'transfer'
-      ? 'Transfer'
+      ? t.transactions.types.transfer
       : transaction.type === 'refund'
-        ? `Refund · ${categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Original expense'}`
-        : categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Uncategorized'
+        ? `${t.transactions.types.refund} · ${categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? t.transactions.originalExpense}`
+        : categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? t.transactions.uncategorized
   }`;
 
   return (
     <PressableScale
-      accessibilityHint="Opens transaction details"
-      accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}, ${voided ? 'voided' : 'posted'}`}
+      accessibilityHint={t.transactions.list.itemHint}
+      accessibilityLabel={`${transactionTitle(transaction)}, ${transactionTypeLabel(transaction)}, ${transactionAccountLabel(transaction)}, ${signedTransactionAmount(transaction)}, ${voided ? t.transactions.status.voidedA11y : t.transactions.status.postedA11y}`}
       accessibilityRole="button"
       onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: transaction.id } })}
       style={[styles.card, voided && styles.voided, { backgroundColor: theme.surface }]}>
@@ -57,7 +59,7 @@ export function TransactionListItem({ transaction }: TransactionListItemProps) {
           {signedTransactionAmount(transaction)}
         </Text>
         <Text numberOfLines={1} style={[styles.kind, { color: theme.mutedText }]}>
-          {voided ? 'Voided' : transactionTypeLabel(transaction)}
+          {voided ? t.transactions.status.voided : transactionTypeLabel(transaction)}
         </Text>
       </View>
     </PressableScale>

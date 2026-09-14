@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+import { getMessages } from '@/i18n/messages';
 import { utf8ByteLength } from './backup-limits';
 import {
   BackupFileAdapterError,
@@ -47,14 +48,14 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
     } catch {
       throw new BackupFileAdapterError(
         'file_read_failed',
-        'The Android document picker could not be opened. Try again.',
+        getMessages().backup.pickerFailed,
       );
     }
     if (result.canceled) return { status: 'cancelled' };
 
     const asset = result.assets[0];
     if (!asset) {
-      throw new BackupFileAdapterError('file_read_failed', 'No readable file was selected.');
+      throw new BackupFileAdapterError('file_read_failed', getMessages().backup.noFileSelected);
     }
     const file = new File(asset.uri);
     try {
@@ -62,7 +63,7 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
       if (fileSize > maxBytes) {
         throw new BackupFileAdapterError(
           'file_too_large',
-          'The selected backup is larger than the 25 MiB safety limit.',
+          getMessages().backup.fileTooLarge,
         );
       }
       const text = await file.text();
@@ -70,7 +71,7 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
       if (measuredSize > maxBytes) {
         throw new BackupFileAdapterError(
           'file_too_large',
-          'The selected backup is larger than the 25 MiB safety limit.',
+          getMessages().backup.fileTooLarge,
         );
       }
       return {
@@ -85,7 +86,7 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
       if (cause instanceof BackupFileAdapterError) throw cause;
       throw new BackupFileAdapterError(
         'file_read_failed',
-        'Money Control could not read the selected file. Choose another file and try again.',
+        getMessages().backup.readFailed,
       );
     } finally {
       deleteIfPresent(file);
@@ -106,27 +107,27 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
       } catch {
         throw new BackupFileAdapterError(
           'temporary_write_failed',
-          'The backup could not be written. Check available device storage and try again.',
+          getMessages().backup.writeFailed,
         );
       }
 
       if (!(await Sharing.isAvailableAsync())) {
         throw new BackupFileAdapterError(
           'sharing_unavailable',
-          'The backup was generated, but the native save/share interface is unavailable.',
+          getMessages().backup.sharingUnavailable,
           true,
         );
       }
       try {
         await Sharing.shareAsync(file.uri, {
-          dialogTitle: 'Save or share Money Control backup',
+          dialogTitle: getMessages().backup.shareDialogTitle,
           mimeType: 'application/json',
           UTI: 'public.json',
         });
       } catch {
         throw new BackupFileAdapterError(
           'sharing_failed',
-          'The backup was generated, but the native save/share interface could not be opened.',
+          getMessages().backup.sharingOpenFailed,
           true,
         );
       }
@@ -136,8 +137,8 @@ export class ExpoBackupFileAdapter implements BackupFileAdapter {
       throw new BackupFileAdapterError(
         generated ? 'sharing_failed' : 'temporary_write_failed',
         generated
-          ? 'The backup was generated, but it could not be shared.'
-          : 'The backup could not be written. Check available device storage and try again.',
+          ? getMessages().backup.shareFailed
+          : getMessages().backup.writeFailed,
         generated,
       );
     } finally {

@@ -1,6 +1,7 @@
 import type { SymbolViewProps } from 'expo-symbols';
 
 import { formatMoneyWithSymbol } from '@/features/currency/currency';
+import { getMessages } from '@/i18n/messages';
 import { fallbackCategoryIcon, getCategoryIcon } from '@/features/categories/category-icons';
 import { formatTransactionDate } from './transaction-date';
 import type { TransactionListItem, TransactionSection } from './transaction.types';
@@ -24,9 +25,10 @@ export function signedTransactionAmount(item: Pick<TransactionListItem, 'amount'
 
 export function transactionTitle(item: Pick<TransactionListItem, 'note' | 'categoryName' | 'type'>) {
   if (item.note) return item.note;
-  if (item.type === 'transfer') return 'Transfer';
-  if (item.type === 'refund') return 'Refund';
-  return item.categoryName ?? 'Transaction';
+  const t = getMessages().transactions;
+  if (item.type === 'transfer') return t.types.transfer;
+  if (item.type === 'refund') return t.types.refund;
+  return item.categoryName ?? t.fallbackTitle;
 }
 
 /**
@@ -48,15 +50,12 @@ export function transactionAccountLabel(
   item: Pick<TransactionListItem, 'accountName' | 'destinationAccountName' | 'type'>,
 ) {
   return item.type === 'transfer'
-    ? `${item.accountName} → ${item.destinationAccountName ?? 'Unknown account'}`
+    ? `${item.accountName} → ${item.destinationAccountName ?? getMessages().transactions.unknownAccount}`
     : item.accountName;
 }
 
 export function transactionTypeLabel(item: Pick<TransactionListItem, 'type'>) {
-  if (item.type === 'income') return 'Income';
-  if (item.type === 'transfer') return 'Transfer';
-  if (item.type === 'refund') return 'Refund';
-  return 'Expense';
+  return getMessages().transactions.types[item.type];
 }
 
 export function groupTransactions(items: TransactionListItem[]): TransactionSection[] {

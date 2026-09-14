@@ -7,27 +7,29 @@ import { BackupRestoreError } from './backup.repository';
 import type { BackupOverview, RestoreCandidate } from './backup.types';
 import { BackupValidationError } from './backup-validator';
 import { backupService } from './backups';
+import { getMessages } from '@/i18n/messages';
 
 export type BackupOperation = 'exporting' | 'selecting' | 'restoring' | null;
 
 function userMessage(cause: unknown, action: BackupOperation): string {
+  const text = getMessages().backup;
   if (cause instanceof BackupValidationError) return cause.message;
   if (cause instanceof UnsupportedBackupVersionError) return cause.message;
   if (cause instanceof BackupFileAdapterError) {
     return cause.fileGenerated
-      ? `${cause.message} Money Control cannot confirm that a destination copy was saved.`
+      ? text.unconfirmedCopy(cause.message)
       : cause.message;
   }
   if (cause instanceof BackupRestoreError) {
-    return `${cause.message} Your original local data was kept unchanged.`;
+    return text.originalDataKept(cause.message);
   }
   if (action === 'restoring') {
-    return 'Restore failed and was rolled back. Your original local data was kept unchanged. Try the backup again.';
+    return text.restoreFailed;
   }
   if (action === 'exporting') {
-    return 'The backup could not be created. Check available storage and try again.';
+    return text.exportFailed;
   }
-  return 'The selected backup could not be opened. Choose another file and try again.';
+  return text.openFailed;
 }
 
 export function useBackup() {
@@ -43,7 +45,7 @@ export function useBackup() {
     try {
       setOverview(await backupService.getCurrentOverview());
     } catch {
-      setError('Current backup counts could not be loaded. Try reopening this screen.');
+      setError(getMessages().backup.overviewFailed);
     } finally {
       setLoadingOverview(false);
     }
@@ -60,9 +62,7 @@ export function useBackup() {
     setNotice(undefined);
     try {
       const result = await backupService.createBackup();
-      setNotice(
-        `${result.fileName} was generated and the native save/share interface opened. Money Control cannot confirm whether you saved or shared the file.`,
-      );
+      setNotice(getMessages().backup.backupCreated(result.fileName));
       setOverview({
         summary: result.summary,
         transactionDateRange: result.transactionDateRange,
@@ -99,9 +99,11 @@ export function useBackup() {
       const result = await backupService.restore(candidate);
       setOverview(result);
       setCandidate(undefined);
-      setNotice(
-        `Restore complete: ${result.summary.accounts} accounts, ${result.summary.transactions} transactions, and ${result.summary.budgets} budgets are now active.`,
-      );
+      setNotice(getMessages().backup.restoreComplete(
+        result.summary.accounts,
+        result.summary.transactions,
+        result.summary.budgets,
+      ));
     } catch (cause) {
       setError(userMessage(cause, 'restoring'));
     } finally {

@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { budgetService } from '@/features/budgets/budgets';
 import { toUserMessage } from '@/errors/user-error';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { monthsBetween } from './report-insights';
 import type { BudgetLimitForPeriod, ReportPeriod } from './report.types';
 
@@ -62,7 +63,7 @@ export function useReportBudgets(period: ReportPeriod | undefined) {
       setMonthCount(months.length);
     } catch (cause) {
       if (request === sequence.current) {
-        setError(toUserMessage(cause, 'Unable to load budgets for this period.'));
+        setError(toUserMessage(cause, getMessages().reports.budgetsLoadError));
       }
     }
   }, [dateFrom, dateTo]);

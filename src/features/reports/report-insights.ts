@@ -1,3 +1,5 @@
+import { getIntlLocale, getMessages } from '@/i18n/messages';
+
 import { calculateBasisPoints, safeInteger } from './report-math';
 import type {
   BudgetPerformance,
@@ -10,11 +12,18 @@ import type {
   WeekdaySpending,
 } from './report.types';
 
-/** Label for spending recorded on a category with no subcategory chosen. */
-export const NO_SUBCATEGORY_LABEL = 'No subcategory';
+/** Weekday indexes, Sunday first (matches `Date#getUTCDay`). */
+const weekdays = [0, 1, 2, 3, 4, 5, 6] as const;
 
-/** Short weekday names, Sunday first (matches CLDR's first day for es-CO). */
-const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+/**
+ * The weekday's name in the active language: `short` for chart columns (`Mon`),
+ * `long` for sentences (`Monday`). 2023-01-01 was a Sunday, so day `1 + weekday`
+ * of that month lands on the requested weekday.
+ */
+export function weekdayName(weekday: number, width: 'short' | 'long'): string {
+  return new Intl.DateTimeFormat(getIntlLocale(), { weekday: width, timeZone: 'UTC' })
+    .format(new Date(Date.UTC(2023, 0, 1 + weekday)));
+}
 
 /**
  * Share of income kept after net expenses, in basis points.
@@ -37,9 +46,9 @@ export function savingsRateBasisPoints(income: number, net: number): number | nu
  * period, so a period containing five Fridays and four Mondays stays comparable.
  */
 export function weekdaySpending(buckets: CashFlowBucket[]): WeekdaySpending[] {
-  const totals = weekdayNames.map((label, weekday) => ({
+  const totals = weekdays.map((weekday) => ({
     weekday,
-    label,
+    label: weekdayName(weekday, 'short'),
     total: 0,
     average: 0,
     dayCount: 0,
@@ -162,6 +171,7 @@ export function foldCategoryExpenses(
   rows: readonly CategoryExpenseAggregate[],
 ): CategoryExpenseSummary[] {
   const byCategory = new Map<string, CategoryExpenseSummary>();
+  const noSubcategoryLabel = getMessages().reports.noSubcategory;
 
   for (const row of rows) {
     let category = byCategory.get(row.categoryId);
@@ -181,7 +191,7 @@ export function foldCategoryExpenses(
     category.transactionCount += row.transactionCount;
     category.subcategories.push({
       subcategoryId: row.subcategoryId,
-      name: row.subcategoryName ?? NO_SUBCATEGORY_LABEL,
+      name: row.subcategoryName ?? noSubcategoryLabel,
       total: row.total,
       percentageBasisPoints: 0,
       transactionCount: row.transactionCount,

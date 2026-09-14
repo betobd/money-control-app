@@ -14,21 +14,23 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import type { BackupSummary } from '../backup.types';
 import { useBackup } from '../use-backup';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 
-const countLabels: { key: keyof BackupSummary; label: string }[] = [
-  { key: 'accounts', label: 'Accounts' },
-  { key: 'categories', label: 'Categories' },
-  { key: 'transactions', label: 'Transactions' },
-  { key: 'budgets', label: 'Budgets' },
-  { key: 'recurringRules', label: 'Recurring rules' },
-  { key: 'recurringOccurrences', label: 'Recurring occurrences' },
-  { key: 'creditCardStatements', label: 'Credit card statements' },
-  { key: 'transactionSplits', label: 'Ledger splits' },
-];
+const countKeys = [
+  'accounts',
+  'categories',
+  'transactions',
+  'budgets',
+  'recurringRules',
+  'recurringOccurrences',
+  'creditCardStatements',
+  'transactionSplits',
+] as const satisfies readonly (keyof BackupSummary)[];
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -37,7 +39,7 @@ function formatFileSize(bytes: number): string {
 }
 
 function formatCreatedAt(value: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getIntlLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'America/Bogota',
@@ -48,6 +50,7 @@ export function BackupScreen() {
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const {
     candidate,
     createBackup,
@@ -67,9 +70,9 @@ export function BackupScreen() {
 
   function confirmExport(): void {
     dialog.confirm({
-      title: 'Create readable backup?',
-      message: 'The JSON file will contain account names, amounts, dates, notes, budgets, and recurring records. It is not encrypted. Anyone with the file can read this financial information.',
-      confirmLabel: 'Create backup',
+      title: t.backup.exportConfirmTitle,
+      message: t.backup.exportConfirmMessage,
+      confirmLabel: t.backup.createButton,
       onConfirm: () => void createBackup(),
     });
   }
@@ -77,9 +80,9 @@ export function BackupScreen() {
   function confirmRestore(): void {
     if (!candidate) return;
     dialog.confirm({
-      title: 'Replace all local financial data?',
-      message: 'Existing accounts, categories, transactions, budgets, and recurring records will be deleted and replaced by this backup. The operation may take a moment and cannot be undone unless you create a current backup first.',
-      confirmLabel: 'Replace local data',
+      title: t.backup.restoreConfirmTitle,
+      message: t.backup.restoreConfirmMessage,
+      confirmLabel: t.backup.restoreConfirmLabel,
       tone: 'destructive',
       onConfirm: () => void restore(),
     });
@@ -87,7 +90,7 @@ export function BackupScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="back" leadingDisabled={busy} title="Backup & Restore" />
+      <ScreenHeader leading="back" leadingDisabled={busy} title={t.backup.title} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -106,62 +109,62 @@ export function BackupScreen() {
         <View style={[styles.warningCard, { backgroundColor: theme.tintWarning }]}>
           <SymbolView name={{ ios: 'exclamationmark.triangle.fill', android: 'warning', web: 'warning' }} size={24} tintColor={theme.warning} />
           <View style={styles.flex}>
-            <Text style={[styles.warningTitle, { color: theme.primaryText }]}>Plaintext financial data</Text>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>Backups are readable JSON files, not encrypted files. Store them somewhere private and share them only with people you trust.</Text>
+            <Text style={[styles.warningTitle, { color: theme.primaryText }]}>{t.backup.warningTitle}</Text>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{t.backup.warningBody}</Text>
           </View>
         </View>
 
-        <Section title="Create backup" description="Includes every persisted financial record needed to reconstruct this app, including archived history and recurring links." theme={theme}>
-          <Text style={[styles.subheading, { color: theme.primaryText }]}>Current record counts</Text>
+        <Section title={t.backup.createTitle} description={t.backup.createDescription} theme={theme}>
+          <Text style={[styles.subheading, { color: theme.primaryText }]}>{t.backup.currentCounts}</Text>
           {loadingOverview ? <ActivityIndicator color={theme.primaryAction} /> : overview ? (
             <CountList summary={overview.summary} theme={theme} />
-          ) : <Text style={[styles.body, { color: theme.secondaryText }]}>Counts unavailable.</Text>}
+          ) : <Text style={[styles.body, { color: theme.secondaryText }]}>{t.backup.countsUnavailable}</Text>}
           <PrimaryButton
             busy={operation === 'exporting'}
             disabled={busy || loadingOverview}
-            label="Create backup"
+            label={t.backup.createButton}
             onPress={confirmExport}
             theme={theme}
           />
-          <Text style={[styles.caption, { color: theme.mutedText }]}>After generation, Android opens its native save/share interface. Money Control cannot verify whether a destination file was saved.</Text>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{t.backup.shareCaption}</Text>
         </Section>
 
-        <Section title="Restore backup" description="Select a Money Control JSON backup. It will be read and validated before any local data changes." theme={theme}>
+        <Section title={t.backup.restoreTitle} description={t.backup.restoreDescription} theme={theme}>
           <View style={[styles.destructiveNotice, { backgroundColor: theme.tintDestructive }]}>
-            <Text style={[styles.warningTitle, { color: theme.destructive }]}>Replace mode only</Text>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>Restoring deletes and replaces all existing local financial data. Merge is not supported.</Text>
+            <Text style={[styles.warningTitle, { color: theme.destructive }]}>{t.backup.replaceModeTitle}</Text>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{t.backup.replaceModeBody}</Text>
           </View>
           <SecondaryButton
             busy={operation === 'selecting'}
             disabled={busy}
-            label="Select backup file"
+            label={t.backup.selectFile}
             onPress={() => void selectBackup()}
             theme={theme}
           />
           <Button
-            accessibilityHint="Opens the same readable backup export confirmation"
-            accessibilityLabel="Create a current safety backup first"
+            accessibilityHint={t.backup.safetyBackupHint}
+            accessibilityLabel={t.backup.safetyBackupLabel}
             disabled={busy}
-            label="Create current backup first"
+            label={t.backup.safetyBackupButton}
             onPress={confirmExport}
             variant="ghost"
           />
         </Section>
 
         {candidate ? (
-          <Section title="Restore preview" description="The selected file passed structural, relationship, safety, and checksum validation." theme={theme}>
-            <PreviewRow label="File" value={`${candidate.preview.fileName} (${formatFileSize(candidate.preview.fileSize)})`} theme={theme} />
-            <PreviewRow label="Created" value={formatCreatedAt(candidate.preview.createdAt)} theme={theme} />
-            <PreviewRow label="Format" value={`Version ${candidate.preview.formatVersion}`} theme={theme} />
-            <PreviewRow label="Created by app" value={candidate.preview.appVersion} theme={theme} />
-            <PreviewRow label="Currency" value={candidate.preview.currency} theme={theme} />
-            <PreviewRow label="Compatibility" value="Compatible" theme={theme} />
+          <Section title={t.backup.previewTitle} description={t.backup.previewDescription} theme={theme}>
+            <PreviewRow label={t.backup.previewFile} value={t.backup.fileValue(candidate.preview.fileName, formatFileSize(candidate.preview.fileSize))} theme={theme} />
+            <PreviewRow label={t.backup.previewCreated} value={formatCreatedAt(candidate.preview.createdAt)} theme={theme} />
+            <PreviewRow label={t.backup.previewFormat} value={t.backup.formatVersion(candidate.preview.formatVersion)} theme={theme} />
+            <PreviewRow label={t.backup.previewCreatedBy} value={candidate.preview.appVersion} theme={theme} />
+            <PreviewRow label={t.backup.previewCurrency} value={candidate.preview.currency} theme={theme} />
+            <PreviewRow label={t.backup.previewCompatibility} value={t.backup.compatible} theme={theme} />
             <CountList summary={candidate.preview.summary} theme={theme} />
             <PreviewRow
-              label="Transaction dates"
+              label={t.backup.previewDates}
               value={candidate.preview.transactionDateRange.oldest
-                ? `${candidate.preview.transactionDateRange.oldest} to ${candidate.preview.transactionDateRange.newest}`
-                : 'No transactions'}
+                ? t.backup.dateRange(candidate.preview.transactionDateRange.oldest, `${candidate.preview.transactionDateRange.newest}`)
+                : t.backup.noTransactions}
               theme={theme}
             />
             {candidate.preview.warnings.map((warning) => (
@@ -171,14 +174,14 @@ export function BackupScreen() {
               busy={operation === 'restoring'}
               destructive
               disabled={busy}
-              label="Restore and replace local data"
+              label={t.backup.restoreButton}
               onPress={confirmRestore}
               theme={theme}
             />
           </Section>
         ) : null}
 
-        <Text style={[styles.caption, { color: theme.mutedText }]}>Password-protected encrypted backups are a future enhancement. This feature never uploads backup data and does not request broad storage permission.</Text>
+        <Text style={[styles.caption, { color: theme.mutedText }]}>{t.backup.footer}</Text>
       </ScrollView>
       <DialogHost dialog={dialog} />
     </View>
@@ -208,12 +211,13 @@ function Section({
 }
 
 function CountList({ summary, theme }: { summary: BackupSummary; theme: Theme }) {
+  const t = useMessages();
   return (
     <View style={[styles.countList, { borderTopColor: theme.hairline }]}>
-      {countLabels.map(({ key, label }) => (
+      {countKeys.map((key) => (
         <View key={key} style={styles.countRow}>
-          <Text style={[styles.body, { color: theme.secondaryText }]}>{label}</Text>
-          <Text style={[styles.count, { color: theme.primaryText }]}>{summary[key].toLocaleString('en-US')}</Text>
+          <Text style={[styles.body, { color: theme.secondaryText }]}>{t.backup.counts[key]}</Text>
+          <Text style={[styles.count, { color: theme.primaryText }]}>{summary[key].toLocaleString(getIntlLocale())}</Text>
         </View>
       ))}
     </View>

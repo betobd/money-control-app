@@ -5,39 +5,34 @@ import { useCallback, useMemo, useState } from 'react';
 import { BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BottomSheet } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { FixedFooter } from '@/components/fixed-footer';
 import { PressableScale } from '@/components/pressable-scale';
 import { ScreenHeader } from '@/components/screen-header';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { getCurrency, type CurrencyCode } from '@/features/currency/currency';
+import { currencyName, getCurrency, type CurrencyCode } from '@/features/currency/currency';
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
+import { LanguageOptions } from '@/features/settings/components/language-options';
 import { settingsService } from '@/features/settings/settings';
 import { useOnboardingCompleted } from '@/features/settings/use-onboarding-completed';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { languageNativeNames } from '@/i18n/languages';
+import type { Messages } from '@/i18n/messages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 import { FALLBACK_BASE_CURRENCY, suggestBaseCurrency } from '../device-currency';
 
 type Step = 'welcome' | 'currency';
 
-type Highlight = { icon: SymbolViewProps['name']; title: string; body: string };
+type Highlights = Messages['onboarding']['highlights'];
+
+type Highlight = { icon: SymbolViewProps['name']; title: keyof Highlights; body: keyof Highlights };
 
 const HIGHLIGHTS: readonly Highlight[] = [
-  {
-    icon: { ios: 'lock.fill', android: 'lock', web: 'lock' },
-    title: 'Private by design',
-    body: 'No sign-up. Your data stays on this phone unless you export it.',
-  },
-  {
-    icon: { ios: 'globe', android: 'public', web: 'public' },
-    title: 'Any currency',
-    body: 'Keep accounts in the currencies you use and see every total in yours.',
-  },
-  {
-    icon: { ios: 'chart.pie.fill', android: 'pie_chart', web: 'pie_chart' },
-    title: 'Budgets that keep you on track',
-    body: 'Set a monthly ceiling and category limits, and see where your money goes.',
-  },
+  { icon: { ios: 'lock.fill', android: 'lock', web: 'lock' }, title: 'privateTitle', body: 'privateBody' },
+  { icon: { ios: 'globe', android: 'public', web: 'public' }, title: 'currencyTitle', body: 'currencyBody' },
+  { icon: { ios: 'chart.pie.fill', android: 'pie_chart', web: 'pie_chart' }, title: 'budgetsTitle', body: 'budgetsBody' },
 ];
 
 /**
@@ -53,11 +48,15 @@ export function OnboardingScreen() {
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const t = useMessages();
+  const language = useLanguage();
   const completed = useOnboardingCompleted();
   const suggestion = useMemo(() => suggestBaseCurrency(getLocales()), []);
   const [step, setStep] = useState<Step>('welcome');
   const [currency, setCurrency] = useState<CurrencyCode>(suggestion);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const [languageError, setLanguageError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -84,7 +83,7 @@ export function OnboardingScreen() {
     try {
       await settingsService.completeOnboarding(currency);
     } catch (cause) {
-      setError(toUserMessage(cause, 'Your currency could not be saved. Try again.'));
+      setError(toUserMessage(cause, t.onboarding.saveFailed));
       setSaving(false);
     }
   }
@@ -92,6 +91,16 @@ export function OnboardingScreen() {
   if (step === 'welcome') {
     return (
       <View style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
+        <View style={styles.languageBar}>
+          <Button
+            accessibilityHint={t.more.items.language.accessibilityHint}
+            icon={{ ios: 'globe', android: 'language', web: 'language' }}
+            label={t.onboarding.languageButton(languageNativeNames[language])}
+            onPress={() => setLanguageOpen(true)}
+            size="sm"
+            variant="ghost"
+          />
+        </View>
         <ScrollView contentContainerStyle={styles.welcomeContent}>
           <View style={[styles.mark, { backgroundColor: theme.tintPrimary }]}>
             <SymbolView
@@ -101,10 +110,10 @@ export function OnboardingScreen() {
             />
           </View>
           <Text accessibilityRole="header" style={[styles.appName, { color: theme.primaryText }]}>
-            Money Control
+            {t.common.appName}
           </Text>
           <Text style={[styles.tagline, { color: theme.secondaryText }]}>
-            Your money, clear and private.
+            {t.onboarding.tagline}
           </Text>
 
           <View style={styles.highlights}>
@@ -114,8 +123,8 @@ export function OnboardingScreen() {
                   <SymbolView name={highlight.icon} size={20} tintColor={theme.primaryAction} />
                 </View>
                 <View style={styles.highlightText}>
-                  <Text style={[styles.highlightTitle, { color: theme.primaryText }]}>{highlight.title}</Text>
-                  <Text style={[styles.highlightBody, { color: theme.secondaryText }]}>{highlight.body}</Text>
+                  <Text style={[styles.highlightTitle, { color: theme.primaryText }]}>{t.onboarding.highlights[highlight.title]}</Text>
+                  <Text style={[styles.highlightBody, { color: theme.secondaryText }]}>{t.onboarding.highlights[highlight.body]}</Text>
                 </View>
               </View>
             ))}
@@ -123,45 +132,52 @@ export function OnboardingScreen() {
         </ScrollView>
 
         <FixedFooter bottomInset={insets.bottom}>
-          <Button fullWidth label="Get started" onPress={() => setStep('currency')} size="lg" variant="primary" />
+          <Button fullWidth label={t.onboarding.getStarted} onPress={() => setStep('currency')} size="lg" variant="primary" />
           <Button
             fullWidth
             icon={{ ios: 'arrow.clockwise', android: 'restore', web: 'restore' }}
-            label="Restore from a backup"
+            label={t.onboarding.restore}
             onPress={() => router.push('/backup')}
             size="lg"
             variant="ghost"
           />
         </FixedFooter>
+
+        <BottomSheet onClose={() => setLanguageOpen(false)} title={t.onboarding.languageSheetTitle} visible={languageOpen}>
+          {languageError ? (
+            <Text accessibilityLiveRegion="assertive" style={[styles.body, { color: theme.destructive }]}>{languageError}</Text>
+          ) : null}
+          <LanguageOptions onError={setLanguageError} />
+        </BottomSheet>
       </View>
     );
   }
 
   const definition = getCurrency(currency);
+  const name = currencyName(currency);
   const suggested = [...new Set<CurrencyCode>([suggestion, FALLBACK_BASE_CURRENCY, 'EUR'])];
 
   return (
     <View style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
       <ScreenHeader
         leading="back"
-        leadingAccessibilityLabel="Back to welcome"
+        leadingAccessibilityLabel={t.onboarding.backToWelcome}
         leadingDisabled={saving}
         onLeadingPress={() => setStep('welcome')}
-        title="Main currency"
+        title={t.onboarding.currencyTitle}
       />
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text accessibilityRole="header" style={[styles.question, { color: theme.primaryText }]}>
-          Which currency do you use day to day?
+          {t.onboarding.currencyQuestion}
         </Text>
         <Text style={[styles.body, { color: theme.secondaryText }]}>
-          Totals, budgets and reports are shown in this currency. You can still keep accounts in other
-          currencies.
+          {t.onboarding.currencyBody}
         </Text>
 
         <PressableScale
-          accessibilityHint="Opens the list of currencies"
-          accessibilityLabel={`Main currency: ${definition.code}, ${definition.name}`}
+          accessibilityHint={t.onboarding.currencyCardHint}
+          accessibilityLabel={t.onboarding.currencyCardLabel(definition.code, name)}
           accessibilityRole="button"
           disabled={saving}
           onPress={() => setPickerOpen(true)}
@@ -174,10 +190,10 @@ export function OnboardingScreen() {
           <View style={styles.currencyText}>
             <Text style={[styles.currencyCode, { color: theme.primaryText }]}>{definition.code}</Text>
             <Text numberOfLines={1} style={[styles.currencyName, { color: theme.secondaryText }]}>
-              {definition.name}
+              {name}
             </Text>
           </View>
-          <Text style={[styles.change, { color: theme.primaryAction }]}>Change</Text>
+          <Text style={[styles.change, { color: theme.primaryAction }]}>{t.onboarding.change}</Text>
         </PressableScale>
 
         <View style={[styles.note, { backgroundColor: theme.tintWarning }]}>
@@ -187,8 +203,7 @@ export function OnboardingScreen() {
             tintColor={theme.warning}
           />
           <Text style={[styles.noteText, { color: theme.primaryText }]}>
-            You can change it until you record your first transaction or budget. After that it stays fixed,
-            because every amount is saved in it.
+            {t.onboarding.lockNote}
           </Text>
         </View>
 
@@ -203,7 +218,7 @@ export function OnboardingScreen() {
         <Button
           busy={saving}
           fullWidth
-          label={`Use ${definition.code} and start`}
+          label={t.onboarding.start(definition.code)}
           onPress={() => void finish()}
           size="lg"
           variant="primary"
@@ -215,8 +230,8 @@ export function OnboardingScreen() {
         onSelect={setCurrency}
         selected={currency}
         suggested={suggested}
-        suggestedLabel="Suggested"
-        title="Main currency"
+        suggestedLabel={t.onboarding.suggested}
+        title={t.onboarding.currencyTitle}
         visible={pickerOpen}
       />
     </View>
@@ -225,6 +240,7 @@ export function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  languageBar: { alignItems: 'flex-end', paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   welcomeContent: { alignItems: 'center', gap: spacing.sm, padding: spacing.lg, paddingTop: spacing.xl },
   mark: { alignItems: 'center', borderRadius: borderRadii.card, height: 72, justifyContent: 'center', width: 72 },
   appName: { ...typography.display, marginTop: spacing.sm, textAlign: 'center' },

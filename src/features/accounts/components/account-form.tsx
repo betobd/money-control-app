@@ -25,6 +25,7 @@ import { accountTypes, type AccountField, type AccountType, type AccountValidati
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
 import { getBaseCurrency } from '@/features/settings/settings';
 import {
+  currencyName,
   formatMoneyEntry,
   getCurrency,
   parseMoney,
@@ -32,6 +33,8 @@ import {
   type CurrencyCode,
 } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
+import { getMessages } from '@/i18n/messages';
 import { ScreenHeader } from '@/components/screen-header';
 import { FixedFooter } from '@/components/fixed-footer';
 
@@ -53,6 +56,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('checking');
   const [currency, setCurrency] = useState<CurrencyCode>(getBaseCurrency);
@@ -77,7 +81,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       accountService.canChangeCurrency(accountId),
     ])
       .then(([account, canEdit, canChangeCurrency]) => {
-        if (!account) throw new Error('Account not found.');
+        if (!account) throw new Error(getMessages().accounts.errors.notFound);
         setName(account.name);
         setType(account.type);
         setCurrency(account.currency);
@@ -89,7 +93,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         setPaymentDueDay(account.paymentDueDay === null ? '' : String(account.paymentDueDay));
         setOpeningBalanceEditable(canEdit);
       })
-      .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to load account.')))
+      .catch((cause) => setGeneralError(toUserMessage(cause, getMessages().accounts.errors.load)))
       .finally(() => setLoading(false));
   }, [accountId]);
 
@@ -105,12 +109,12 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       const fieldErrors: AccountValidationErrors = {};
       const openingParsed = parseMoney(openingBalance.trim() || '0', currency, { allowNegative: true });
       if (!openingParsed.ok) {
-        fieldErrors.openingBalance = 'Enter a valid amount.';
+        fieldErrors.openingBalance = t.accounts.validation.enterValidAmount;
       }
       let creditLimitMinor: number | null = null;
       if (type === 'credit_card' && creditLimit.trim()) {
         const creditParsed = parseMoney(creditLimit, currency);
-        if (!creditParsed.ok) fieldErrors.creditLimit = 'Enter a valid amount.';
+        if (!creditParsed.ok) fieldErrors.creditLimit = t.accounts.validation.enterValidAmount;
         else creditLimitMinor = creditParsed.minor;
       }
       if (Object.keys(fieldErrors).length > 0) {
@@ -132,7 +136,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof AccountValidationError) setErrors(cause.fields);
-      else setGeneralError(toUserMessage(cause, 'Unable to save account.'));
+      else setGeneralError(toUserMessage(cause, t.accounts.errors.save));
     } finally {
       setSaving(false);
     }
@@ -155,7 +159,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close account form" title={isEditing ? 'Edit Account' : 'New Account'} />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.accounts.form.close} title={isEditing ? t.accounts.form.editTitle : t.accounts.form.newTitle} />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -165,20 +169,20 @@ export function AccountForm({ accountId }: { accountId?: string }) {
             {generalError}
           </Text>
         ) : null}
-        <FormField label="Account name" error={errors.name} theme={theme}>
+        <FormField label={t.accounts.form.name} error={errors.name} theme={theme}>
           <TextInput
-            accessibilityLabel="Account name"
+            accessibilityLabel={t.accounts.form.name}
             autoCapitalize="words"
             maxLength={80}
             onChangeText={(value) => { setName(value); clearError('name'); }}
-            placeholder="e.g. Main Checking"
+            placeholder={t.accounts.form.namePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={inputStyle(Boolean(errors.name))}
             value={name}
           />
         </FormField>
 
-        <FormField label="Account type" error={errors.type} theme={theme}>
+        <FormField label={t.accounts.form.type} error={errors.type} theme={theme}>
           <View style={styles.typeGrid}>
             {accountTypes.map((option) => {
               const selected = type === option;
@@ -208,30 +212,30 @@ export function AccountForm({ accountId }: { accountId?: string }) {
           </View>
         </FormField>
 
-        <FormField label="Currency" error={errors.currency} theme={theme}>
+        <FormField label={t.accounts.form.currency} error={errors.currency} theme={theme}>
           {currencyEditable ? (
             <Pressable
-              accessibilityLabel={`Currency, ${currency}, ${getCurrency(currency).name}`}
+              accessibilityLabel={t.accounts.form.currencyAccessibility(currency, currencyName(currency))}
               accessibilityRole="button"
               onPress={() => setCurrencyPickerOpen(true)}
               style={[styles.readOnly, { backgroundColor: theme.surface }]}>
               <Text style={[styles.inputText, { color: theme.primaryText }]}>
-                {currency} · {getCurrency(currency).name}
+                {currency} · {currencyName(currency)}
               </Text>
             </Pressable>
           ) : (
             <View style={[styles.readOnly, { backgroundColor: theme.disabledSurface }]}>
-              <Text style={[styles.inputText, { color: theme.secondaryText }]}>{currency} · {getCurrency(currency).name}</Text>
+              <Text style={[styles.inputText, { color: theme.secondaryText }]}>{currency} · {currencyName(currency)}</Text>
             </View>
           )}
           {!currencyEditable && isEditing ? (
-            <Text style={[styles.help, { color: theme.secondaryText }]}>The currency cannot be changed after this account has financial activity.</Text>
+            <Text style={[styles.help, { color: theme.secondaryText }]}>{t.accounts.validation.currencyLocked}</Text>
           ) : null}
         </FormField>
 
-        <FormField label={`Opening balance (${currency})`} error={errors.openingBalance} theme={theme}>
+        <FormField label={t.accounts.form.openingBalance(currency)} error={errors.openingBalance} theme={theme}>
           <TextInput
-            accessibilityLabel={`Opening balance in ${getCurrency(currency).name}`}
+            accessibilityLabel={t.accounts.form.openingBalanceIn(currencyName(currency))}
             editable={openingBalanceEditable}
             keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
             onChangeText={(value) => { setOpeningBalance(sanitizeMoneyInput(value, currency, true)); clearError('openingBalance'); }}
@@ -240,13 +244,13 @@ export function AccountForm({ accountId }: { accountId?: string }) {
             style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance), openingBalanceEditable)]}
             value={formatMoneyEntry(openingBalance, currency)}
           />
-          {!openingBalanceEditable ? <Text style={[styles.help, { color: theme.secondaryText }]}>Locked because this account has posted activity. Use an adjustment transaction for corrections.</Text> : null}
+          {!openingBalanceEditable ? <Text style={[styles.help, { color: theme.secondaryText }]}>{t.accounts.form.openingBalanceLockedHelp}</Text> : null}
         </FormField>
 
         {type === 'credit_card' ? (
-          <FormField label={`Credit limit (${currency})`} error={errors.creditLimit} theme={theme}>
+          <FormField label={t.accounts.form.creditLimit(currency)} error={errors.creditLimit} theme={theme}>
             <TextInput
-              accessibilityLabel={`Credit limit in ${getCurrency(currency).name}`}
+              accessibilityLabel={t.accounts.form.creditLimitIn(currencyName(currency))}
               keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
               onChangeText={(value) => { setCreditLimit(sanitizeMoneyInput(value, currency, false)); clearError('creditLimit'); }}
               placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
@@ -254,14 +258,14 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               style={[styles.moneyInput, inputStyle(Boolean(errors.creditLimit))]}
               value={formatMoneyEntry(creditLimit, currency)}
             />
-            <Text style={[styles.help, { color: theme.secondaryText }]}>In the card&apos;s currency. Must cover the card&apos;s current debt.</Text>
+            <Text style={[styles.help, { color: theme.secondaryText }]}>{t.accounts.form.creditLimitHelp}</Text>
           </FormField>
         ) : null}
 
         {type === 'credit_card' ? (
-          <FormField label="Statement closing day" error={errors.statementClosingDay} theme={theme}>
+          <FormField label={t.accounts.form.closingDay} error={errors.statementClosingDay} theme={theme}>
             <TextInput
-              accessibilityLabel="Statement closing calendar day"
+              accessibilityLabel={t.accounts.form.closingDayAccessibility}
               keyboardType="number-pad"
               maxLength={2}
               onChangeText={(value) => { setStatementClosingDay(value.replace(/\D/g, '')); clearError('statementClosingDay'); }}
@@ -270,14 +274,14 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               style={inputStyle(Boolean(errors.statementClosingDay))}
               value={statementClosingDay}
             />
-            <Text style={[styles.help, { color: theme.secondaryText }]}>For shorter months, Money Control uses the last calendar day and keeps this intended day for later months.</Text>
+            <Text style={[styles.help, { color: theme.secondaryText }]}>{t.accounts.form.closingDayHelp}</Text>
           </FormField>
         ) : null}
 
         {type === 'credit_card' ? (
-          <FormField label="Payment due day" error={errors.paymentDueDay} theme={theme}>
+          <FormField label={t.accounts.form.dueDay} error={errors.paymentDueDay} theme={theme}>
             <TextInput
-              accessibilityLabel="Payment due calendar day"
+              accessibilityLabel={t.accounts.form.dueDayAccessibility}
               keyboardType="number-pad"
               maxLength={2}
               onChangeText={(value) => { setPaymentDueDay(value.replace(/\D/g, '')); clearError('paymentDueDay'); }}
@@ -286,17 +290,17 @@ export function AccountForm({ accountId }: { accountId?: string }) {
               style={inputStyle(Boolean(errors.paymentDueDay))}
               value={paymentDueDay}
             />
-            <Text style={[styles.help, { color: theme.secondaryText }]}>The due date is the first configured day after each statement closes.</Text>
+            <Text style={[styles.help, { color: theme.secondaryText }]}>{t.accounts.form.dueDayHelp}</Text>
           </FormField>
         ) : null}
       </ScrollView>
 
       <FixedFooter bottomInset={insets.bottom}>
         <Button
-          accessibilityLabel={isEditing ? 'Save account changes' : 'Create account'}
+          accessibilityLabel={isEditing ? t.accounts.form.saveChangesAccessibility : t.accounts.form.create}
           busy={saving}
           fullWidth
-          label={isEditing ? 'Save changes' : 'Create account'}
+          label={isEditing ? t.accounts.form.saveChanges : t.accounts.form.create}
           onPress={() => void save()}
           size="lg"
           variant="primary"
@@ -307,7 +311,7 @@ export function AccountForm({ accountId }: { accountId?: string }) {
         onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); clearError('creditLimit'); }}
         selected={currency}
         suggested={[getBaseCurrency()]}
-        title="Account currency"
+        title={t.accounts.form.currencyPickerTitle}
         visible={currencyPickerOpen}
       />
     </KeyboardAvoidingView>

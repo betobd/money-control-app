@@ -9,118 +9,65 @@ import { PressableScale } from '@/components/pressable-scale';
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { ScreenHeader } from '@/components/screen-header';
+import { languageNativeNames } from '@/i18n/languages';
+import type { Messages } from '@/i18n/messages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
+
+type MenuKey = Exclude<keyof Messages['more']['items'], 'language'>;
 
 type MenuItem = {
-  accessibilityLabel: string;
-  accessibilityHint: string;
+  key: MenuKey | 'language';
   icon: SymbolViewProps['name'];
-  label: string;
-  description: string;
   href: Href;
 };
 
+// Text is looked up at render: this table is module scope, so it holds only keys.
 const menuItems: MenuItem[] = [
-  {
-    accessibilityLabel: 'Open security settings',
-    accessibilityHint: 'Configure PIN, device biometrics, and automatic App Lock',
-    icon: { ios: 'lock.shield.fill', android: 'shield_lock', web: 'lock' },
-    label: 'Security',
-    description: 'PIN, biometrics, and automatic locking',
-    href: '/security' as Href,
-  },
-  {
-    accessibilityLabel: 'Open notification settings',
-    accessibilityHint: 'Configure local recurring, budget, and daily reminders',
-    icon: { ios: 'bell.badge.fill', android: 'notifications', web: 'notifications' },
-    label: 'Notifications',
-    description: 'Local reminders and notification privacy',
-    href: '/notifications-settings' as Href,
-  },
-  {
-    accessibilityLabel: 'Open backup and restore',
-    accessibilityHint: 'Create a local backup or replace local data from a backup file',
-    icon: { ios: 'externaldrive.fill', android: 'backup', web: 'backup' },
-    label: 'Backup & Restore',
-    description: 'Back up or restore a complete local copy',
-    href: '/backup' as Href,
-  },
-  {
-    accessibilityLabel: 'Open data export',
-    accessibilityHint: 'Create readable CSV files for spreadsheets, analysis, and sharing',
-    icon: { ios: 'tablecells.fill', android: 'csv', web: 'table_view' },
-    label: 'Data Export',
-    description: 'Readable CSV files for analysis and sharing',
-    href: '/data-export' as Href,
-  },
-  {
-    accessibilityLabel: 'Open investments',
-    accessibilityHint: 'Review investment accounts, valuations, and estimated gain or loss',
-    icon: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' },
-    label: 'Investments',
-    description: 'Track balances, valuations, and estimated returns',
-    href: '/investments' as Href,
-  },
-  {
-    accessibilityLabel: 'Open reports',
-    accessibilityHint: 'Review income, expenses, categories, net worth, and period comparisons',
-    icon: { ios: 'chart.xyaxis.line', android: 'query_stats', web: 'query_stats' },
-    label: 'Reports',
-    description: 'Explore cash flow, categories, and net worth',
-    href: '/reports' as Href,
-  },
-  {
-    accessibilityLabel: 'Open currency and rates',
-    accessibilityHint: 'Review the base currency and exchange rates',
-    icon: { ios: 'coloncurrencysign.circle.fill', android: 'currency_exchange', web: 'currency_exchange' },
-    label: 'Currency & Rates',
-    description: 'Base currency and exchange rates',
-    href: '/currency-rates' as Href,
-  },
-  {
-    accessibilityLabel: 'Manage categories',
-    accessibilityHint: 'Create, edit, archive, and restore categories',
-    icon: { ios: 'square.grid.2x2.fill', android: 'category', web: 'category' },
-    label: 'Categories',
-    description: 'Manage expense and income categories',
-    href: '/categories' as Href,
-  },
-  {
-    accessibilityLabel: 'Manage recurring transactions',
-    accessibilityHint: 'Review due occurrences and manage recurring rules',
-    icon: { ios: 'repeat', android: 'repeat', web: 'repeat' },
-    label: 'Recurring Transactions',
-    description: 'Review, confirm, pause, and schedule recurring items',
-    href: '/recurring' as Href,
-  },
+  { key: 'security', icon: { ios: 'lock.shield.fill', android: 'shield_lock', web: 'lock' }, href: '/security' as Href },
+  { key: 'notifications', icon: { ios: 'bell.badge.fill', android: 'notifications', web: 'notifications' }, href: '/notifications-settings' as Href },
+  { key: 'backup', icon: { ios: 'externaldrive.fill', android: 'backup', web: 'backup' }, href: '/backup' as Href },
+  { key: 'dataExport', icon: { ios: 'tablecells.fill', android: 'csv', web: 'table_view' }, href: '/data-export' as Href },
+  { key: 'investments', icon: { ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }, href: '/investments' as Href },
+  { key: 'reports', icon: { ios: 'chart.xyaxis.line', android: 'query_stats', web: 'query_stats' }, href: '/reports' as Href },
+  { key: 'currency', icon: { ios: 'coloncurrencysign.circle.fill', android: 'currency_exchange', web: 'currency_exchange' }, href: '/currency-rates' as Href },
+  { key: 'language', icon: { ios: 'globe', android: 'language', web: 'language' }, href: '/language' as Href },
+  { key: 'categories', icon: { ios: 'square.grid.2x2.fill', android: 'category', web: 'category' }, href: '/categories' as Href },
+  { key: 'recurring', icon: { ios: 'repeat', android: 'repeat', web: 'repeat' }, href: '/recurring' as Href },
 ];
 
 export function MoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const language = useLanguage();
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close More" title="More" />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.more.closeLabel} title={t.more.title} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
         <Card padding={0}>
-          {menuItems.map((item, index) => (
-            <Fragment key={item.label}>
+          {menuItems.map((item, index) => {
+            const text = t.more.items[item.key];
+            const description = item.key === 'language' ? languageNativeNames[language] : t.more.items[item.key].description;
+            return (
+            <Fragment key={item.key}>
               {index > 0 ? <View style={[styles.separator, { backgroundColor: theme.hairline }]} /> : null}
               <PressableScale
-                accessibilityLabel={item.accessibilityLabel}
-                accessibilityHint={item.accessibilityHint}
+                accessibilityLabel={text.accessibilityLabel}
+                accessibilityHint={text.accessibilityHint}
                 accessibilityRole="button"
                 onPress={() => router.push(item.href)}
                 style={styles.row}>
                 <IconChip background={theme.tintPrimary} color={theme.primaryAction} icon={item.icon} iconSize={22} size={44} />
                 <View style={styles.text}>
-                  <Text style={[styles.label, { color: theme.primaryText }]}>{item.label}</Text>
-                  <Text style={[styles.description, { color: theme.secondaryText }]}>{item.description}</Text>
+                  <Text style={[styles.label, { color: theme.primaryText }]}>{text.label}</Text>
+                  <Text style={[styles.description, { color: theme.secondaryText }]}>{description}</Text>
                 </View>
                 <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={22} tintColor={theme.mutedText} />
               </PressableScale>
             </Fragment>
-          ))}
+            );
+          })}
         </Card>
       </ScrollView>
     </View>

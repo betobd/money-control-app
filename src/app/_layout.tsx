@@ -11,6 +11,13 @@ import { toUserMessage } from '@/errors/user-error';
 import { AppLockProvider } from '@/features/security/app-lock-provider';
 import { AppLockBoundary } from '@/features/security/components/app-lock-gate';
 import { NotificationRuntime } from '@/features/notifications/notification-runtime';
+import { initializeLanguage } from '@/i18n/language-preference';
+import { getMessages } from '@/i18n/messages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
+
+// Before any render: the lock screen and the database loading and error states all
+// show text, and they render before anything else could load the preference.
+initializeLanguage();
 
 const appFonts = {
   Manrope_400Regular: require('../../assets/fonts/Manrope_400Regular.ttf'),
@@ -33,17 +40,19 @@ const appFonts = {
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? colors.dark : colors.light;
+  // Not the hook: this screen must render even if the failure came from React state.
+  const t = getMessages();
   return (
     <View style={[styles.errorScreen, { backgroundColor: theme.appBackground }]}>
-      <Text style={[styles.errorTitle, { color: theme.primaryText }]}>Something went wrong</Text>
+      <Text style={[styles.errorTitle, { color: theme.primaryText }]}>{t.common.app.errorTitle}</Text>
       <Text style={[styles.errorBody, { color: theme.secondaryText }]}>
-        {toUserMessage(error, 'Money Control ran into an unexpected problem. Your data is safe on this device.')}
+        {toUserMessage(error, t.common.app.errorBody)}
       </Text>
       <Pressable
         accessibilityRole="button"
         onPress={() => void retry()}
         style={[styles.errorButton, { backgroundColor: theme.primaryAction }]}>
-        <Text style={[styles.errorButtonLabel, { color: theme.onPrimaryAction }]}>Try again</Text>
+        <Text style={[styles.errorButtonLabel, { color: theme.onPrimaryAction }]}>{t.common.tryAgain}</Text>
       </Pressable>
     </View>
   );
@@ -54,6 +63,7 @@ function DatabaseGate({ children, backgroundColor, accentColor }: {
   backgroundColor: string;
   accentColor: string;
 }) {
+  const t = useMessages();
   const [databaseError, setDatabaseError] = useState<Error>();
   const [databaseReady, setDatabaseReady] = useState(false);
 
@@ -78,7 +88,7 @@ function DatabaseGate({ children, backgroundColor, accentColor }: {
   if (!databaseReady) {
     return (
       <View
-        accessibilityLabel="Preparing Money Control"
+        accessibilityLabel={t.common.app.preparing}
         style={[styles.loading, { backgroundColor }]}>
         <ActivityIndicator color={accentColor} size="large" />
       </View>
@@ -91,12 +101,14 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const theme = isDark ? colors.dark : colors.light;
+  const t = useMessages();
+  const language = useLanguage();
   const [fontsLoaded, fontError] = useFonts(appFonts);
 
   if (!fontsLoaded && !fontError) {
     return (
       <View
-        accessibilityLabel="Loading Money Control"
+        accessibilityLabel={t.common.app.loading}
         style={[styles.loading, { backgroundColor: theme.appBackground }]}>
         <ActivityIndicator color={theme.primaryAction} size="large" />
       </View>
@@ -113,7 +125,14 @@ export default function RootLayout() {
         <AppLockBoundary>
           <DatabaseGate backgroundColor={theme.appBackground} accentColor={theme.primaryAction}>
             <NotificationRuntime>
-              <Stack screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
+              {/*
+                Keyed by language: a language change remounts every screen, so text a
+                memoized render or a module helper built in the old language cannot
+                survive it. Navigation returns to the start, as after a restart.
+              */}
+              <Stack
+                key={language}
+                screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
                 <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
@@ -136,6 +155,7 @@ export default function RootLayout() {
                 <Stack.Screen name="data-export" />
                 <Stack.Screen name="reports" />
                 <Stack.Screen name="currency-rates" />
+                <Stack.Screen name="language" />
                 <Stack.Screen name="budget-form" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="monthly-ceiling-form" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="recurring" options={{ presentation: 'fullScreenModal' }} />

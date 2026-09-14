@@ -6,6 +6,7 @@ import type { CurrencyCode } from '@/features/currency/currency';
 import { settingsService, type BaseCurrencyLock } from '@/features/settings/settings';
 import { getBaseCurrency } from '@/features/settings/settings';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { exchangeRateService } from './exchange-rates';
 import { isExchangeRateServiceError } from './exchange-rate.service';
 import type { ExchangeRateStatus } from './exchange-rate.types';
@@ -59,7 +60,7 @@ export function useExchangeRates(): UseExchangeRatesResult {
       setBaseCurrencyLock(lock);
       setStatuses(await exchangeRateService.listStatuses(accounts.map((account) => account.currency)));
     } catch (cause) {
-      setError(toUserMessage(cause, 'Unable to load exchange rates.'));
+      setError(toUserMessage(cause, getMessages().exchangeRates.loadError));
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ export function useExchangeRates(): UseExchangeRatesResult {
         // stale rather than disappearing.
         replace(await exchangeRateService.getStatusFor(currency));
       } else {
-        setError(toUserMessage(cause, 'Could not update the exchange rate.'));
+        setError(toUserMessage(cause, getMessages().exchangeRates.refreshError));
       }
     } finally {
       setBusyCurrency(null);
@@ -99,7 +100,7 @@ export function useExchangeRates(): UseExchangeRatesResult {
     } catch (cause) {
       setError(isExchangeRateServiceError(cause)
         ? cause.message
-        : toUserMessage(cause, 'Could not save the exchange rate.'));
+        : toUserMessage(cause, getMessages().exchangeRates.saveError));
       throw cause;
     } finally {
       setBusyCurrency(null);

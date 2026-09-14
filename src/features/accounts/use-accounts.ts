@@ -7,6 +7,7 @@ import { exchangeRateService, loadValuationRates } from '@/features/exchange-rat
 import type { ExchangeRateStatus } from '@/features/exchange-rates/exchange-rate.types';
 import { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import { getBaseCurrency } from '@/features/settings/settings';
+import { getMessages } from '@/i18n/messages';
 
 export function useAccounts() {
   const [accounts, setAccounts] = useState<AccountWithBalance[]>([]);
@@ -35,7 +36,7 @@ export function useAccounts() {
         void exchangeRateService.ensureFreshRates(currencies);
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load accounts.');
+      setError(cause instanceof Error ? cause.message : getMessages().accounts.errors.loadAccounts);
     } finally {
       setLoading(false);
     }

@@ -3,12 +3,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
-const options: { label: string; value: TransactionFormType }[] = [
-  { label: 'Expense', value: 'expense' },
-  { label: 'Income', value: 'income' },
-  { label: 'Transfer', value: 'transfer' },
-];
+const options: readonly TransactionFormType[] = ['expense', 'income', 'transfer'];
 
 type TransactionTypeSelectorProps = {
   value: TransactionFormType;
@@ -17,22 +14,24 @@ type TransactionTypeSelectorProps = {
 
 export function TransactionTypeSelector({ value, onChange }: TransactionTypeSelectorProps) {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
-    <View accessibilityLabel="Transaction type" accessibilityRole="radiogroup" style={[styles.container, { backgroundColor: theme.elevatedSurface }]}> 
+    <View accessibilityLabel={t.addTransaction.transactionType} accessibilityRole="radiogroup" style={[styles.container, { backgroundColor: theme.elevatedSurface }]}>
       {options.map((option) => {
-        const selected = option.value === value;
-        const tone = getTypeTone(option.value, theme);
+        const selected = option === value;
+        const tone = getTypeTone(option, theme);
+        const label = t.transactions.types[option];
         return (
           <Pressable
-            accessibilityLabel={option.label}
+            accessibilityLabel={label}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
-            key={option.value}
-            onPress={() => onChange(option.value)}
+            key={option}
+            onPress={() => onChange(option)}
             style={[styles.option, selected && { backgroundColor: tone }]}>
             <Text style={[styles.label, { color: selected ? theme.onPrimaryAction : theme.secondaryText }]}>
-              {option.label}
+              {label}
             </Text>
           </Pressable>
         );

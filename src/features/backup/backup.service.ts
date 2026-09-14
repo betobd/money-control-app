@@ -1,3 +1,4 @@
+import { getMessages } from '@/i18n/messages';
 import { backupLimits } from './backup-limits';
 import type { BackupChecksumService } from './backup-checksum.service';
 import type { BackupFileAdapter, PickBackupFileResult } from './backup-file.adapter';
@@ -73,7 +74,7 @@ export class BackupService {
     const warnings: string[] = [];
     if (parsed.file.schemaVersion !== this.options.schemaVersion) {
       warnings.push(
-        `Created with database schema ${parsed.file.schemaVersion}; backup format ${parsed.file.formatVersion} is compatible.`,
+        getMessages().backup.schemaWarning(parsed.file.schemaVersion, parsed.file.formatVersion),
       );
     }
     const overview = createBackupOverview(parsed.data);

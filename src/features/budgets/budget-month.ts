@@ -1,4 +1,5 @@
 import { bogotaToday, monthFromDate } from '@/features/transactions/transaction-date';
+import { getIntlLocale } from '@/i18n/messages';
 
 export function isValidBudgetMonth(value: string): boolean {
   const match = /^(\d{4})-(\d{2})$/.exec(value);
@@ -18,13 +19,27 @@ export function nextBudgetMonth(value: string): string {
   return shiftBudgetMonth(value, 1);
 }
 
-export function budgetMonthLabel(value: string): string {
+/**
+ * `2026-09` -> `September 2026`, in the interface language. Month names stay
+ * lowercase where the language writes them so (`septiembre de 2026`), which is
+ * what a sentence needs; use {@link budgetMonthTitle} where the month stands alone.
+ *
+ * Components pass the locale from `useLanguage()` so a language change is not
+ * hidden behind a memoized value.
+ */
+export function budgetMonthLabel(value: string, locale: string = getIntlLocale()): string {
   if (!isValidBudgetMonth(value)) return value;
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${value}-01T00:00:00Z`));
+}
+
+/** The month as a standalone label (a selector, a heading): first letter capitalized. */
+export function budgetMonthTitle(value: string, locale: string = getIntlLocale()): string {
+  const label = budgetMonthLabel(value, locale);
+  return label.charAt(0).toLocaleUpperCase(locale) + label.slice(1);
 }
 
 export function currentBudgetMonth(now = new Date()): string {

@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type PrimaryScreenHeaderProps = {
   title?: string;
@@ -18,14 +19,15 @@ type PrimaryScreenHeaderProps = {
   onAdd?: { accessibilityLabel: string; onPress: () => void };
 };
 
-export function PrimaryScreenHeader({ title = 'Money Control', accessory, onAdd }: PrimaryScreenHeaderProps) {
+export function PrimaryScreenHeader({ title, accessory, onAdd }: PrimaryScreenHeaderProps) {
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View style={styles.header}>
       <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: theme.primaryText }]}>
-        {title}
+        {title ?? t.common.appName}
       </Text>
       {accessory}
       {onAdd ? (
@@ -38,8 +40,8 @@ export function PrimaryScreenHeader({ title = 'Money Control', accessory, onAdd 
         </Pressable>
       ) : null}
       <Pressable
-        accessibilityLabel="More"
-        accessibilityHint="Open app management options"
+        accessibilityLabel={t.common.more}
+        accessibilityHint={t.common.moreHint}
         accessibilityRole="button"
         onPress={() => router.push('/more')}
         style={styles.action}>

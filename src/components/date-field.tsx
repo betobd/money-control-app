@@ -9,11 +9,11 @@ import {
   calendarMonthLabel,
   monthOf,
   shiftCalendarMonth,
-  weekdayLabels,
 } from '@/components/calendar';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { bogotaToday, formatTransactionDate, isValidCalendarDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type DateFieldProps = {
   label: string;
@@ -47,9 +47,10 @@ export function DateField({
   minDate,
   maxDate,
   clearable = false,
-  placeholder = 'Select a date',
+  placeholder,
 }: DateFieldProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const [open, setOpen] = useState(false);
   const valid = isValidCalendarDate(value);
 
@@ -62,8 +63,8 @@ export function DateField({
     <View style={styles.group}>
       <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
       <PressableScale
-        accessibilityHint="Opens a calendar to pick a date"
-        accessibilityLabel={`${label}, ${valid ? formatTransactionDate(value) : 'no date selected'}`}
+        accessibilityHint={t.common.date.pickHint}
+        accessibilityLabel={`${label}, ${valid ? formatTransactionDate(value) : t.common.date.noneSelected}`}
         accessibilityRole="button"
         onPress={() => setOpen(true)}
         style={StyleSheet.flatten([
@@ -76,7 +77,7 @@ export function DateField({
           tintColor={theme.secondaryText}
         />
         <Text numberOfLines={1} style={[styles.value, { color: valid ? theme.primaryText : theme.mutedText }]}>
-          {valid ? formatTransactionDate(value) : placeholder}
+          {valid ? formatTransactionDate(value) : placeholder ?? t.common.date.placeholder}
         </Text>
         <SymbolView
           name={{ ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }}
@@ -120,6 +121,7 @@ function CalendarPicker({
   maxDate?: string;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const today = bogotaToday();
   // BottomSheet unmounts its children while closed, so the grid re-anchors on
   // the current value every time the field is reopened.
@@ -132,7 +134,7 @@ function CalendarPicker({
     <View style={styles.picker}>
       <View style={styles.monthBar}>
         <Pressable
-          accessibilityLabel="Previous month"
+          accessibilityLabel={t.common.date.previousMonth}
           accessibilityRole="button"
           hitSlop={spacing.sm}
           onPress={() => setMonth((current) => shiftCalendarMonth(current, -1))}
@@ -147,7 +149,7 @@ function CalendarPicker({
           {calendarMonthLabel(month)}
         </Text>
         <Pressable
-          accessibilityLabel="Next month"
+          accessibilityLabel={t.common.date.nextMonth}
           accessibilityRole="button"
           hitSlop={spacing.sm}
           onPress={() => setMonth((current) => shiftCalendarMonth(current, 1))}
@@ -161,7 +163,7 @@ function CalendarPicker({
       </View>
 
       <View style={styles.weekdays}>
-        {weekdayLabels.map((weekday, index) => (
+        {t.common.date.weekdaysNarrow.map((weekday, index) => (
           <Text key={`weekday-${index}`} style={[styles.weekday, { color: theme.mutedText }]}>
             {weekday}
           </Text>
@@ -207,8 +209,8 @@ function CalendarPicker({
       </View>
 
       <View style={styles.quickActions}>
-        <QuickAction disabled={isBlocked(today)} label="Today" onPress={() => onSelect(today)} />
-        {clearable ? <QuickAction label="Clear" onPress={onClear} /> : null}
+        <QuickAction disabled={isBlocked(today)} label={t.common.today} onPress={() => onSelect(today)} />
+        {clearable ? <QuickAction label={t.common.clear} onPress={onClear} /> : null}
       </View>
     </View>
   );

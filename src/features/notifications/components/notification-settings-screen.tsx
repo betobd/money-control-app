@@ -23,6 +23,8 @@ import { useNotificationSettings } from '../use-notification-settings';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 import { Button } from '@/components/button';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 export function NotificationSettingsScreen() {
   const dialog = useDialog();
@@ -30,6 +32,8 @@ export function NotificationSettingsScreen() {
   const theme = useAppTheme();
   const appLock = useAppLock();
   const model = useNotificationSettings();
+  const t = useMessages();
+  const copy = t.notifications.settings;
   const [timePicker, setTimePicker] = useState<'recurring' | 'daily' | null>(null);
 
   useEffect(() => {
@@ -43,95 +47,95 @@ export function NotificationSettingsScreen() {
       return;
     }
     dialog.confirm({
-      title: 'Allow local reminders?',
-      message: 'Money Control uses Android notifications only for the reminder categories you choose. No financial data leaves this device.',
-      confirmLabel: 'Continue',
-      cancelLabel: 'Not now',
+      title: copy.allowTitle,
+      message: copy.allowMessage,
+      confirmLabel: copy.continue,
+      cancelLabel: copy.notNow,
       onConfirm: () => void model.setCategory(category, true),
     });
   }
 
   if (model.loading || !model.settings) {
-    return <View accessibilityLabel="Loading notification settings" style={[styles.center, { backgroundColor: theme.appBackground }]}><ActivityIndicator color={theme.primaryAction} size="large" /></View>;
+    return <View accessibilityLabel={copy.loadingLabel} style={[styles.center, { backgroundColor: theme.appBackground }]}><ActivityIndicator color={theme.primaryAction} size="large" /></View>;
   }
   const settings = model.settings;
   const appLockEnabled = appLock.config?.status === 'active';
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="back" leadingAccessibilityLabel="Back from notification settings" title="Notifications" />
+      <ScreenHeader leading="back" leadingAccessibilityLabel={copy.backLabel} title={copy.title} />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-        <Section title="Android permission">
+        <Section title={copy.permissionSection}>
           <Card style={styles.card}>
-            <Overline>{permissionTitle(model.permission)}</Overline>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>{permissionDescription(model.permission)}</Text>
+            <Overline>{permissionTitle(copy, model.permission)}</Overline>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{permissionDescription(copy, model.permission)}</Text>
             {model.permission !== 'granted' ? (
-              <ActionButton disabled={model.busy} label={model.permission === 'denied-permanent' ? 'Open Android settings' : 'Enable notifications'} onPress={() => {
+              <ActionButton disabled={model.busy} label={model.permission === 'denied-permanent' ? copy.openAndroidSettings : copy.enableNotifications} onPress={() => {
                 if (model.permission === 'denied-permanent') void model.openSettings();
                 else dialog.confirm({
-                  title: 'Enable local reminders?',
-                  message: 'Android will ask whether Money Control may show the reminders you choose.',
-                  confirmLabel: 'Continue',
+                  title: copy.enableTitle,
+                  message: copy.enableMessage,
+                  confirmLabel: copy.continue,
                   onConfirm: () => void model.enable(),
                 });
               }} primary />
             ) : settings.notificationsEnabled ? (
-              <ActionButton disabled={model.busy} label="Pause all reminders" onPress={() => void model.disable()} />
+              <ActionButton disabled={model.busy} label={copy.pauseAll} onPress={() => void model.disable()} />
             ) : (
-              <ActionButton disabled={model.busy} label="Resume notifications" onPress={() => void model.enable()} primary />
+              <ActionButton disabled={model.busy} label={copy.resume} onPress={() => void model.enable()} primary />
             )}
           </Card>
         </Section>
 
-        <Section title="Reminder categories">
-          <SettingToggle description="Due, overdue, and upcoming recurring items" disabled={model.busy} label="Recurring transactions" onChange={(value) => changeCategory('recurring', value)} theme={theme} value={settings.recurringRemindersEnabled} />
+        <Section title={copy.categoriesSection}>
+          <SettingToggle description={copy.recurringDescription} disabled={model.busy} label={copy.recurringLabel} onChange={(value) => changeCategory('recurring', value)} theme={theme} value={settings.recurringRemindersEnabled} />
           {settings.recurringRemindersEnabled ? (
             <View style={styles.options}>
-              <ValueButton label="Reminder time" onPress={() => setTimePicker('recurring')} theme={theme} value={settings.recurringReminderTime} />
-              <Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Advance notice</Text>
+              <ValueButton label={copy.reminderTime} onPress={() => setTimePicker('recurring')} theme={theme} value={settings.recurringReminderTime} />
+              <Text style={[styles.optionLabel, { color: theme.secondaryText }]}>{copy.advanceNotice}</Text>
               <View accessibilityRole="radiogroup" style={styles.segmented}>
-                {([0, 1, 2, 3] as const).map((days) => <Segment key={days} label={days === 0 ? 'Same day' : `${days} day${days === 1 ? '' : 's'}`} onPress={() => void model.setAdvanceDays(days)} selected={settings.recurringAdvanceDays === days} theme={theme} />)}
+                {([0, 1, 2, 3] as const).map((days) => <Segment key={days} label={days === 0 ? copy.sameDay : copy.advanceDays(days)} onPress={() => void model.setAdvanceDays(days)} selected={settings.recurringAdvanceDays === days} theme={theme} />)}
               </View>
             </View>
           ) : null}
-          <SettingToggle description="One alert near 80% and one at 100%" disabled={model.busy} label="Budget thresholds" onChange={(value) => changeCategory('budgets', value)} theme={theme} value={settings.budgetAlertsEnabled} />
-          <SettingToggle description="Statement closing and payment due reminders" disabled={model.busy} label="Credit cards" onChange={(value) => changeCategory('credit-cards', value)} theme={theme} value={settings.creditCardRemindersEnabled} />
+          <SettingToggle description={copy.budgetsDescription} disabled={model.busy} label={copy.budgetsLabel} onChange={(value) => changeCategory('budgets', value)} theme={theme} value={settings.budgetAlertsEnabled} />
+          <SettingToggle description={copy.cardsDescription} disabled={model.busy} label={copy.cardsLabel} onChange={(value) => changeCategory('credit-cards', value)} theme={theme} value={settings.creditCardRemindersEnabled} />
           {settings.creditCardRemindersEnabled ? (
             <View style={styles.options}>
-              <SettingToggle description="One day before the calculated closing date" disabled={model.busy} label="Closing reminder" onChange={(value) => void model.setCardClosing(value)} theme={theme} value={settings.creditCardClosingReminderEnabled} />
-              <Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Payment due reminders</Text>
-              <SettingToggle description="Three days before the statement due date" disabled={model.busy} label="3 days before" onChange={(value) => void model.setCardDueOffset(3, value)} theme={theme} value={settings.creditCardDueThreeDaysEnabled} />
-              <SettingToggle description="One day before the statement due date" disabled={model.busy} label="1 day before" onChange={(value) => void model.setCardDueOffset(1, value)} theme={theme} value={settings.creditCardDueOneDayEnabled} />
-              <SettingToggle description="On the statement due date" disabled={model.busy} label="Due today" onChange={(value) => void model.setCardDueOffset(0, value)} theme={theme} value={settings.creditCardDueTodayEnabled} />
+              <SettingToggle description={copy.closingDescription} disabled={model.busy} label={copy.closingLabel} onChange={(value) => void model.setCardClosing(value)} theme={theme} value={settings.creditCardClosingReminderEnabled} />
+              <Text style={[styles.optionLabel, { color: theme.secondaryText }]}>{copy.paymentDueReminders}</Text>
+              <SettingToggle description={copy.dueThreeDaysDescription} disabled={model.busy} label={copy.dueThreeDaysLabel} onChange={(value) => void model.setCardDueOffset(3, value)} theme={theme} value={settings.creditCardDueThreeDaysEnabled} />
+              <SettingToggle description={copy.dueOneDayDescription} disabled={model.busy} label={copy.dueOneDayLabel} onChange={(value) => void model.setCardDueOffset(1, value)} theme={theme} value={settings.creditCardDueOneDayEnabled} />
+              <SettingToggle description={copy.dueTodayDescription} disabled={model.busy} label={copy.dueTodayLabel} onChange={(value) => void model.setCardDueOffset(0, value)} theme={theme} value={settings.creditCardDueTodayEnabled} />
             </View>
           ) : null}
-          <SettingToggle description="A quiet daily prompt to review your finances" disabled={model.busy} label="Daily review" onChange={(value) => changeCategory('daily', value)} theme={theme} value={settings.dailyReminderEnabled} />
-          {settings.dailyReminderEnabled ? <ValueButton label="Daily reminder time" onPress={() => setTimePicker('daily')} theme={theme} value={settings.dailyReminderTime} /> : null}
+          <SettingToggle description={copy.dailyDescription} disabled={model.busy} label={copy.dailyLabel} onChange={(value) => changeCategory('daily', value)} theme={theme} value={settings.dailyReminderEnabled} />
+          {settings.dailyReminderEnabled ? <ValueButton label={copy.dailyTime} onPress={() => setTimePicker('daily')} theme={theme} value={settings.dailyReminderTime} /> : null}
         </Section>
 
-        <Section title="Notification privacy">
+        <Section title={copy.privacySection}>
           <View style={styles.segmented} accessibilityRole="radiogroup">
-            <Segment label="Private" onPress={() => void model.setContentMode('private')} selected={settings.notificationContentMode === 'private'} theme={theme} />
-            <Segment label="Detailed" onPress={() => void model.setContentMode('detailed')} selected={settings.notificationContentMode === 'detailed'} theme={theme} />
+            <Segment label={copy.private} onPress={() => void model.setContentMode('private')} selected={settings.notificationContentMode === 'private'} theme={theme} />
+            <Segment label={copy.detailed} onPress={() => void model.setContentMode('detailed')} selected={settings.notificationContentMode === 'detailed'} theme={theme} />
           </View>
-          <Text style={[styles.body, { color: theme.secondaryText }]}>Private hides amounts, accounts, categories, balances, and notes. Detailed may show a category and amount, but never notes or full account details.</Text>
-          {appLockEnabled && settings.notificationContentMode === 'detailed' ? <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.warning }]}>App Lock is enabled. Private notification content is recommended for lock-screen privacy.</Text> : null}
+          <Text style={[styles.body, { color: theme.secondaryText }]}>{copy.privacyDescription}</Text>
+          {appLockEnabled && settings.notificationContentMode === 'detailed' ? <Text accessibilityLiveRegion="polite" style={[styles.notice, { color: theme.warning }]}>{copy.appLockWarning}</Text> : null}
         </Section>
 
-        <Section title="Test and delivery">
+        <Section title={copy.testSection}>
           <View style={styles.actions}>
-            <ActionButton disabled={model.busy || model.permission !== 'granted'} label="Send test notification" onPress={() => void model.test()} primary />
-            <ActionButton disabled={model.busy} label="Cancel pending test" onPress={() => void model.cancelTest()} />
+            <ActionButton disabled={model.busy || model.permission !== 'granted'} label={copy.sendTest} onPress={() => void model.test()} primary />
+            <ActionButton disabled={model.busy} label={copy.cancelTest} onPress={() => void model.cancelTest()} />
           </View>
-          <Text style={[styles.body, { color: theme.secondaryText }]}>Reminder times follow the device’s local clock. Recurring financial dates remain Bogotá calendar dates. Android may delay delivery during Doze or battery optimization.</Text>
+          <Text style={[styles.body, { color: theme.secondaryText }]}>{copy.deliveryDescription}</Text>
         </Section>
 
         {settings.lastErrorCode ? (
           <View style={[styles.errorCard, { backgroundColor: theme.tintDestructive }]}>
-            <Text accessibilityLiveRegion="assertive" style={[styles.eyebrow, { color: theme.destructive }]}>Some reminders need attention</Text>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>Money Control could not finish the last notification update. Financial data was saved normally.</Text>
-            <ActionButton disabled={model.busy} label="Dismiss message" onPress={() => void model.clearError()} />
+            <Text accessibilityLiveRegion="assertive" style={[styles.eyebrow, { color: theme.destructive }]}>{copy.attentionTitle}</Text>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{copy.attentionBody}</Text>
+            <ActionButton disabled={model.busy} label={copy.dismissMessage} onPress={() => void model.clearError()} />
           </View>
         ) : null}
         {model.error ? <Text accessibilityLiveRegion="assertive" style={[styles.notice, { color: theme.destructive }]}>{model.error}</Text> : null}
@@ -167,7 +171,8 @@ function SettingToggle({ description, disabled, label, onChange, theme, value }:
 }
 
 function ValueButton({ label, onPress, theme, value }: { label: string; onPress: () => void; theme: Theme; value: string }) {
-  return <Pressable accessibilityHint={`Current value ${value}`} accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.valueButton, { backgroundColor: theme.surface }]}><Text style={[styles.body, { color: theme.primaryText }]}>{label}</Text><Text style={[styles.cardTitle, { color: theme.primaryAction }]}>{value}</Text></Pressable>;
+  const t = useMessages();
+  return <Pressable accessibilityHint={t.notifications.settings.currentValue(value)} accessibilityLabel={label} accessibilityRole="button" onPress={onPress} style={[styles.valueButton, { backgroundColor: theme.surface }]}><Text style={[styles.body, { color: theme.primaryText }]}>{label}</Text><Text style={[styles.cardTitle, { color: theme.primaryAction }]}>{value}</Text></Pressable>;
 }
 
 function Segment({ label, onPress, selected, theme }: { label: string; onPress: () => void; selected: boolean; theme: Theme }) {
@@ -179,26 +184,29 @@ function ActionButton({ disabled, label, onPress, primary = false }: { disabled:
 }
 
 function TimePickerModal({ initialValue, onClose, onSave, theme, visible }: { initialValue: string; onClose: () => void; onSave: (value: string) => void; theme: Theme; visible: boolean }) {
+  const t = useMessages();
   const [initialHour, initialMinute] = initialValue.split(':').map(Number);
   const [hour, setHour] = useState(initialHour);
   const [minute, setMinute] = useState(Math.round(initialMinute / 5) * 5 % 60);
-  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}><View style={[styles.modalBackdrop, { backgroundColor: theme.overlay }]}><View style={[styles.modal, { backgroundColor: theme.appBackground }]}><Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>Choose local time</Text><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Hour</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>{Array.from({ length: 24 }, (_, value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setHour(value)} selected={hour === value} theme={theme} />)}</ScrollView><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>Minute</Text><View style={styles.pickerRow}>{Array.from({ length: 12 }, (_, index) => index * 5).map((value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setMinute(value)} selected={minute === value} theme={theme} />)}</View><View style={styles.actions}><ActionButton disabled={false} label="Cancel" onPress={onClose} /><ActionButton disabled={false} label={`Save ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`} onPress={() => onSave(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)} primary /></View></View></View></Modal>;
+  return <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}><View style={[styles.modalBackdrop, { backgroundColor: theme.overlay }]}><View style={[styles.modal, { backgroundColor: theme.appBackground }]}><Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.notifications.settings.chooseTime}</Text><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>{t.notifications.settings.hour}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerRow}>{Array.from({ length: 24 }, (_, value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setHour(value)} selected={hour === value} theme={theme} />)}</ScrollView><Text style={[styles.optionLabel, { color: theme.secondaryText }]}>{t.notifications.settings.minute}</Text><View style={styles.pickerRow}>{Array.from({ length: 12 }, (_, index) => index * 5).map((value) => <Segment key={value} label={String(value).padStart(2, '0')} onPress={() => setMinute(value)} selected={minute === value} theme={theme} />)}</View><View style={styles.actions}><ActionButton disabled={false} label={t.common.cancel} onPress={onClose} /><ActionButton disabled={false} label={t.notifications.settings.saveTime(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)} onPress={() => onSave(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`)} primary /></View></View></View></Modal>;
 }
 
-function permissionTitle(value: NotificationPermissionState): string {
-  if (value === 'granted') return 'Allowed by Android';
-  if (value === 'denied-permanent') return 'Blocked in Android settings';
-  if (value === 'denied-requestable') return 'Permission denied';
-  if (value === 'unavailable') return 'Notifications unavailable';
-  return 'Not enabled yet';
+type Copy = Messages['notifications']['settings'];
+
+function permissionTitle(copy: Copy, value: NotificationPermissionState): string {
+  if (value === 'granted') return copy.permissionGrantedTitle;
+  if (value === 'denied-permanent') return copy.permissionBlockedTitle;
+  if (value === 'denied-requestable') return copy.permissionDeniedTitle;
+  if (value === 'unavailable') return copy.permissionUnavailableTitle;
+  return copy.permissionNotEnabledTitle;
 }
 
-function permissionDescription(value: NotificationPermissionState): string {
-  if (value === 'granted') return 'Android can show the local reminder categories you enable below.';
-  if (value === 'denied-permanent') return 'Open Android settings to allow notifications. Money Control continues to work normally.';
-  if (value === 'denied-requestable') return 'You can try again when you are ready. No reminder permission is required to use the app.';
-  if (value === 'unavailable') return 'This runtime cannot schedule Android notifications. Financial features are unaffected.';
-  return 'Money Control will ask only after you choose to enable local reminders.';
+function permissionDescription(copy: Copy, value: NotificationPermissionState): string {
+  if (value === 'granted') return copy.permissionGrantedDescription;
+  if (value === 'denied-permanent') return copy.permissionBlockedDescription;
+  if (value === 'denied-requestable') return copy.permissionDeniedDescription;
+  if (value === 'unavailable') return copy.permissionUnavailableDescription;
+  return copy.permissionNotEnabledDescription;
 }
 
 const styles = StyleSheet.create({

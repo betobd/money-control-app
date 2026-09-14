@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { getMessages } from '@/i18n/messages';
+
 import { subscribeToNotificationSettingsChanges } from './notification-settings.events';
 import { notificationSettingsService, notificationTestService } from './notifications';
 import type { NotificationCategory } from './notification-settings.service';
@@ -28,7 +30,7 @@ export function useNotificationSettings() {
       setSettings(nextSettings);
       setPermission(nextPermission);
     } catch {
-      setError('Notification settings could not be loaded.');
+      setError(getMessages().notifications.results.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -53,12 +55,14 @@ export function useNotificationSettings() {
       if (success) setResult(success);
       return value;
     } catch {
-      setError('The notification change could not be completed. Try again.');
+      setError(getMessages().notifications.results.changeFailed);
       return undefined;
     } finally {
       setBusy(false);
     }
   }, [busy]);
+
+  const results = () => getMessages().notifications.results;
 
   return {
     settings,
@@ -72,26 +76,26 @@ export function useNotificationSettings() {
       const value = await notificationSettingsService.enableNotifications();
       setPermission(value.permission);
       return value;
-    }, 'Notification permission updated.'),
-    disable: () => run(() => notificationSettingsService.disableNotifications(), 'All Money Control reminders are paused.'),
+    }, results().permissionUpdated),
+    disable: () => run(() => notificationSettingsService.disableNotifications(), results().paused),
     setCategory: (category: NotificationCategory, enabled: boolean) => run(async () => {
       const value = await notificationSettingsService.setCategoryEnabled(category, enabled);
       setPermission(value.permission);
       return value;
-    }, enabled ? 'Reminder enabled.' : 'Reminder disabled.'),
-    setRecurringTime: (value: string) => run(() => notificationSettingsService.setRecurringTime(value), 'Recurring reminder time updated.'),
-    setAdvanceDays: (value: 0 | 1 | 2 | 3) => run(() => notificationSettingsService.setRecurringAdvanceDays(value), 'Advance notice updated.'),
-    setDailyTime: (value: string) => run(() => notificationSettingsService.setDailyTime(value), 'Daily reminder time updated.'),
-    setContentMode: (value: NotificationContentMode) => run(() => notificationSettingsService.setContentMode(value), 'Notification privacy updated.'),
-    setCardClosing: (value: boolean) => run(() => notificationSettingsService.setCreditCardClosingReminderEnabled(value), 'Card closing reminder updated.'),
-    setCardDueOffset: (offset: 3 | 1 | 0, value: boolean) => run(() => notificationSettingsService.setCreditCardDueOffsetEnabled(offset, value), 'Card due reminder updated.'),
+    }, enabled ? results().reminderEnabled : results().reminderDisabled),
+    setRecurringTime: (value: string) => run(() => notificationSettingsService.setRecurringTime(value), results().recurringTimeUpdated),
+    setAdvanceDays: (value: 0 | 1 | 2 | 3) => run(() => notificationSettingsService.setRecurringAdvanceDays(value), results().advanceUpdated),
+    setDailyTime: (value: string) => run(() => notificationSettingsService.setDailyTime(value), results().dailyTimeUpdated),
+    setContentMode: (value: NotificationContentMode) => run(() => notificationSettingsService.setContentMode(value), results().privacyUpdated),
+    setCardClosing: (value: boolean) => run(() => notificationSettingsService.setCreditCardClosingReminderEnabled(value), results().cardClosingUpdated),
+    setCardDueOffset: (offset: 3 | 1 | 0, value: boolean) => run(() => notificationSettingsService.setCreditCardDueOffsetEnabled(offset, value), results().cardDueUpdated),
     openSettings: () => run(() => notificationSettingsService.openSystemSettings()),
     test: () => run(async () => {
       const value = await notificationTestService.schedule();
       if (value === 'permission-required') throw new Error('Permission required.');
       return value;
-    }, 'Test notification scheduled for about five seconds from now.'),
-    cancelTest: () => run(() => notificationTestService.cancel(), 'Test notification canceled.'),
+    }, results().testScheduled),
+    cancelTest: () => run(() => notificationTestService.cancel(), results().testCanceled),
     clearError: () => run(() => notificationSettingsService.clearError()),
   };
 }

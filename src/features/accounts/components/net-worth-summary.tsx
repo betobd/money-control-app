@@ -4,6 +4,7 @@ import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type NetWorthSummaryProps = {
   amount: string;
@@ -18,26 +19,27 @@ type NetWorthSummaryProps = {
 
 export function NetWorthSummary({ amount, currency, estimated, incomplete, missingCurrencies = [] }: NetWorthSummaryProps) {
   const theme = useAppTheme();
-  const title = estimated || incomplete ? 'Estimated net worth' : 'Total net worth';
+  const t = useMessages();
+  const title = estimated || incomplete ? t.accounts.netWorth.estimated : t.accounts.netWorth.total;
   // Naming the currencies turns an unactionable warning into an instruction: the
   // user can go and add exactly those rates.
   const note = incomplete
     ? missingCurrencies.length > 0
-      ? `${missingCurrencies.join(', ')} ${missingCurrencies.length === 1 ? 'is' : 'are'} not included because no exchange rate against ${currency} is available.`
-      : `Some accounts are not included because no exchange rate against ${currency} is available.`
+      ? t.accounts.netWorth.missingCurrencies(missingCurrencies.join(', '), missingCurrencies.length, currency)
+      : t.accounts.netWorth.someMissing(currency)
     : estimated
-      ? `Includes accounts in other currencies converted to ${currency} using the latest saved reference rate.`
-      : 'Assets minus current debt';
+      ? t.accounts.netWorth.includesForeign(currency)
+      : t.accounts.netWorth.assetsMinusDebt;
 
   return (
     <Card
-      accessibilityLabel={`${title}, ${incomplete ? 'estimated, incomplete' : amount + ' ' + currency}. ${note}`}
+      accessibilityLabel={`${title}, ${incomplete ? t.accounts.netWorth.estimatedIncompleteAccessibility : amount + ' ' + currency}. ${note}`}
       style={styles.card}
       variant="raised">
       <Overline>{title}</Overline>
       <View style={styles.amountRow}>
         {incomplete ? (
-          <Text style={[styles.amount, { color: theme.warning }]}>Estimated — incomplete</Text>
+          <Text style={[styles.amount, { color: theme.warning }]}>{t.accounts.netWorth.estimatedIncomplete}</Text>
         ) : (
           <>
             <Text

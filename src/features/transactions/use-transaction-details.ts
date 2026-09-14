@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { transactionService } from './transactions';
 import type { TransactionListItem } from './transaction.types';
 
@@ -15,7 +16,7 @@ export function useTransactionDetails(id: string) {
     try {
       setTransaction(await transactionService.get(id));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load transaction.');
+      setError(cause instanceof Error ? cause.message : getMessages().transactions.errors.unableToLoad);
     } finally {
       setLoading(false);
     }

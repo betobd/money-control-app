@@ -6,24 +6,27 @@ import { Button } from '@/components/button';
 import { Skeleton } from '@/components/skeleton';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export function EmptyAccountsState({ onCreate }: { onCreate: () => void }) {
+  const t = useMessages();
   return (
     <EmptyState
-      action={{ label: 'Add account', onPress: onCreate, accessibilityLabel: 'Add your first account' }}
-      body="Add an account to start tracking balances."
+      action={{ label: t.accounts.states.emptyAction, onPress: onCreate, accessibilityLabel: t.accounts.states.emptyActionAccessibility }}
+      body={t.accounts.states.emptyBody}
       icon={{ ios: 'wallet.bifold', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-      title="No accounts yet"
+      title={t.accounts.states.emptyTitle}
     />
   );
 }
 
 export function LoadingAccountCard() {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View
-      accessibilityLabel="Loading account"
+      accessibilityLabel={t.accounts.states.loadingAccount}
       accessibilityRole="progressbar"
       style={[styles.loading, { backgroundColor: theme.surface }]}>
       <Skeleton style={styles.loadingIcon} />
@@ -38,11 +41,12 @@ export function LoadingAccountCard() {
 
 export function AccountsErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={[styles.empty, { backgroundColor: theme.surface }]}>
-      <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>Unable to load accounts</Text>
+      <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>{t.accounts.states.errorTitle}</Text>
       <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>{message}</Text>
-      <Button accessibilityLabel="Retry loading accounts" label="Retry" onPress={onRetry} variant="tonal" />
+      <Button accessibilityLabel={t.accounts.states.retryAccessibility} label={t.common.retry} onPress={onRetry} variant="tonal" />
     </View>
   );
 }

@@ -6,16 +6,18 @@ import { Card } from '@/components/card';
 import { DateField } from '@/components/date-field';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { ReportPeriodValidationError, resolveReportPeriod } from '../report-period';
 import type { ReportPeriodPreset, ReportPeriodSelection } from '../report.types';
 
-const presets: { value: ReportPeriodPreset; label: string }[] = [
-  { value: 'current-month', label: 'Current month' },
-  { value: 'previous-month', label: 'Previous month' },
-  { value: 'last-3-months', label: 'Last 3 months' },
-  { value: 'last-6-months', label: 'Last 6 months' },
-  { value: 'current-year', label: 'Current year' },
-  { value: 'custom', label: 'Custom' },
+const presets: { value: ReportPeriodPreset; label: (t: Messages) => string }[] = [
+  { value: 'current-month', label: (t) => t.reports.presetCurrentMonth },
+  { value: 'previous-month', label: (t) => t.reports.presetPreviousMonth },
+  { value: 'last-3-months', label: (t) => t.reports.presetLast3Months },
+  { value: 'last-6-months', label: (t) => t.reports.presetLast6Months },
+  { value: 'current-year', label: (t) => t.reports.presetCurrentYear },
+  { value: 'custom', label: (t) => t.reports.presetCustom },
 ];
 
 type Props = {
@@ -26,6 +28,7 @@ type Props = {
 
 export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props) {
   const theme = useAppTheme();
+  const t = useMessages();
   const [dateFrom, setDateFrom] = useState(selection.customDateFrom ?? '');
   const [dateTo, setDateTo] = useState(selection.customDateTo ?? '');
   const [error, setError] = useState<string>();
@@ -37,7 +40,7 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
       setError(undefined);
       onChange(next);
     } catch (cause) {
-      setError(cause instanceof ReportPeriodValidationError ? cause.message : 'Invalid report period.');
+      setError(cause instanceof ReportPeriodValidationError ? cause.message : t.reports.invalidPeriod);
     }
   }
 
@@ -81,7 +84,7 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
                 styles.chipText,
                 { color: selected ? theme.primaryText : theme.secondaryText },
               ]}>
-                {preset.label}
+                {preset.label(t)}
               </Text>
             </Pressable>
           );
@@ -91,20 +94,20 @@ export function ReportPeriodSelector({ selection, periodLabel, onChange }: Props
       {selection.preset === 'custom' ? (
         <Card style={styles.customPanel}>
           <View style={styles.dateFields}>
-            <DateField label="Start date" maxDate={dateTo || undefined} onChange={setDateFrom} value={dateFrom} />
-            <DateField label="End date" minDate={dateFrom || undefined} onChange={setDateTo} value={dateTo} />
+            <DateField label={t.reports.startDate} maxDate={dateTo || undefined} onChange={setDateFrom} value={dateFrom} />
+            <DateField label={t.reports.endDate} minDate={dateFrom || undefined} onChange={setDateTo} value={dateTo} />
           </View>
           {error ? (
             <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>
               {error}
             </Text>
           ) : null}
-          <Button accessibilityLabel="Apply custom report period" fullWidth label="Apply range" onPress={applyCustomRange} variant="primary" />
+          <Button accessibilityLabel={t.reports.applyRangeLabel} fullWidth label={t.reports.applyRange} onPress={applyCustomRange} variant="primary" />
         </Card>
       ) : null}
 
       {periodLabel ? (
-        <Text accessibilityLabel={`Selected report period, ${periodLabel}`} style={[styles.periodLabel, { color: theme.secondaryText }]}>
+        <Text accessibilityLabel={t.reports.selectedPeriod(periodLabel)} style={[styles.periodLabel, { color: theme.secondaryText }]}>
           {periodLabel}
         </Text>
       ) : null}

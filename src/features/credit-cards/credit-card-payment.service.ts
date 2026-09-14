@@ -3,6 +3,7 @@ import { deriveEffectiveRate, formatMoney } from '@/features/currency/currency';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type { TransactionRecord } from '@/features/transactions/transaction.types';
+import { getMessages } from '@/i18n/messages';
 import type { CreditCardService } from './credit-card.service';
 import type {
   CreditCardDetails,
@@ -15,7 +16,7 @@ export class CreditCardPaymentValidationError extends Error {}
 
 export class CreditCardOverpaymentConfirmationRequired extends Error {
   constructor(public readonly preview: CreditCardPaymentPreview) {
-    super(`This payment exceeds the current debt by ${formatMoney(preview.overpaymentAmount, preview.cardCurrency)}. The card will have a positive balance.`);
+    super(getMessages().creditCards.overpayment(formatMoney(preview.overpaymentAmount, preview.cardCurrency)));
   }
 }
 
@@ -28,43 +29,45 @@ export class CreditCardPaymentService {
 
   getPaymentOptions(details: CreditCardDetails): CreditCardPaymentOptionView[] {
     const statement = details.latestStatement;
+    const messages = getMessages().creditCards;
+    const reasons = messages.unavailableReasons;
     return [
       {
         type: 'minimum-payment',
-        label: 'Minimum payment',
+        label: messages.paymentOptions.minimumPayment,
         amount: statement && statement.minimumPayment > 0 && statement.minimumRemaining > 0
           ? statement.minimumRemaining
           : null,
         isAvailable: Boolean(statement && statement.minimumPayment > 0 && statement.minimumRemaining > 0),
         unavailableReason: !statement
-          ? 'No statement recorded.'
+          ? reasons.noStatement
           : statement.minimumPayment === 0
-            ? 'No minimum payment due.'
+            ? reasons.noMinimumDue
             : statement.minimumRemaining === 0
-              ? 'Minimum payment already covered.'
+              ? reasons.minimumCovered
               : null,
       },
       {
         type: 'statement-remaining',
-        label: 'Remaining statement',
+        label: messages.paymentOptions.statementRemaining,
         amount: statement && statement.remainingStatement > 0 ? statement.remainingStatement : null,
         isAvailable: Boolean(statement && statement.remainingStatement > 0),
         unavailableReason: !statement
-          ? 'No statement recorded.'
+          ? reasons.noStatement
           : statement.remainingStatement === 0
-            ? 'Latest statement already paid.'
+            ? reasons.statementPaid
             : null,
       },
       {
         type: 'current-debt',
-        label: 'Current total debt',
+        label: messages.paymentOptions.currentDebt,
         amount: details.utilization.currentDebt > 0 ? details.utilization.currentDebt : null,
         isAvailable: details.utilization.currentDebt > 0,
-        unavailableReason: details.utilization.currentDebt === 0 ? 'No current debt to pay.' : null,
+        unavailableReason: details.utilization.currentDebt === 0 ? reasons.noDebt : null,
       },
       {
         type: 'other',
-        label: 'Other amount',
+        label: messages.paymentOptions.other,
         amount: null,
         isAvailable: true,
         unavailableReason: null,
@@ -77,28 +80,29 @@ export class CreditCardPaymentService {
       this.cards.getDetails(input.cardAccountId),
       this.accounts.list(true),
     ]);
+    const messages = getMessages().creditCards.validation;
     if (!details || details.account.isArchived) {
-      throw new CreditCardPaymentValidationError('Select an active credit card.');
+      throw new CreditCardPaymentValidationError(messages.selectActiveCard);
     }
     const source = accounts.find((account) => account.id === input.sourceAccountId);
     if (!source || source.isArchived || source.type === 'credit_card') {
-      throw new CreditCardPaymentValidationError('Select an active non-card source account.');
+      throw new CreditCardPaymentValidationError(messages.selectSource);
     }
     if (source.id === details.account.id) {
-      throw new CreditCardPaymentValidationError('Source and destination accounts must be different.');
+      throw new CreditCardPaymentValidationError(messages.sameAccount);
     }
     if (!isValidCalendarDate(input.transactionDate)) {
-      throw new CreditCardPaymentValidationError('Enter a valid payment date in YYYY-MM-DD format.');
+      throw new CreditCardPaymentValidationError(messages.paymentDateInvalid);
     }
     const options = this.getPaymentOptions(details);
     const selectedOption = options.find((option) => option.type === input.option);
-    if (!selectedOption) throw new CreditCardPaymentValidationError('Select a payment option.');
+    if (!selectedOption) throw new CreditCardPaymentValidationError(messages.selectOption);
     if (!selectedOption.isAvailable) {
-      throw new CreditCardPaymentValidationError(selectedOption.unavailableReason ?? 'This payment option is unavailable.');
+      throw new CreditCardPaymentValidationError(selectedOption.unavailableReason ?? messages.optionUnavailable);
     }
     const amount = input.option === 'other' ? input.amount : selectedOption.amount;
     if (amount === null || !Number.isSafeInteger(amount) || amount <= 0) {
-      throw new CreditCardPaymentValidationError('Payment amount must be a positive whole, safe amount.');
+      throw new CreditCardPaymentValidationError(messages.paymentAmountInvalid);
     }
     // `amount` is always in the card's currency (it credits the card).
     const cardCurrency = details.account.currency;
@@ -108,12 +112,12 @@ export class CreditCardPaymentService {
     if (crossCurrency) {
       sourceAmount = input.sourceAmount ?? 0;
       if (!Number.isSafeInteger(sourceAmount) || sourceAmount <= 0) {
-        throw new CreditCardPaymentValidationError('Enter the amount to send from the source account.');
+        throw new CreditCardPaymentValidationError(messages.sourceAmountRequired);
       }
     }
     const expectedCardBalance = details.account.balance + amount;
     if (!Number.isSafeInteger(expectedCardBalance)) {
-      throw new CreditCardPaymentValidationError('Payment would exceed the supported safe balance range.');
+      throw new CreditCardPaymentValidationError(messages.paymentOutOfRange);
     }
     const latest = details.latestStatement;
     const cutoff = latest

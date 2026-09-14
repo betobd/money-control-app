@@ -18,6 +18,7 @@ import { CreditCardCycleService } from '@/features/credit-cards/credit-card-cycl
 import { calculateCreditCardUtilization } from '@/features/credit-cards/credit-card-utilization';
 import { bogotaToday, formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type AccountCardProps = {
   account: AccountWithBalance;
@@ -29,17 +30,18 @@ type AccountCardProps = {
 
 export function AccountCard({ account, onActions, onOpen, rates }: AccountCardProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const isCard = account.type === 'credit_card';
   const isDebt = isCard && account.balance < 0;
   const isCredit = isCard && account.balance > 0;
   const isForeign = account.currency !== rates.baseCurrency;
   const balanceLabel = isCard
     ? isCredit
-      ? 'Credit balance'
-      : 'Current debt'
+      ? t.accounts.card.creditBalance
+      : t.accounts.card.currentDebt
     : account.type === 'cash'
-      ? 'Current balance'
-      : 'Available balance';
+      ? t.accounts.card.currentBalance
+      : t.accounts.card.availableBalance;
   const displayMagnitude = isCard ? Math.abs(account.balance) : account.balance;
   const formattedBalance = formatMoneyNumber(displayMagnitude, account.currency);
   const estimatedBaseMinor = isForeign ? rates.toBase(displayMagnitude, account.currency) : null;
@@ -52,7 +54,7 @@ export function AccountCard({ account, onActions, onOpen, rates }: AccountCardPr
 
   return (
     <View
-      accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, ${balanceLabel}, ${accessibleMoney(displayMagnitude, account.currency)}${account.isArchived ? ', archived' : ''}`}
+      accessibilityLabel={t.accounts.card.accessibilityLabel(account.name, accountTypeLabels[account.type], balanceLabel, accessibleMoney(displayMagnitude, account.currency), account.isArchived)}
       style={[
         styles.card,
         { backgroundColor: account.isArchived ? theme.disabledSurface : theme.surface },
@@ -69,11 +71,11 @@ export function AccountCard({ account, onActions, onOpen, rates }: AccountCardPr
         </View>
         {account.isArchived ? (
           <View style={[styles.archivedBadge, { backgroundColor: theme.elevatedSurface }]}>
-            <Text style={[styles.archivedText, { color: theme.secondaryText }]}>Archived</Text>
+            <Text style={[styles.archivedText, { color: theme.secondaryText }]}>{t.accounts.card.archived}</Text>
           </View>
         ) : null}
         <Pressable
-          accessibilityLabel={`More actions for ${account.name}`}
+          accessibilityLabel={t.accounts.card.moreActions(account.name)}
           accessibilityRole="button"
           hitSlop={4}
           onPress={() => onActions(account)}
@@ -87,7 +89,7 @@ export function AccountCard({ account, onActions, onOpen, rates }: AccountCardPr
       </View>
 
       <PressableScale
-        accessibilityHint={onOpen ? 'Opens credit card details' : undefined}
+        accessibilityHint={onOpen ? t.accounts.card.opensDetails : undefined}
         accessibilityRole={onOpen ? 'button' : undefined}
         activeScale={onOpen ? 0.98 : 1}
         activeOpacity={onOpen ? 0.9 : 1}
@@ -108,22 +110,22 @@ export function AccountCard({ account, onActions, onOpen, rates }: AccountCardPr
         {isForeign ? (
           estimatedBaseMinor !== null ? (
             <Text style={[styles.estimate, { color: theme.mutedText }]}>
-              ≈ {formatMoney(estimatedBaseMinor, rates.baseCurrency)} · Estimated in {rates.baseCurrency}
+              {t.accounts.card.estimatedIn(formatMoney(estimatedBaseMinor, rates.baseCurrency), rates.baseCurrency)}
             </Text>
           ) : (
             <Text style={[styles.estimate, { color: theme.warning }]}>
-              Add a {account.currency}/{rates.baseCurrency} exchange rate to include this account in estimated net worth.
+              {t.accounts.card.missingRate(account.currency, rates.baseCurrency)}
             </Text>
           )
         ) : null}
         {isDebt ? (
-          <Text style={[styles.debtNote, { color: theme.expense }]}>Debt · reduces net worth</Text>
+          <Text style={[styles.debtNote, { color: theme.expense }]}>{t.accounts.card.debtNote}</Text>
         ) : null}
         {isCredit ? (
-          <Text style={[styles.debtNote, { color: theme.income }]}>Credit balance · increases net worth</Text>
+          <Text style={[styles.debtNote, { color: theme.income }]}>{t.accounts.card.creditNote}</Text>
         ) : null}
         {isCard && account.balance === 0 ? (
-          <Text style={[styles.debtNote, { color: theme.secondaryText }]}>No debt</Text>
+          <Text style={[styles.debtNote, { color: theme.secondaryText }]}>{t.accounts.card.noDebt}</Text>
         ) : null}
         {utilization ? (
           <View style={styles.cardDetails}>
@@ -133,8 +135,8 @@ export function AccountCard({ account, onActions, onOpen, rates }: AccountCardPr
                 value={utilization.utilizationBasisPoints / 10000}
               />
             ) : null}
-            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Available credit {utilization.availableCredit === null ? 'unavailable' : formatMoney(utilization.availableCredit, account.currency)} · Credit utilization {utilization.utilizationBasisPoints === null ? 'unavailable' : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`}</Text>
-            {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>Next calculated due {formatTransactionDate(cycle.nextDueDate)}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>Complete card cycle setup</Text>}
+            <Text style={[styles.debtNote, { color: theme.secondaryText }]}>{t.accounts.card.creditSummary(utilization.availableCredit === null ? null : formatMoney(utilization.availableCredit, account.currency), utilization.utilizationBasisPoints === null ? null : `${(utilization.utilizationBasisPoints / 100).toFixed(0)}%`)}</Text>
+            {cycle ? <Text style={[styles.debtNote, { color: theme.secondaryText }]}>{t.accounts.card.nextDue(formatTransactionDate(cycle.nextDueDate))}</Text> : <Text style={[styles.debtNote, { color: theme.warning }]}>{t.accounts.card.completeCycleSetup}</Text>}
           </View>
         ) : null}
       </PressableScale>

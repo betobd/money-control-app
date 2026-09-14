@@ -18,6 +18,7 @@
  * functions take it as an argument so the arithmetic stays pure and testable.
  * See docs/decisions/0008-configurable-base-currency.md.
  */
+import { getMessages } from '@/i18n/messages';
 import { getCurrency, type CurrencyCode } from './currency-registry';
 
 export const DEFAULT_RATE_SCALE = 10000;
@@ -144,7 +145,7 @@ export function toBaseCurrencyMinor(
   }
   if (code === baseCode) return nativeMinor;
   if (!rate) {
-    throw new CurrencyConversionError(`A ${code}/${baseCode} exchange rate is required to convert ${code}.`);
+    throw new CurrencyConversionError(getMessages().currency.rateRequired(code, baseCode));
   }
   return convertMinor(nativeMinor, code, baseCode, rate);
 }
@@ -182,14 +183,14 @@ export function deriveEffectiveRate(
     const inverse = roundedDivide(BigInt(fromMinor) * toFactor * scale, fromFactor * BigInt(toMinor));
     const rateScaled = toSafeNumber(inverse);
     if (rateScaled <= 0) {
-      throw new CurrencyConversionError('The derived exchange rate is outside the supported range.');
+      throw new CurrencyConversionError(getMessages().currency.derivedRateOutOfRange);
     }
     return { baseCurrencyCode: to, quoteCurrencyCode: from, rateScaled, rateScale: DEFAULT_RATE_SCALE };
   }
 
   const rateScaled = toSafeNumber(forward);
   if (rateScaled <= 0) {
-    throw new CurrencyConversionError('The derived exchange rate is outside the supported range.');
+    throw new CurrencyConversionError(getMessages().currency.derivedRateOutOfRange);
   }
   return { baseCurrencyCode: from, quoteCurrencyCode: to, rateScaled, rateScale: DEFAULT_RATE_SCALE };
 }

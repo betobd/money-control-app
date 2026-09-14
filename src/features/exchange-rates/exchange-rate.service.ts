@@ -17,6 +17,7 @@ import {
   type DirectedRate,
 } from '@/features/currency/currency';
 import { getBaseCurrency } from '@/features/settings/base-currency';
+import { getMessages } from '@/i18n/messages';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { isExchangeRateProviderError, type ExchangeRateProvider } from './frankfurter.provider';
@@ -161,7 +162,7 @@ export class ExchangeRateService {
     if (currency === base) {
       throw new ExchangeRateServiceError(
         'invalid_manual_rate',
-        'The base currency has no exchange rate against itself.',
+        getMessages().exchangeRates.baseHasNoRate,
       );
     }
     try {
@@ -192,8 +193,8 @@ export class ExchangeRateService {
         throw new ExchangeRateServiceError(
           cached ? 'refresh_failed' : 'no_rate_available',
           cached
-            ? `Could not update the ${currency}/${base} reference rate. The last saved rate is still being used.`
-            : `No exchange rate is available for ${currency}. Enter a ${currency}/${base} rate manually.`,
+            ? getMessages().exchangeRates.refreshFailedCached(currency, base)
+            : getMessages().exchangeRates.noRateEnterManually(currency, base),
           cached,
         );
       }
@@ -207,14 +208,14 @@ export class ExchangeRateService {
     if (currency === base) {
       throw new ExchangeRateServiceError(
         'invalid_manual_rate',
-        'The base currency has no exchange rate against itself.',
+        getMessages().exchangeRates.baseHasNoRate,
       );
     }
     const parsed = parseExchangeRate(input);
     if (!parsed.ok) {
       throw new ExchangeRateServiceError(
         'invalid_manual_rate',
-        `Enter a valid ${currency}/${base} rate greater than zero.`,
+        getMessages().exchangeRates.invalidManualRate(currency, base),
       );
     }
     const existing = await this.repository.find(currency, base);

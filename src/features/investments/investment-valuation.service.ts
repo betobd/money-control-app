@@ -1,6 +1,7 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import { getMessages } from '@/i18n/messages';
 import type { InvestmentRepository } from './investment.repository';
 import { isCalendarDate } from './investment.service';
 import type { InvestmentValuation, InvestmentValuationInput } from './investment.types';
@@ -61,19 +62,19 @@ export class InvestmentValuationService {
   async record(accountId: string, input: InvestmentValuationInput): Promise<InvestmentValuation> {
     const account = (await this.accountRepository.list(true)).find((candidate) => candidate.id === accountId);
     if (!account || account.type !== 'investment') {
-      throw new InvestmentValuationError('investment_not_found', 'Investment not found.');
+      throw new InvestmentValuationError('investment_not_found', getMessages().investments.notFound);
     }
     if (account.isArchived) {
-      throw new InvestmentValuationError('investment_archived', 'Archived investments cannot be revalued.');
+      throw new InvestmentValuationError('investment_archived', getMessages().investments.archivedCannotRevalue);
     }
     if (!Number.isSafeInteger(input.valueMinor) || input.valueMinor < 0) {
-      throw new InvestmentValuationError('value_invalid', 'Current value must be a whole, non-negative amount.');
+      throw new InvestmentValuationError('value_invalid', getMessages().investments.currentValueInvalid);
     }
     if (!isCalendarDate(input.valuationDate)) {
-      throw new InvestmentValuationError('date_invalid', 'Enter a valid valuation date.');
+      throw new InvestmentValuationError('date_invalid', getMessages().investments.valuationDateInvalid);
     }
     if (input.valuationDate > this.today()) {
-      throw new InvestmentValuationError('date_in_future', 'Valuation date cannot be in the future.');
+      throw new InvestmentValuationError('date_in_future', getMessages().investments.valuationDateInFuture);
     }
 
     const basisMinor = account.balance;
@@ -113,7 +114,7 @@ export class InvestmentValuationService {
   async delete(valuationId: string): Promise<void> {
     const existing = await this.investmentRepository.findValuationById(valuationId);
     if (!existing) {
-      throw new InvestmentValuationError('valuation_not_found', 'Valuation not found.');
+      throw new InvestmentValuationError('valuation_not_found', getMessages().investments.valuationNotFound);
     }
     await this.investmentRepository.deleteValuation(valuationId);
     notifyFinancialDataChanged({

@@ -1,6 +1,8 @@
 import { Directory, File, FileMode, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+import { getMessages } from '@/i18n/messages';
+
 import {
   ExportFileAdapterError,
   type ExportFileAdapter,
@@ -46,28 +48,28 @@ export class ExpoExportFileAdapter implements ExportFileAdapter {
       } catch {
         throw new ExportFileAdapterError(
           'temporary_write_failed',
-          'The CSV file could not be generated. Check available device storage and try again.',
+          getMessages().dataExport.writeFailed,
         );
       }
 
       if (!(await Sharing.isAvailableAsync())) {
         throw new ExportFileAdapterError(
           'sharing_unavailable',
-          'The CSV file was generated, but Android’s native save/share interface is unavailable.',
+          getMessages().dataExport.sharingUnavailable,
           true,
         );
       }
 
       try {
         await Sharing.shareAsync(file.uri, {
-          dialogTitle: 'Save or share Money Control CSV',
+          dialogTitle: getMessages().dataExport.shareDialogTitle,
           mimeType: 'text/csv',
           UTI: 'public.comma-separated-values-text',
         });
       } catch {
         throw new ExportFileAdapterError(
           'sharing_failed',
-          'The CSV file was generated, but Android’s native save/share interface could not be opened.',
+          getMessages().dataExport.sharingOpenFailed,
           true,
         );
       }
@@ -78,8 +80,8 @@ export class ExpoExportFileAdapter implements ExportFileAdapter {
       throw new ExportFileAdapterError(
         generated ? 'sharing_failed' : 'temporary_write_failed',
         generated
-          ? 'The CSV file was generated, but it could not be shared.'
-          : 'The CSV file could not be generated. Check available device storage and try again.',
+          ? getMessages().dataExport.shareFailed
+          : getMessages().dataExport.writeFailed,
         generated,
       );
     } finally {

@@ -3,6 +3,7 @@
  * scaled-integer conversion. Import from here rather than reaching into modules.
  */
 export * from './currency-registry';
+export * from './currency-name';
 export * from './money-entry';
 export * from './money-parser';
 export * from './money-formatter';

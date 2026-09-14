@@ -5,6 +5,7 @@ import { Overline } from '@/components/overline';
 import { borderRadii, spacing } from '@/constants/theme';
 import { MoneyText } from '@/features/home/components/money-text';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type FinancialSummaryCardProps = {
   income: string;
@@ -16,31 +17,32 @@ type FinancialSummaryCardProps = {
 /** Three-up Income / Expenses / Net strip (1b design). */
 export function FinancialSummaryCard({ income, expenses, refunds, netBalance }: FinancialSummaryCardProps) {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View style={styles.strip}>
       <Card padding={spacing.sm + spacing.xs} style={styles.tile}>
-        <Overline>Income</Overline>
+        <Overline>{t.home.income}</Overline>
         <MoneyText style={styles.value} tone="income">
           {income}
         </MoneyText>
       </Card>
       {refunds ? (
         <Card padding={spacing.sm + spacing.xs} style={styles.tile}>
-          <Overline>Refunds</Overline>
+          <Overline>{t.home.refunds}</Overline>
           <MoneyText style={styles.value} tone="refund">
             {refunds}
           </MoneyText>
         </Card>
       ) : null}
       <Card padding={spacing.sm + spacing.xs} style={styles.tile}>
-        <Overline>Net expenses</Overline>
+        <Overline>{t.home.netExpenses}</Overline>
         <MoneyText style={styles.value} tone="expense">
           {expenses}
         </MoneyText>
       </Card>
       <Card padding={spacing.sm + spacing.xs} style={StyleSheet.flatten([styles.tile, { backgroundColor: theme.tintPrimary }])}>
-        <Overline color={theme.transfer}>Net result</Overline>
+        <Overline color={theme.transfer}>{t.home.netResult}</Overline>
         <MoneyText style={styles.value}>{netBalance}</MoneyText>
       </Card>
     </View>

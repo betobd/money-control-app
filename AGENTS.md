@@ -43,6 +43,9 @@
   `SegmentedControl`). Do not hand-roll headers, buttons, footers or empty states.
 - Create another item with the header `+`; a labeled create button belongs only in
   an empty state.
+- Every user-visible string goes through the message catalogs in `src/i18n`
+  (`useMessages()` in components, `getMessages()` elsewhere) and is translated into
+  all six languages. See [docs/translations.md](docs/translations.md).
 - Use typography tokens; for emphasis use the `*Strong` tokens, never a bare
   `fontWeight` (it clips text on Android, and lint rejects it).
 - Support light and dark mode.

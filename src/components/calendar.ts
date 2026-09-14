@@ -1,3 +1,5 @@
+import { getIntlLocale } from '@/i18n/messages';
+
 /**
  * Pure calendar-grid math for the shared date picker.
  *
@@ -17,7 +19,10 @@ export type CalendarDay = {
   inMonth: boolean;
 };
 
-/** Narrow weekday headers, Sunday first. */
+/**
+ * Narrow English weekday headers, Sunday first. The picker renders the localized
+ * `common.date.weekdaysNarrow`; this stays as the grid's column contract.
+ */
 export const weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 
 /** `2026-08-23` -> `2026-08`. */
@@ -38,10 +43,10 @@ export function addCalendarDays(date: string, days: number): string {
   return formatDate(new Date(Date.UTC(year, month - 1, day + days)));
 }
 
-/** `2026-08` -> `August 2026`. */
+/** `2026-08` -> `August 2026` (in the active interface language). */
 export function calendarMonthLabel(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
-  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  return new Intl.DateTimeFormat(getIntlLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 

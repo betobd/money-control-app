@@ -6,6 +6,7 @@ import type { ReportPeriodSelection } from '@/features/reports/report.types';
 import { createDefaultTransactionListFilters } from '@/features/transactions/transaction-list-filters';
 import type { TransactionListFilters } from '@/features/transactions/transaction.types';
 import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
+import { getMessages, getIntlLocale } from '@/i18n/messages';
 import { DataExportError } from './data-export.service';
 import { dataExportService } from './data-exports';
 import type {
@@ -21,14 +22,18 @@ function errorMessage(cause: unknown): string {
   if (cause instanceof DataExportError) return cause.message;
   if (cause instanceof ExportFileAdapterError) {
     return cause.fileGenerated
-      ? `${cause.message} Money Control cannot confirm that a destination copy was saved.`
+      ? getMessages().dataExport.unconfirmedCopy(cause.message)
       : cause.message;
   }
-  return 'The CSV export could not be completed. Your financial data was not changed. Try again.';
+  return getMessages().dataExport.exportFailed;
 }
 
 function successMessage(result: ExportResult): string {
-  return `${result.fileName} was generated with ${result.rowCount.toLocaleString('en-US')} ${result.rowCount === 1 ? 'row' : 'rows'}. The native save/share interface closed; Money Control cannot tell whether you saved, shared, or cancelled there.`;
+  return getMessages().dataExport.exportSucceeded(
+    result.fileName,
+    result.rowCount,
+    result.rowCount.toLocaleString(getIntlLocale()),
+  );
 }
 
 export function useDataExport() {
@@ -58,7 +63,7 @@ export function useDataExport() {
       if (request === sequence.current) setOverview(next);
     } catch {
       if (request === sequence.current) {
-        setError('Export counts could not be loaded. Try reopening this screen.');
+        setError(getMessages().dataExport.overviewFailed);
       }
     } finally {
       if (request === sequence.current) setLoadingOverview(false);

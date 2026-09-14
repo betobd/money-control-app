@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { refundService } from './refunds';
 import type { RefundSummary } from './refund.types';
 
@@ -17,7 +18,7 @@ export function useRefundSummary(originalTransactionId: string | null) {
       setError(undefined);
       setSummary(await refundService.summarize(originalTransactionId));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load refund details.');
+      setError(cause instanceof Error ? cause.message : getMessages().refunds.errors.unableToLoadSummary);
     }
   }, [originalTransactionId]);
 

@@ -8,6 +8,7 @@
  */
 import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import { getMessages } from '@/i18n/messages';
 import { primeBaseCurrency } from './base-currency';
 import { primeOnboardingStatus } from './onboarding-status';
 import type { SettingsRepository } from './settings.repository';
@@ -62,7 +63,7 @@ export class SettingsService {
   async get(): Promise<AppSettings> {
     const settings = await this.repository.find();
     if (!settings) {
-      throw new SettingsError('settings_missing', 'Application settings are missing from the database.');
+      throw new SettingsError('settings_missing', getMessages().onboarding.baseCurrency.missing);
     }
     return settings;
   }
@@ -116,7 +117,7 @@ export class SettingsService {
 
   async setBaseCurrency(code: string): Promise<CurrencyCode> {
     if (!isSupportedCurrency(code)) {
-      throw new SettingsError('unsupported_currency', 'Select a supported currency.');
+      throw new SettingsError('unsupported_currency', getMessages().onboarding.baseCurrency.unsupported);
     }
     const current = await this.get();
     if (current.baseCurrencyCode === code) return current.baseCurrencyCode;
@@ -136,10 +137,8 @@ export class SettingsService {
 /** User-facing explanation of a base-currency lock. */
 export function baseCurrencyLockMessage(lock: BaseCurrencyLock): string {
   if (lock.reason === null) return '';
-  if (lock.reason === 'history') {
-    const count = lock.transactionCount;
-    return `Every one of your ${count} ${count === 1 ? 'transaction' : 'transactions'} stores its value in the current base currency. Changing it would require restating them at historical exchange rates, which are not kept.`;
-  }
-  const count = lock.budgetCount;
-  return `Your ${count} ${count === 1 ? 'budget is' : 'budgets are'} set in the current base currency. Delete them to choose a different base currency.`;
+  const messages = getMessages().onboarding.baseCurrency;
+  return lock.reason === 'history'
+    ? messages.lockedByHistory(lock.transactionCount)
+    : messages.lockedByBudgets(lock.budgetCount);
 }

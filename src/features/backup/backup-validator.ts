@@ -1,5 +1,6 @@
 import { budgetColorKeys, type BudgetColorKey } from '@/constants/theme';
 import { isSupportedCurrency } from '@/features/currency/currency';
+import { getMessages, getIntlLocale } from '@/i18n/messages';
 import { backupLimits, utf8ByteLength } from './backup-limits';
 import {
   BACKUP_CHECKSUM_ALGORITHM,
@@ -42,7 +43,7 @@ type BackupFormatVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export class BackupValidationError extends Error {
   constructor(public readonly issues: BackupValidationIssue[]) {
-    super(issues[0]?.message ?? 'The backup is invalid.');
+    super(issues[0]?.message ?? validationText().invalid);
   }
 }
 
@@ -57,6 +58,13 @@ const calendarDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 const utcTimestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const checksumPattern = /^[a-fA-F0-9]{64}$/;
+
+/** Validation copy in the active language, read when an issue is raised. */
+function validationText() {
+  return getMessages().backup.validation;
+}
+
+type ReferenceSource = keyof ReturnType<typeof validationText>['sources'];
 
 function issue(
   issues: ValidationIssues,
@@ -77,7 +85,7 @@ function requireRecord(
   issues: ValidationIssues,
 ): Record<string, unknown> | null {
   if (!isRecord(value)) {
-    issue(issues, 'invalid_structure', path, `${path} must be an object.`);
+    issue(issues, 'invalid_structure', path, validationText().mustBeObject(path));
     return null;
   }
   return value;
@@ -92,11 +100,11 @@ function requireArray(
 ): unknown[] {
   const value = record[key];
   if (!Array.isArray(value)) {
-    issue(issues, 'invalid_structure', path, `${path} must be an array.`);
+    issue(issues, 'invalid_structure', path, validationText().mustBeArray(path));
     return [];
   }
   if (value.length > limit) {
-    issue(issues, 'safety_limit', path, `${path} exceeds the ${limit.toLocaleString('en-US')} record safety limit.`);
+    issue(issues, 'safety_limit', path, validationText().exceedsRecordLimit(path, limit.toLocaleString(getIntlLocale())));
     return [];
   }
   return value;
@@ -109,15 +117,15 @@ function validateString(
   options: { max?: number; nonBlank?: boolean } = {},
 ): value is string {
   if (typeof value !== 'string') {
-    issue(issues, 'invalid_structure', path, `${path} must be text.`);
+    issue(issues, 'invalid_structure', path, validationText().mustBeText(path));
     return false;
   }
   const max = options.max ?? backupLimits.maxStringLength;
   if (value.length > max) {
-    issue(issues, 'safety_limit', path, `${path} exceeds the ${max}-character safety limit.`);
+    issue(issues, 'safety_limit', path, validationText().exceedsCharacterLimit(path, max));
   }
   if (options.nonBlank && !value.trim()) {
-    issue(issues, 'invalid_value', path, `${path} cannot be blank.`);
+    issue(issues, 'invalid_value', path, validationText().cannotBeBlank(path));
   }
   return true;
 }
@@ -138,7 +146,7 @@ function validateEnum(
   issues: ValidationIssues,
 ): value is string {
   if (typeof value !== 'string' || !allowed.includes(value)) {
-    issue(issues, 'invalid_value', path, `${path} contains an unsupported value.`);
+    issue(issues, 'invalid_value', path, validationText().unsupportedValue(path));
     return false;
   }
   return true;
@@ -155,7 +163,7 @@ function isCalendarDate(value: string): boolean {
 
 function validateCalendarDate(value: unknown, path: string, issues: ValidationIssues): value is string {
   if (typeof value !== 'string' || !isCalendarDate(value)) {
-    issue(issues, 'invalid_value', path, `${path} must be a valid Bogotá-local YYYY-MM-DD date.`);
+    issue(issues, 'invalid_value', path, validationText().invalidDate(path));
     return false;
   }
   return true;
@@ -183,7 +191,7 @@ function validateUtcTimestamp(value: unknown, path: string, issues: ValidationIs
     && date.getUTCMinutes() === Number(textValue?.slice(14, 16))
     && date.getUTCSeconds() === Number(textValue?.slice(17, 19));
   if (!valid) {
-    issue(issues, 'invalid_value', path, `${path} must be a valid UTC ISO-8601 timestamp.`);
+    issue(issues, 'invalid_value', path, validationText().invalidTimestamp(path));
     return false;
   }
   return true;
@@ -204,18 +212,18 @@ function validateSafeInteger(
   options: { positive?: boolean; nonNegative?: boolean; nonZero?: boolean } = {},
 ): value is number {
   if (!Number.isSafeInteger(value)) {
-    issue(issues, 'invalid_value', path, `${path} must be a whole, safe integer.`);
+    issue(issues, 'invalid_value', path, validationText().mustBeSafeInteger(path));
     return false;
   }
   const numberValue = value as number;
   if (options.positive && numberValue <= 0) {
-    issue(issues, 'invalid_value', path, `${path} must be positive.`);
+    issue(issues, 'invalid_value', path, validationText().mustBePositive(path));
   }
   if (options.nonNegative && numberValue < 0) {
-    issue(issues, 'invalid_value', path, `${path} cannot be negative.`);
+    issue(issues, 'invalid_value', path, validationText().cannotBeNegative(path));
   }
   if (options.nonZero && numberValue === 0) {
-    issue(issues, 'invalid_value', path, `${path} cannot be zero.`);
+    issue(issues, 'invalid_value', path, validationText().cannotBeZero(path));
   }
   return true;
 }
@@ -229,7 +237,7 @@ function validateId(value: unknown, path: string, issues: ValidationIssues): val
 
 function validateBoolean(value: unknown, path: string, issues: ValidationIssues): value is boolean {
   if (typeof value !== 'boolean') {
-    issue(issues, 'invalid_structure', path, `${path} must be true or false.`);
+    issue(issues, 'invalid_structure', path, validationText().mustBeBoolean(path));
     return false;
   }
   return true;
@@ -249,18 +257,18 @@ function validateCurrency(
   version: BackupFormatVersion = 1,
 ): void {
   if (typeof value !== 'string') {
-    issue(issues, 'domain_mismatch', path, `${path} must be a currency code.`);
+    issue(issues, 'domain_mismatch', path, validationText().mustBeCurrencyCode(path));
     return;
   }
   if (version >= 7) {
     if (!isSupportedCurrency(value)) {
-      issue(issues, 'domain_mismatch', path, `${path} must be a supported currency code.`);
+      issue(issues, 'domain_mismatch', path, validationText().mustBeSupportedCurrency(path));
     }
     return;
   }
   const allowed = version >= 4 ? ['COP', 'USD'] : ['COP'];
   if (!allowed.includes(value)) {
-    issue(issues, 'domain_mismatch', path, `${path} must be ${allowed.join(' or ')}.`);
+    issue(issues, 'domain_mismatch', path, validationText().mustBeOneOfCurrencies(path, allowed));
   }
 }
 
@@ -286,32 +294,32 @@ function validateTransactionShape(
   // cannot have a subcategory either. This is the shape CHECK from migration
   // 0013, restated for a file the database has not seen yet.
   if (supportsSubcategories && row.categoryId === null && row.subcategoryId !== null) {
-    issue(issues, 'domain_mismatch', `${path}.subcategoryId`, 'A subcategory requires a category.');
+    issue(issues, 'domain_mismatch', `${path}.subcategoryId`, validationText().subcategoryRequiresCategory);
   }
   if (type === 'transfer') {
     if (!validateId(row.destinationAccountId, `${path}.destinationAccountId`, issues)) return;
     if (row.categoryId !== null) {
-      issue(issues, 'domain_mismatch', `${path}.categoryId`, 'Transfers cannot have a category.');
+      issue(issues, 'domain_mismatch', `${path}.categoryId`, validationText().transferNoCategory);
     }
     if (row.accountId === row.destinationAccountId) {
-      issue(issues, 'domain_mismatch', `${path}.destinationAccountId`, 'Transfer accounts must be different.');
+      issue(issues, 'domain_mismatch', `${path}.destinationAccountId`, validationText().transferAccountsDifferent);
     }
   } else if (type === 'income' || type === 'expense') {
     if (row.destinationAccountId !== null) {
-      issue(issues, 'domain_mismatch', `${path}.destinationAccountId`, 'Income and expense rows cannot have a destination account.');
+      issue(issues, 'domain_mismatch', `${path}.destinationAccountId`, validationText().incomeExpenseNoDestination);
     }
     validateId(row.categoryId, `${path}.categoryId`, issues);
   } else if (type === 'refund' && supportsRefunds) {
     if (row.destinationAccountId !== null || row.categoryId !== null) {
-      issue(issues, 'domain_mismatch', path, 'Refunds cannot have a destination account or direct category.');
+      issue(issues, 'domain_mismatch', path, validationText().refundNoDestinationOrCategory);
     }
     validateId(row.originalTransactionId, `${path}.originalTransactionId`, issues);
     if (row.id === row.originalTransactionId) {
-      issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, 'A refund cannot reference itself.');
+      issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, validationText().refundSelfReference);
     }
   }
   if (supportsRefunds && type !== 'refund' && row.originalTransactionId !== null) {
-    issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, 'Only refunds may reference an original transaction.');
+    issue(issues, 'domain_mismatch', `${path}.originalTransactionId`, validationText().onlyRefundsReferenceOriginal);
   }
 }
 
@@ -331,7 +339,7 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues, version:
     if (row.creditLimit !== null) {
       validateSafeInteger(row.creditLimit, `${path}.creditLimit`, issues, { nonNegative: true });
       if (row.type !== 'credit_card') {
-        issue(issues, 'domain_mismatch', `${path}.creditLimit`, 'Only credit cards may have a credit limit.');
+        issue(issues, 'domain_mismatch', `${path}.creditLimit`, validationText().onlyCardsCreditLimit);
       }
     }
     if (version >= 2) {
@@ -340,15 +348,15 @@ function validateAccountRows(rows: unknown[], issues: ValidationIssues, version:
         if (fieldValue !== null) {
           validateSafeInteger(fieldValue, `${path}.${field}`, issues, { positive: true });
           if (typeof fieldValue === 'number' && fieldValue > 31) {
-            issue(issues, 'invalid_value', `${path}.${field}`, `${path}.${field} must be from 1 to 31.`);
+            issue(issues, 'invalid_value', `${path}.${field}`, validationText().dayOutOfRange(`${path}.${field}`));
           }
           if (row.type !== 'credit_card') {
-            issue(issues, 'domain_mismatch', `${path}.${field}`, 'Only credit cards may have cycle settings.');
+            issue(issues, 'domain_mismatch', `${path}.${field}`, validationText().onlyCardsCycle);
           }
         }
       }
       if ((row.statementClosingDay === null) !== (row.paymentDueDay === null)) {
-        issue(issues, 'domain_mismatch', path, 'Credit-card closing and due days must both be present or both be absent.');
+        issue(issues, 'domain_mismatch', path, validationText().cycleDaysPaired);
       }
     }
     validateArchiveFields(row, path, issues);
@@ -370,16 +378,16 @@ function validateCreditCardStatementRows(rows: unknown[], issues: ValidationIssu
     validateSafeInteger(row.statementBalance, `${path}.statementBalance`, issues, { nonNegative: true });
     validateSafeInteger(row.minimumPayment, `${path}.minimumPayment`, issues, { nonNegative: true });
     if (typeof row.statementBalance === 'number' && typeof row.minimumPayment === 'number' && row.minimumPayment > row.statementBalance) {
-      issue(issues, 'domain_mismatch', `${path}.minimumPayment`, 'Minimum payment cannot exceed statement balance.');
+      issue(issues, 'domain_mismatch', `${path}.minimumPayment`, validationText().minimumExceedsBalance);
     }
     if (typeof row.periodStart === 'string' && typeof row.periodEnd === 'string' && row.periodStart > row.periodEnd) {
-      issue(issues, 'domain_mismatch', path, 'Statement period is reversed.');
+      issue(issues, 'domain_mismatch', path, validationText().statementPeriodReversed);
     }
     if (typeof row.periodEnd === 'string' && typeof row.closingDate === 'string' && row.closingDate < row.periodEnd) {
-      issue(issues, 'domain_mismatch', path, 'Statement closing date is before period end.');
+      issue(issues, 'domain_mismatch', path, validationText().closingBeforePeriodEnd);
     }
     if (typeof row.closingDate === 'string' && typeof row.dueDate === 'string' && row.dueDate < row.closingDate) {
-      issue(issues, 'domain_mismatch', path, 'Statement due date is before closing date.');
+      issue(issues, 'domain_mismatch', path, validationText().dueBeforeClosing);
     }
     validateAuditFields(row, path, issues);
   });
@@ -421,7 +429,7 @@ function validateCategoryRows(
     if (version >= 6) {
       validateNullableString(row.parentCategoryId, `${path}.parentCategoryId`, issues, backupLimits.maxIdLength);
       if (row.parentCategoryId === row.id) {
-        issue(issues, 'domain_mismatch', `${path}.parentCategoryId`, 'A category cannot be its own parent.');
+        issue(issues, 'domain_mismatch', `${path}.parentCategoryId`, validationText().categoryCannotBeOwnParent);
       }
     }
     validateArchiveFields(row, path, issues);
@@ -442,7 +450,7 @@ function validateInvestmentAccountRows(rows: unknown[], issues: ValidationIssues
     validateNullableCalendarDate(row.startDate, `${path}.startDate`, issues);
     validateNullableCalendarDate(row.maturityDate, `${path}.maturityDate`, issues);
     if (typeof row.startDate === 'string' && typeof row.maturityDate === 'string' && row.maturityDate < row.startDate) {
-      issue(issues, 'domain_mismatch', path, 'Investment maturity date is before its start date.');
+      issue(issues, 'domain_mismatch', path, validationText().maturityBeforeStart);
     }
     validateNullableString(row.note, `${path}.note`, issues);
     validateAuditFields(row, path, issues);
@@ -463,7 +471,7 @@ function validateExchangeRateRows(
     validateCurrency(row.baseCurrencyCode, `${path}.baseCurrencyCode`, issues, version);
     validateCurrency(row.quoteCurrencyCode, `${path}.quoteCurrencyCode`, issues, version);
     if (row.baseCurrencyCode === row.quoteCurrencyCode) {
-      issue(issues, 'domain_mismatch', path, 'An exchange rate must be between two different currencies.');
+      issue(issues, 'domain_mismatch', path, validationText().exchangeRateSameCurrency);
     }
     validateSafeInteger(row.rateScaled, `${path}.rateScaled`, issues, { positive: true });
     validateSafeInteger(row.rateScale, `${path}.rateScale`, issues, { positive: true });
@@ -508,12 +516,12 @@ function validateTransactionCurrencyV4(
   // Base COP snapshot: null for transfers; present (positive) for foreign income/expense/refund.
   if (isTransfer) {
     if (row.baseAmountMinor !== null) {
-      issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, 'Transfers do not carry a base amount.');
+      issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, validationText().transferNoBaseAmount);
     }
   } else if (row.baseAmountMinor !== null) {
     validateSafeInteger(row.baseAmountMinor, `${path}.baseAmountMinor`, issues, { positive: true });
   } else if (isForeign) {
-    issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, 'A foreign-currency transaction requires a COP base amount.');
+    issue(issues, 'domain_mismatch', `${path}.baseAmountMinor`, validationText().foreignNeedsBaseAmount);
   }
   // Rate snapshot: required for foreign income/expense/refund and cross-currency transfers.
   const hasRate = row.exchangeRateScaled !== null;
@@ -522,11 +530,11 @@ function validateTransactionCurrencyV4(
     validateSafeInteger(row.exchangeRateScale, `${path}.exchangeRateScale`, issues, { positive: true });
     validateCalendarDate(row.exchangeRateDate, `${path}.exchangeRateDate`, issues);
     if (typeof row.exchangeRateSource !== 'string' || !EXCHANGE_RATE_SOURCES.includes(row.exchangeRateSource)) {
-      issue(issues, 'invalid_value', `${path}.exchangeRateSource`, 'Invalid exchange-rate source.');
+      issue(issues, 'invalid_value', `${path}.exchangeRateSource`, validationText().invalidRateSource);
     }
   }
   if (!isTransfer && isForeign && !hasRate) {
-    issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, 'A foreign-currency transaction requires a rate snapshot.');
+    issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, validationText().foreignNeedsRate);
   }
   // Destination leg: present for transfers, absent otherwise.
   if (isTransfer) {
@@ -534,14 +542,14 @@ function validateTransactionCurrencyV4(
     validateCurrency(row.destinationCurrencyCode, `${path}.destinationCurrencyCode`, issues, version);
     const crossCurrency = row.destinationCurrencyCode !== row.currency;
     if (crossCurrency && !hasRate) {
-      issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, 'A cross-currency transfer requires a rate snapshot.');
+      issue(issues, 'domain_mismatch', `${path}.exchangeRateScaled`, validationText().crossCurrencyNeedsRate);
     }
   } else {
     if (row.destinationAmountMinor !== null) {
-      issue(issues, 'domain_mismatch', `${path}.destinationAmountMinor`, 'Only transfers carry a destination leg.');
+      issue(issues, 'domain_mismatch', `${path}.destinationAmountMinor`, validationText().onlyTransfersDestinationLeg);
     }
     if (row.destinationCurrencyCode !== null) {
-      issue(issues, 'domain_mismatch', `${path}.destinationCurrencyCode`, 'Only transfers carry a destination currency.');
+      issue(issues, 'domain_mismatch', `${path}.destinationCurrencyCode`, validationText().onlyTransfersDestinationCurrency);
     }
   }
 }
@@ -609,7 +617,7 @@ function validateBudgetRows(rows: unknown[], issues: ValidationIssues): void {
     validateId(row.id, `${path}.id`, issues);
     validateId(row.categoryId, `${path}.categoryId`, issues);
     if (typeof row.month !== 'string' || !monthPattern.test(row.month)) {
-      issue(issues, 'invalid_value', `${path}.month`, 'Budget month must use YYYY-MM.');
+      issue(issues, 'invalid_value', `${path}.month`, validationText().budgetMonthFormat);
     }
     validateSafeInteger(row.limitAmount, `${path}.limitAmount`, issues, { positive: true });
     if (
@@ -617,7 +625,7 @@ function validateBudgetRows(rows: unknown[], issues: ValidationIssues): void {
       row.color !== null &&
       (typeof row.color !== 'string' || !budgetColorKeys.includes(row.color as BudgetColorKey))
     ) {
-      issue(issues, 'invalid_value', `${path}.color`, 'Budget color is not recognized.');
+      issue(issues, 'invalid_value', `${path}.color`, validationText().budgetColorUnknown);
     }
     if (row.ruleId !== undefined && row.ruleId !== null) {
       validateId(row.ruleId, `${path}.ruleId`, issues);
@@ -639,13 +647,13 @@ function validateBudgetRuleRows(rows: unknown[], issues: ValidationIssues): void
       row.color !== null &&
       (typeof row.color !== 'string' || !budgetColorKeys.includes(row.color as BudgetColorKey))
     ) {
-      issue(issues, 'invalid_value', `${path}.color`, 'Budget color is not recognized.');
+      issue(issues, 'invalid_value', `${path}.color`, validationText().budgetColorUnknown);
     }
     if (typeof row.startMonth !== 'string' || !monthPattern.test(row.startMonth)) {
-      issue(issues, 'invalid_value', `${path}.startMonth`, 'Budget rule start month must use YYYY-MM.');
+      issue(issues, 'invalid_value', `${path}.startMonth`, validationText().budgetRuleStartMonthFormat);
     }
     if (typeof row.isActive !== 'boolean') {
-      issue(issues, 'invalid_value', `${path}.isActive`, 'Budget rule isActive must be a boolean.');
+      issue(issues, 'invalid_value', `${path}.isActive`, validationText().budgetRuleIsActiveBoolean);
     }
     validateAuditFields(row, path, issues);
   });
@@ -658,13 +666,13 @@ function validateMonthlyBudgetRows(rows: unknown[], issues: ValidationIssues): v
     if (!row) return;
     validateId(row.id, `${path}.id`, issues);
     if (typeof row.month !== 'string' || !monthPattern.test(row.month)) {
-      issue(issues, 'invalid_value', `${path}.month`, 'Monthly ceiling month must use YYYY-MM.');
+      issue(issues, 'invalid_value', `${path}.month`, validationText().ceilingMonthFormat);
     }
     // Positive even for an inactive row: the tombstone keeps the last known
     // limit as its payload, and the database CHECK requires it.
     validateSafeInteger(row.limitAmount, `${path}.limitAmount`, issues, { positive: true });
     if (typeof row.isActive !== 'boolean') {
-      issue(issues, 'invalid_value', `${path}.isActive`, 'Monthly ceiling isActive must be a boolean.');
+      issue(issues, 'invalid_value', `${path}.isActive`, validationText().ceilingIsActiveBoolean);
     }
     validateAuditFields(row, path, issues);
   });
@@ -696,10 +704,10 @@ function validateRecurringRows(rows: unknown[], issues: ValidationIssues, versio
     validateAuditFields(row, path, issues);
     validateTransactionShape(row, path, issues, false, version >= 6);
     if (typeof row.startDate === 'string' && typeof row.endDate === 'string' && row.endDate < row.startDate) {
-      issue(issues, 'domain_mismatch', `${path}.endDate`, 'Recurring end date cannot be earlier than its start date.');
+      issue(issues, 'domain_mismatch', `${path}.endDate`, validationText().recurringEndBeforeStart);
     }
     if (row.endedAt !== null && row.isActive === true) {
-      issue(issues, 'domain_mismatch', `${path}.isActive`, 'An ended recurring rule cannot be active.');
+      issue(issues, 'domain_mismatch', `${path}.isActive`, validationText().endedRuleActive);
     }
   });
 }
@@ -727,10 +735,10 @@ function validateOccurrenceRows(rows: unknown[], issues: ValidationIssues, versi
     validateAuditFields(row, path, issues);
     validateTransactionShape(row, path, issues, false, version >= 6);
     if (row.status === 'posted' && (typeof row.transactionId !== 'string' || !row.transactionId)) {
-      issue(issues, 'domain_mismatch', `${path}.transactionId`, 'A posted occurrence must link to a transaction.');
+      issue(issues, 'domain_mismatch', `${path}.transactionId`, validationText().postedOccurrenceNeedsTransaction);
     }
     if ((row.status === 'pending' || row.status === 'skipped') && row.transactionId !== null) {
-      issue(issues, 'domain_mismatch', `${path}.transactionId`, 'Only posted occurrences may link to a transaction.');
+      issue(issues, 'domain_mismatch', `${path}.transactionId`, validationText().onlyPostedOccurrencesLink);
     }
   });
 }
@@ -764,7 +772,7 @@ function validateUniqueIds(
   const ids = new Set<string>();
   for (const row of rows) {
     if (ids.has(row.id)) {
-      issue(issues, 'duplicate_id', `data.${collection}`, `${collection} contains duplicate ID ${row.id}.`);
+      issue(issues, 'duplicate_id', `data.${collection}`, validationText().duplicateId(collection, row.id));
     }
     ids.add(row.id);
   }
@@ -796,7 +804,7 @@ function validateSummaryAndRange(file: BackupFile, issues: ValidationIssues): vo
     : expectedWithCards;
   for (const [key, count] of Object.entries(expectedWithInvestments)) {
     if ((file.summary as Record<string, number>)[key] !== count) {
-      issue(issues, 'domain_mismatch', `summary.${key}`, `Backup summary count for ${key} does not match its data.`);
+      issue(issues, 'domain_mismatch', `summary.${key}`, validationText().summaryCountMismatch(key));
     }
   }
   const dates = file.data.transactions.map((transaction) => transaction.transactionDate).sort();
@@ -806,7 +814,7 @@ function validateSummaryAndRange(file: BackupFile, issues: ValidationIssues): vo
     file.transactionDateRange.oldest !== oldest
     || file.transactionDateRange.newest !== newest
   ) {
-    issue(issues, 'domain_mismatch', 'transactionDateRange', 'Backup transaction date range does not match its transactions.');
+    issue(issues, 'domain_mismatch', 'transactionDateRange', validationText().dateRangeMismatch);
   }
 }
 
@@ -815,10 +823,10 @@ export class BackupValidator {
     const issues: ValidationIssues = [];
     const actualSize = Math.max(declaredFileSize, utf8ByteLength(text));
     if (actualSize > backupLimits.maxFileBytes) {
-      issue(issues, 'file_too_large', '$', 'The selected backup is larger than the 25 MiB safety limit.');
+      issue(issues, 'file_too_large', '$', getMessages().backup.fileTooLarge);
     }
     if (measureJsonNesting(text) > backupLimits.maxNestingDepth) {
-      issue(issues, 'nesting_too_deep', '$', 'The selected file is nested too deeply to be a Money Control backup.');
+      issue(issues, 'nesting_too_deep', '$', validationText().nestedTooDeep);
     }
     if (issues.length) throw new BackupValidationError(issues);
 
@@ -829,16 +837,16 @@ export class BackupValidator {
       throw new BackupValidationError([{
         code: 'invalid_json',
         path: '$',
-        message: 'The selected file is not valid JSON.',
+        message: validationText().invalidJson,
       }]);
     }
     const raw = requireRecord(parsed, '$', issues);
     if (!raw) throw new BackupValidationError(issues);
     if (raw.format !== BACKUP_FORMAT) {
-      issue(issues, 'wrong_format', 'format', 'This file is not a Money Control backup.');
+      issue(issues, 'wrong_format', 'format', validationText().notMoneyControlBackup);
     }
     if (!Number.isSafeInteger(raw.formatVersion) || (raw.formatVersion as number) < 1) {
-      issue(issues, 'invalid_structure', 'formatVersion', 'Backup format version must be a positive integer.');
+      issue(issues, 'invalid_structure', 'formatVersion', validationText().formatVersionPositive);
     }
     if (issues.length) throw new BackupValidationError(issues);
     return { raw, formatVersion: raw.formatVersion as number };
@@ -875,12 +883,12 @@ export class BackupValidator {
   private validateVersion(raw: Record<string, unknown>, version: BackupFormatVersion): BackupFile {
     const issues: ValidationIssues = [];
     if (raw.formatVersion !== version) {
-      issue(issues, 'invalid_value', 'formatVersion', `Backup format version must be ${version}.`);
+      issue(issues, 'invalid_value', 'formatVersion', validationText().formatVersionMustBe(version));
     }
     validateString(raw.appVersion, 'appVersion', issues, { nonBlank: true });
     validateUtcTimestamp(raw.createdAt, 'createdAt', issues);
     if (raw.timezone !== BACKUP_TIMEZONE) {
-      issue(issues, 'domain_mismatch', 'timezone', `Backup timezone must be ${BACKUP_TIMEZONE}.`);
+      issue(issues, 'domain_mismatch', 'timezone', validationText().timezoneMustBe(BACKUP_TIMEZONE));
     }
     validateCurrency(raw.currency, 'currency', issues, version);
     validateString(raw.schemaVersion, 'schemaVersion', issues, { nonBlank: true });
@@ -899,16 +907,16 @@ export class BackupValidator {
       validateNullableCalendarDate(range.oldest, 'transactionDateRange.oldest', issues);
       validateNullableCalendarDate(range.newest, 'transactionDateRange.newest', issues);
       if (typeof range.oldest === 'string' && typeof range.newest === 'string' && range.newest < range.oldest) {
-        issue(issues, 'domain_mismatch', 'transactionDateRange', 'Backup transaction date range is reversed.');
+        issue(issues, 'domain_mismatch', 'transactionDateRange', validationText().dateRangeReversed);
       }
     }
     const integrity = requireRecord(raw.integrity, 'integrity', issues);
     if (integrity) {
       if (integrity.algorithm !== BACKUP_CHECKSUM_ALGORITHM) {
-        issue(issues, 'invalid_value', 'integrity.algorithm', `Backup checksum algorithm must be ${BACKUP_CHECKSUM_ALGORITHM}.`);
+        issue(issues, 'invalid_value', 'integrity.algorithm', validationText().checksumAlgorithmMustBe(BACKUP_CHECKSUM_ALGORITHM));
       }
       if (typeof integrity.checksum !== 'string' || !checksumPattern.test(integrity.checksum)) {
-        issue(issues, 'invalid_value', 'integrity.checksum', 'Backup checksum is missing or invalid.');
+        issue(issues, 'invalid_value', 'integrity.checksum', validationText().checksumMissing);
       }
     }
 
@@ -993,13 +1001,13 @@ export class BackupValidator {
       for (const statement of file.data.creditCardStatements) {
         const account = file.data.accounts.find((candidate) => candidate.id === statement.accountId);
         if (!account) {
-          issue(issues, 'missing_reference', 'data.creditCardStatements', `Statement ${statement.id} references a missing account.`);
+          issue(issues, 'missing_reference', 'data.creditCardStatements', validationText().statementMissingAccount(statement.id));
         } else if (account.type !== 'credit_card') {
-          issue(issues, 'domain_mismatch', 'data.creditCardStatements', `Statement ${statement.id} must reference a credit card.`);
+          issue(issues, 'domain_mismatch', 'data.creditCardStatements', validationText().statementMustReferenceCard(statement.id));
         }
         const key = `${statement.accountId}:${statement.closingDate}`;
         if (statementKeys.has(key)) {
-          issue(issues, 'duplicate_constraint', 'data.creditCardStatements', 'Two statements use the same card and closing date.');
+          issue(issues, 'duplicate_constraint', 'data.creditCardStatements', validationText().duplicateStatement);
         }
         statementKeys.add(key);
       }
@@ -1010,7 +1018,7 @@ export class BackupValidator {
       if (account.isArchived) continue;
       const key = normalizedName(account.name);
       if (activeAccountNames.has(key)) {
-        issue(issues, 'duplicate_constraint', 'data.accounts', 'Active account names must be unique after trimming and case folding.');
+        issue(issues, 'duplicate_constraint', 'data.accounts', validationText().duplicateAccountName);
       }
       activeAccountNames.add(key);
     }
@@ -1024,8 +1032,8 @@ export class BackupValidator {
       const key = `${category.type}:${scope}:${normalizedName(category.name)}`;
       if (activeCategoryNames.has(key)) {
         issue(issues, 'duplicate_constraint', 'data.categories', scope
-          ? 'A parent category has two active subcategories with the same name.'
-          : 'Active category names must be unique within their type.');
+          ? validationText().duplicateSubcategoryName
+          : validationText().duplicateCategoryName);
       }
       activeCategoryNames.add(key);
     }
@@ -1035,7 +1043,7 @@ export class BackupValidator {
     for (const transaction of data.transactions) {
       this.validateAccountReference(accountIds, transaction.accountId, 'transaction', transaction.id, issues);
       if (transaction.destinationAccountId) {
-        this.validateAccountReference(accountIds, transaction.destinationAccountId, 'transaction destination', transaction.id, issues);
+        this.validateAccountReference(accountIds, transaction.destinationAccountId, 'transactionDestination', transaction.id, issues);
       }
       if (transaction.categoryId) {
         this.validateCategoryReference(categories, transaction.categoryId, transaction.type, 'transaction', transaction.id, issues);
@@ -1043,10 +1051,10 @@ export class BackupValidator {
       this.validateSubcategoryPair(file, transaction, 'transaction', issues);
     }
     for (const rule of data.recurringTransactions) {
-      this.validateSubcategoryPair(file, rule, 'recurring rule', issues);
+      this.validateSubcategoryPair(file, rule, 'recurringRule', issues);
     }
     for (const occurrence of data.recurringOccurrences) {
-      this.validateSubcategoryPair(file, occurrence, 'recurring occurrence', issues);
+      this.validateSubcategoryPair(file, occurrence, 'recurringOccurrence', issues);
     }
 
     if (supportsRefunds(file)) {
@@ -1057,28 +1065,28 @@ export class BackupValidator {
         const originalId = transaction.originalTransactionId;
         const original = originalId ? transactionsById.get(originalId) : undefined;
         if (!original) {
-          issue(issues, 'missing_reference', 'data.transactions', `Refund ${transaction.id} references a missing original transaction.`);
+          issue(issues, 'missing_reference', 'data.transactions', validationText().refundMissingOriginal(transaction.id));
           continue;
         }
         if (original.type !== 'expense') {
-          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} must reference an expense.`);
+          issue(issues, 'domain_mismatch', 'data.transactions', validationText().refundMustReferenceExpense(transaction.id));
         }
         if (transaction.status === 'posted' && original.status !== 'posted') {
-          issue(issues, 'domain_mismatch', 'data.transactions', `Posted refund ${transaction.id} must reference a posted expense.`);
+          issue(issues, 'domain_mismatch', 'data.transactions', validationText().postedRefundNeedsPostedExpense(transaction.id));
         }
         if (original.accountId !== transaction.accountId) {
-          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} must use the original expense account.`);
+          issue(issues, 'domain_mismatch', 'data.transactions', validationText().refundAccountMismatch(transaction.id));
         }
         if (transaction.transactionDate < original.transactionDate) {
-          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} is dated before its original expense.`);
+          issue(issues, 'domain_mismatch', 'data.transactions', validationText().refundBeforeOriginal(transaction.id));
         }
         if (transaction.amount > original.amount) {
-          issue(issues, 'domain_mismatch', 'data.transactions', `Refund ${transaction.id} exceeds its original expense.`);
+          issue(issues, 'domain_mismatch', 'data.transactions', validationText().refundExceedsOriginal(transaction.id));
         }
         if (transaction.status === 'posted') {
           const next = (postedRefundTotals.get(original.id) ?? 0) + transaction.amount;
           if (!Number.isSafeInteger(next) || next > original.amount) {
-            issue(issues, 'domain_mismatch', 'data.transactions', `Posted refunds exceed expense ${original.id}.`);
+            issue(issues, 'domain_mismatch', 'data.transactions', validationText().postedRefundsExceedExpense(original.id));
           }
           postedRefundTotals.set(original.id, next);
         }
@@ -1089,13 +1097,13 @@ export class BackupValidator {
     const splitAccounts = new Set<string>();
     for (const split of data.transactionSplits) {
       if (!transactionIds.has(split.transactionId)) {
-        issue(issues, 'missing_reference', 'data.transactionSplits', `Split ${split.id} references a missing transaction.`);
+        issue(issues, 'missing_reference', 'data.transactionSplits', validationText().splitMissingTransaction(split.id));
       }
       this.validateAccountReference(accountIds, split.accountId, 'split', split.id, issues);
       const positionKey = `${split.transactionId}:${split.position}`;
       const accountKey = `${split.transactionId}:${split.accountId}`;
       if (splitPositions.has(positionKey) || splitAccounts.has(accountKey)) {
-        issue(issues, 'duplicate_constraint', 'data.transactionSplits', 'Transaction split position/account uniqueness would be violated.');
+        issue(issues, 'duplicate_constraint', 'data.transactionSplits', validationText().duplicateSplit);
       }
       splitPositions.add(positionKey);
       splitAccounts.add(accountKey);
@@ -1105,13 +1113,13 @@ export class BackupValidator {
     for (const budget of data.budgets) {
       const category = categories.get(budget.categoryId);
       if (!category) {
-        issue(issues, 'missing_reference', 'data.budgets', `Budget ${budget.id} references a missing category.`);
+        issue(issues, 'missing_reference', 'data.budgets', validationText().budgetMissingCategory(budget.id));
       } else if (category.type !== 'expense') {
-        issue(issues, 'domain_mismatch', 'data.budgets', `Budget ${budget.id} must reference an expense category.`);
+        issue(issues, 'domain_mismatch', 'data.budgets', validationText().budgetMustReferenceExpenseCategory(budget.id));
       }
       const key = `${budget.categoryId}:${budget.month}`;
       if (budgetKeys.has(key)) {
-        issue(issues, 'duplicate_constraint', 'data.budgets', 'Two budgets use the same category and month.');
+        issue(issues, 'duplicate_constraint', 'data.budgets', validationText().duplicateBudget);
       }
       budgetKeys.add(key);
     }
@@ -1120,7 +1128,7 @@ export class BackupValidator {
     const ceilingMonths = new Set<string>();
     for (const ceiling of monthlyBudgets) {
       if (ceilingMonths.has(ceiling.month)) {
-        issue(issues, 'duplicate_constraint', 'data.monthlyBudgets', 'Two monthly ceilings use the same month.');
+        issue(issues, 'duplicate_constraint', 'data.monthlyBudgets', validationText().duplicateCeiling);
       }
       ceilingMonths.add(ceiling.month);
     }
@@ -1131,30 +1139,30 @@ export class BackupValidator {
     for (const rule of budgetRules) {
       const category = categories.get(rule.categoryId);
       if (!category) {
-        issue(issues, 'missing_reference', 'data.budgetRules', `Budget rule ${rule.id} references a missing category.`);
+        issue(issues, 'missing_reference', 'data.budgetRules', validationText().budgetRuleMissingCategory(rule.id));
       } else if (category.type !== 'expense') {
-        issue(issues, 'domain_mismatch', 'data.budgetRules', `Budget rule ${rule.id} must reference an expense category.`);
+        issue(issues, 'domain_mismatch', 'data.budgetRules', validationText().budgetRuleMustReferenceExpenseCategory(rule.id));
       }
       if (rule.isActive) {
         if (activeRuleCategories.has(rule.categoryId)) {
-          issue(issues, 'duplicate_constraint', 'data.budgetRules', 'Two active budget rules use the same category.');
+          issue(issues, 'duplicate_constraint', 'data.budgetRules', validationText().duplicateActiveBudgetRule);
         }
         activeRuleCategories.add(rule.categoryId);
       }
     }
     for (const budget of data.budgets) {
       if (budget.ruleId != null && !ruleIds.has(budget.ruleId)) {
-        issue(issues, 'missing_reference', 'data.budgets', `Budget ${budget.id} references a missing budget rule.`);
+        issue(issues, 'missing_reference', 'data.budgets', validationText().budgetMissingRule(budget.id));
       }
     }
 
     for (const recurring of data.recurringTransactions) {
-      this.validateAccountReference(accountIds, recurring.accountId, 'recurring rule', recurring.id, issues);
+      this.validateAccountReference(accountIds, recurring.accountId, 'recurringRule', recurring.id, issues);
       if (recurring.destinationAccountId) {
-        this.validateAccountReference(accountIds, recurring.destinationAccountId, 'recurring destination', recurring.id, issues);
+        this.validateAccountReference(accountIds, recurring.destinationAccountId, 'recurringDestination', recurring.id, issues);
       }
       if (recurring.categoryId) {
-        this.validateCategoryReference(categories, recurring.categoryId, recurring.type, 'recurring rule', recurring.id, issues);
+        this.validateCategoryReference(categories, recurring.categoryId, recurring.type, 'recurringRule', recurring.id, issues);
       }
     }
 
@@ -1162,27 +1170,27 @@ export class BackupValidator {
     const postedTransactions = new Set<string>();
     for (const occurrence of data.recurringOccurrences) {
       if (!recurringIds.has(occurrence.recurringTransactionId)) {
-        issue(issues, 'missing_reference', 'data.recurringOccurrences', `Occurrence ${occurrence.id} references a missing recurring rule.`);
+        issue(issues, 'missing_reference', 'data.recurringOccurrences', validationText().occurrenceMissingRule(occurrence.id));
       }
-      this.validateAccountReference(accountIds, occurrence.accountId, 'recurring occurrence', occurrence.id, issues);
+      this.validateAccountReference(accountIds, occurrence.accountId, 'recurringOccurrence', occurrence.id, issues);
       if (occurrence.destinationAccountId) {
-        this.validateAccountReference(accountIds, occurrence.destinationAccountId, 'occurrence destination', occurrence.id, issues);
+        this.validateAccountReference(accountIds, occurrence.destinationAccountId, 'occurrenceDestination', occurrence.id, issues);
       }
       if (occurrence.categoryId) {
-        this.validateCategoryReference(categories, occurrence.categoryId, occurrence.type, 'recurring occurrence', occurrence.id, issues);
+        this.validateCategoryReference(categories, occurrence.categoryId, occurrence.type, 'recurringOccurrence', occurrence.id, issues);
       }
       if (occurrence.transactionId) {
         if (!transactionIds.has(occurrence.transactionId)) {
-          issue(issues, 'missing_reference', 'data.recurringOccurrences', `Posted occurrence ${occurrence.id} references a missing transaction.`);
+          issue(issues, 'missing_reference', 'data.recurringOccurrences', validationText().postedOccurrenceMissingTransaction(occurrence.id));
         }
         if (postedTransactions.has(occurrence.transactionId)) {
-          issue(issues, 'duplicate_constraint', 'data.recurringOccurrences', 'Two recurring occurrences reference the same posted transaction.');
+          issue(issues, 'duplicate_constraint', 'data.recurringOccurrences', validationText().duplicatePostedLink);
         }
         postedTransactions.add(occurrence.transactionId);
       }
       const key = `${occurrence.recurringTransactionId}:${occurrence.scheduledDate}`;
       if (occurrenceKeys.has(key)) {
-        issue(issues, 'duplicate_constraint', 'data.recurringOccurrences', 'Two occurrences use the same recurring rule and scheduled date.');
+        issue(issues, 'duplicate_constraint', 'data.recurringOccurrences', validationText().duplicateOccurrence);
       }
       occurrenceKeys.add(key);
     }
@@ -1194,35 +1202,35 @@ export class BackupValidator {
       const metadataAccountIds = new Set<string>();
       for (const meta of investmentAccounts) {
         if (metadataAccountIds.has(meta.accountId)) {
-          issue(issues, 'duplicate_constraint', 'data.investmentAccounts', 'Two investment metadata rows reference the same account.');
+          issue(issues, 'duplicate_constraint', 'data.investmentAccounts', validationText().duplicateInvestmentMetadata);
         }
         metadataAccountIds.add(meta.accountId);
         const account = accountsById.get(meta.accountId);
         if (!account) {
-          issue(issues, 'missing_reference', 'data.investmentAccounts', `Investment metadata ${meta.accountId} references a missing account.`);
+          issue(issues, 'missing_reference', 'data.investmentAccounts', validationText().investmentMetadataMissingAccount(meta.accountId));
         } else if (account.type !== 'investment') {
-          issue(issues, 'domain_mismatch', 'data.investmentAccounts', `Investment metadata ${meta.accountId} must reference an investment account.`);
+          issue(issues, 'domain_mismatch', 'data.investmentAccounts', validationText().investmentMetadataMustReferenceInvestment(meta.accountId));
         }
       }
       // Every investment account must have exactly one metadata row (no orphans).
       for (const account of accounts) {
         if (account.type === 'investment' && !metadataAccountIds.has(account.id)) {
-          issue(issues, 'missing_reference', 'data.investmentAccounts', `Investment account ${account.id} has no investment metadata.`);
+          issue(issues, 'missing_reference', 'data.investmentAccounts', validationText().investmentAccountWithoutMetadata(account.id));
         }
       }
       const valuationKeys = new Set<string>();
       for (const valuation of investmentValuations) {
         const account = accountsById.get(valuation.investmentAccountId);
         if (!account) {
-          issue(issues, 'missing_reference', 'data.investmentValuations', `Valuation ${valuation.id} references a missing account.`);
+          issue(issues, 'missing_reference', 'data.investmentValuations', validationText().valuationMissingAccount(valuation.id));
         } else if (account.type !== 'investment') {
-          issue(issues, 'domain_mismatch', 'data.investmentValuations', `Valuation ${valuation.id} must reference an investment account.`);
+          issue(issues, 'domain_mismatch', 'data.investmentValuations', validationText().valuationMustReferenceInvestment(valuation.id));
         } else if (valuation.currencyCode !== account.currency) {
-          issue(issues, 'domain_mismatch', 'data.investmentValuations', `Valuation ${valuation.id} currency must match its account currency.`);
+          issue(issues, 'domain_mismatch', 'data.investmentValuations', validationText().valuationCurrencyMismatch(valuation.id));
         }
         const key = `${valuation.investmentAccountId}:${valuation.valuationDate}`;
         if (valuationKeys.has(key)) {
-          issue(issues, 'duplicate_constraint', 'data.investmentValuations', 'Two valuations use the same account and date.');
+          issue(issues, 'duplicate_constraint', 'data.investmentValuations', validationText().duplicateValuation);
         }
         valuationKeys.add(key);
       }
@@ -1236,19 +1244,19 @@ export class BackupValidator {
     return new BackupValidationError([{
       code: 'checksum_mismatch',
       path: 'integrity.checksum',
-      message: 'The backup checksum does not match. The file may be damaged or modified.',
+      message: validationText().checksumMismatch,
     }]);
   }
 
   private validateAccountReference(
     accountIds: Set<string>,
     accountId: string,
-    source: string,
+    source: ReferenceSource,
     sourceId: string,
     issues: ValidationIssues,
   ): void {
     if (!accountIds.has(accountId)) {
-      issue(issues, 'missing_reference', 'data', `${source} ${sourceId} references a missing account.`);
+      issue(issues, 'missing_reference', 'data', validationText().sourceMissingAccount(validationText().sources[source], sourceId));
     }
   }
 
@@ -1267,24 +1275,24 @@ export class BackupValidator {
       const parentId = category.parentCategoryId;
       if (parentId === null) continue;
       if (parentId === category.id) {
-        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} is its own parent.`);
+        issue(issues, 'domain_mismatch', 'data.categories', validationText().categoryIsOwnParent(category.id));
         continue;
       }
       const parent = categories.get(parentId);
       if (!parent) {
-        issue(issues, 'missing_reference', 'data.categories', `Category ${category.id} references a missing parent.`);
+        issue(issues, 'missing_reference', 'data.categories', validationText().categoryMissingParent(category.id));
         continue;
       }
       if (parent.parentCategoryId !== null) {
-        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} nests more than two levels.`);
+        issue(issues, 'domain_mismatch', 'data.categories', validationText().categoryNestsTooDeep(category.id));
       }
       if (parent.type !== category.type) {
-        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} does not match its parent type.`);
+        issue(issues, 'domain_mismatch', 'data.categories', validationText().categoryParentTypeMismatch(category.id));
       }
       // An active subcategory under an archived parent is a state no picker can
       // represent, and archiving cascades, so it cannot arise from normal use.
       if (!category.isArchived && parent.isArchived) {
-        issue(issues, 'domain_mismatch', 'data.categories', `Category ${category.id} is active under an archived parent.`);
+        issue(issues, 'domain_mismatch', 'data.categories', validationText().categoryActiveUnderArchivedParent(category.id));
       }
     }
   }
@@ -1293,7 +1301,7 @@ export class BackupValidator {
   private validateSubcategoryPair(
     file: BackupFile,
     row: { id: string; categoryId: string | null; subcategoryId?: string | null },
-    source: string,
+    source: ReferenceSource,
     issues: ValidationIssues,
   ): void {
     if (!supportsCategoryHierarchy(file)) return;
@@ -1301,11 +1309,11 @@ export class BackupValidator {
     if (subcategoryId === null) return;
     const subcategory = file.data.categories.find((category) => category.id === subcategoryId);
     if (!subcategory) {
-      issue(issues, 'missing_reference', 'data', `${source} ${row.id} references a missing subcategory.`);
+      issue(issues, 'missing_reference', 'data', validationText().sourceMissingSubcategory(validationText().sources[source], row.id));
       return;
     }
     if (subcategory.parentCategoryId !== row.categoryId) {
-      issue(issues, 'domain_mismatch', 'data', `${source} ${row.id} has a subcategory from another category.`);
+      issue(issues, 'domain_mismatch', 'data', validationText().sourceSubcategoryFromOtherCategory(validationText().sources[source], row.id));
     }
   }
 
@@ -1313,19 +1321,19 @@ export class BackupValidator {
     categories: Map<string, { type: 'expense' | 'income' }>,
     categoryId: string,
     expectedType: 'income' | 'expense' | 'transfer' | 'refund',
-    source: string,
+    source: ReferenceSource,
     sourceId: string,
     issues: ValidationIssues,
   ): void {
     const category = categories.get(categoryId);
     if (!category) {
-      issue(issues, 'missing_reference', 'data', `${source} ${sourceId} references a missing category.`);
+      issue(issues, 'missing_reference', 'data', validationText().sourceMissingCategory(validationText().sources[source], sourceId));
     } else if (
       expectedType === 'transfer'
       || expectedType === 'refund'
       || category.type !== expectedType
     ) {
-      issue(issues, 'domain_mismatch', 'data', `${source} ${sourceId} has an incompatible category type.`);
+      issue(issues, 'domain_mismatch', 'data', validationText().sourceIncompatibleCategoryType(validationText().sources[source], sourceId));
     }
   }
 }

@@ -5,13 +5,15 @@ import { Skeleton } from '@/components/skeleton';
 import { Button } from '@/components/button';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export function EmptyTransactionsState() {
+  const t = useMessages();
   return (
     <TransactionState
-      body="Transactions you add will appear here."
+      body={t.transactions.list.emptyBody}
       icon={{ ios: 'tray.fill', android: 'inbox', web: 'inbox' }}
-      title="No transactions yet"
+      title={t.transactions.list.emptyTitle}
     />
   );
 }
@@ -25,38 +27,41 @@ export function NoTransactionResultsState({
   onClearFilters: () => void;
   onClearSearch: () => void;
 }) {
+  const t = useMessages();
   return (
     <TransactionState
       actions={(
         <View style={styles.actions}>
-          <StateButton label="Clear filters" onPress={onClearFilters} />
-          {hasSearch ? <StateButton label="Clear search" onPress={onClearSearch} /> : null}
+          <StateButton label={t.transactions.list.clearFilters} onPress={onClearFilters} />
+          {hasSearch ? <StateButton label={t.transactions.list.clearSearch} onPress={onClearSearch} /> : null}
         </View>
       )}
-      body="Try changing the search text or clearing a filter."
+      body={t.transactions.list.noResultsBody}
       icon={{ ios: 'magnifyingglass', android: 'search_off', web: 'search_off' }}
-      title="No matching transactions"
+      title={t.transactions.list.noResultsTitle}
     />
   );
 }
 
 export function TransactionErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const t = useMessages();
   return (
     <TransactionState
-      actions={<StateButton label="Try again" onPress={onRetry} />}
+      actions={<StateButton label={t.common.tryAgain} onPress={onRetry} />}
       body={message}
       icon={{ ios: 'exclamationmark.triangle.fill', android: 'error', web: 'error' }}
-      title="Unable to load transactions"
+      title={t.transactions.list.errorTitle}
     />
   );
 }
 
 export function LoadingTransactionRow() {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View
-      accessibilityLabel="Loading transaction"
+      accessibilityLabel={t.transactions.list.loadingRow}
       accessibilityRole="progressbar"
       style={[styles.loadingRow, { backgroundColor: theme.surface }]}>
       <Skeleton style={styles.loadingIcon} />

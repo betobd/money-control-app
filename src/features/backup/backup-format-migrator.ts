@@ -16,13 +16,14 @@ import {
   type BackupTransactionV5,
   type BackupTransactionV6,
 } from './backup.types';
+import { getMessages } from '@/i18n/messages';
 
 export class UnsupportedBackupVersionError extends Error {
   constructor(public readonly version: number) {
     super(
       version > CURRENT_BACKUP_FORMAT_VERSION
-        ? `This backup uses future format version ${version}. Update Money Control before restoring it.`
-        : `Backup format version ${version} is not supported.`,
+        ? getMessages().backup.futureFormatVersion(version)
+        : getMessages().backup.unsupportedFormatVersion(version),
     );
   }
 }

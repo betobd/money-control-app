@@ -29,14 +29,17 @@ import { formatTransactionDateRange } from '@/features/transactions/transaction-
 import { TransactionFilterModal } from '@/features/transactions/components/transaction-filter-modal';
 import type { DataExportKind } from '@/features/data-export/data-export.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages, getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { useDataExport } from '../use-data-export';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 
 function formatEstimatedSize(bytes: number): string {
-  if (bytes < 1024) return `about ${bytes} B`;
-  if (bytes < 1024 * 1024) return `about ${Math.max(1, Math.round(bytes / 1024))} KiB`;
-  return `about ${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  const text = getMessages().dataExport;
+  if (bytes < 1024) return text.sizeBytes(bytes);
+  if (bytes < 1024 * 1024) return text.sizeKib(Math.max(1, Math.round(bytes / 1024)));
+  return text.sizeMib((bytes / (1024 * 1024)).toFixed(1));
 }
 
 export function DataExportScreen() {
@@ -44,6 +47,7 @@ export function DataExportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [filterModalKey, setFilterModalKey] = useState(0);
   const {
@@ -95,8 +99,8 @@ export function DataExportScreen() {
   ): void {
     dialog.confirm({
       title,
-      message: `CSV files may contain sensitive financial information. Anyone with access to the file may read it. App Lock does not protect the file after it leaves Money Control.${detail ? `\n\n${detail}` : ''}`,
-      confirmLabel: 'Continue',
+      message: t.dataExport.confirmMessage(detail),
+      confirmLabel: t.dataExport.confirmLabel,
       onConfirm: () => void action(),
     });
   }
@@ -107,7 +111,7 @@ export function DataExportScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}> 
-      <ScreenHeader leading="back" leadingDisabled={busy} title="Data Export" />
+      <ScreenHeader leading="back" leadingDisabled={busy} title={t.dataExport.title} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -135,43 +139,43 @@ export function DataExportScreen() {
             tintColor={theme.warning}
           />
           <View style={styles.flex}>
-            <Text style={[styles.cardTitle, { color: theme.primaryText }]}>Plaintext financial information</Text>
-            <Text style={[styles.body, { color: theme.secondaryText }]}>CSV files are readable by anyone who can access them. They are intended for spreadsheets, analysis, and sharing—not full app restoration.</Text>
+            <Text style={[styles.cardTitle, { color: theme.primaryText }]}>{t.dataExport.warningTitle}</Text>
+            <Text style={[styles.body, { color: theme.secondaryText }]}>{t.dataExport.warningBody}</Text>
           </View>
         </View>
 
         <Card style={styles.distinction}>
-          <Text style={[styles.cardTitle, { color: theme.primaryText }]}>CSV is not a backup</Text>
-          <Text style={[styles.body, { color: theme.secondaryText }]}>Need to restore Money Control later? Backup & Restore preserves IDs and relationships in versioned JSON. CSV cannot be restored.</Text>
+          <Text style={[styles.cardTitle, { color: theme.primaryText }]}>{t.dataExport.notBackupTitle}</Text>
+          <Text style={[styles.body, { color: theme.secondaryText }]}>{t.dataExport.notBackupBody}</Text>
           <Button
-            accessibilityHint="Opens the complete restoration backup feature"
-            accessibilityLabel="Open Backup and Restore"
-            label="Open Backup & Restore"
+            accessibilityHint={t.dataExport.openBackupHint}
+            accessibilityLabel={t.dataExport.openBackupLabel}
+            label={t.dataExport.openBackupButton}
             onPress={() => router.push('/backup' as Href)}
             variant="ghost"
           />
         </Card>
 
         <ExportCard
-          description="Readable transaction rows with source/destination accounts, category, status, dates, and optional notes."
+          description={t.dataExport.transactionsDescription}
           kind="transactions"
           operation={operation}
           recordCount={transactionCount}
           theme={theme}
-          title="Transactions">
+          title={t.dataExport.transactionsTitle}>
           <View style={styles.detailList}>
-            <Text style={[styles.caption, { color: theme.secondaryText }]}>Date: {formatTransactionDateRange(transactionDateRange)}</Text>
-            <Text style={[styles.caption, { color: theme.secondaryText }]}>Type: {transactionOptions.filters.type ?? 'All'}</Text>
-            <Text style={[styles.caption, { color: theme.secondaryText }]}>Status: {transactionOptions.filters.status ?? 'All'}</Text>
-            <Text style={[styles.caption, { color: theme.secondaryText }]}>Account: {selectedAccount?.name ?? 'All'}</Text>
-            <Text style={[styles.caption, { color: theme.secondaryText }]}>Category: {selectedCategory?.name ?? 'All'}</Text>
-            <Text style={[styles.caption, { color: theme.mutedText }]}>{transactionFilterCount} active {transactionFilterCount === 1 ? 'filter' : 'filters'} · {formatEstimatedSize(overview?.transactions.estimatedBytes ?? 0)}</Text>
+            <Text style={[styles.caption, { color: theme.secondaryText }]}>{t.dataExport.filterDate(formatTransactionDateRange(transactionDateRange))}</Text>
+            <Text style={[styles.caption, { color: theme.secondaryText }]}>{t.dataExport.filterType(transactionOptions.filters.type ? t.dataExport.typeValues[transactionOptions.filters.type] : t.dataExport.allTypes)}</Text>
+            <Text style={[styles.caption, { color: theme.secondaryText }]}>{t.dataExport.filterStatus(transactionOptions.filters.status ? t.dataExport.statusValues[transactionOptions.filters.status] : t.dataExport.allStatuses)}</Text>
+            <Text style={[styles.caption, { color: theme.secondaryText }]}>{t.dataExport.filterAccount(selectedAccount?.name ?? t.dataExport.allAccounts)}</Text>
+            <Text style={[styles.caption, { color: theme.secondaryText }]}>{t.dataExport.filterCategory(selectedCategory?.name ?? t.dataExport.allCategories)}</Text>
+            <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.activeFilters(transactionFilterCount, formatEstimatedSize(overview?.transactions.estimatedBytes ?? 0))}</Text>
           </View>
           <Button
-            accessibilityLabel="Configure transaction export filters"
+            accessibilityLabel={t.dataExport.configureFiltersLabel}
             disabled={busy || loadingOverview}
             fullWidth
-            label="Configure filters"
+            label={t.dataExport.configureFilters}
             onPress={() => {
               setFilterModalKey((value) => value + 1);
               setFilterModalVisible(true);
@@ -181,73 +185,73 @@ export function DataExportScreen() {
           />
           <NotesToggle
             disabled={busy}
-            label="Include transaction notes"
+            label={t.dataExport.includeTransactionNotes}
             onValueChange={setIncludeTransactionNotes}
             theme={theme}
             value={transactionOptions.includeNotes}
           />
           {noTransactions ? (
-            <Text accessibilityLiveRegion="polite" style={[styles.emptyText, { color: theme.secondaryText }]}>No transactions match the selected filters.</Text>
+            <Text accessibilityLiveRegion="polite" style={[styles.emptyText, { color: theme.secondaryText }]}>{t.dataExport.noTransactionsMatch}</Text>
           ) : null}
           {overview?.transactions.isLarge ? (
-            <Text style={[styles.warningText, { color: theme.warning }]}>Large export: generation may take longer and use more memory.</Text>
+            <Text style={[styles.warningText, { color: theme.warning }]}>{t.dataExport.largeExport}</Text>
           ) : null}
           {transactionBlocked ? (
-            <Text style={[styles.warningText, { color: theme.destructive }]}>Narrow the filters. The 50,000-row safety limit is exceeded and no partial file will be created.</Text>
+            <Text style={[styles.warningText, { color: theme.destructive }]}>{t.dataExport.transactionLimitExceeded}</Text>
           ) : null}
           <ExportButton
             disabled={busy || loadingOverview || noTransactions || transactionBlocked}
             kind="transactions"
-            label="Export transactions CSV"
+            label={t.dataExport.exportTransactionsButton}
             operation={operation}
             onPress={() => confirmExport(
-              'Export transactions?',
+              t.dataExport.exportTransactionsTitle,
               exportTransactions,
               transactionOptions.includeNotes
-                ? 'Transaction notes are enabled and will be included.'
-                : 'Transaction notes are excluded.',
+                ? t.dataExport.transactionNotesIncluded
+                : t.dataExport.transactionNotesExcluded,
             )}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Active and archived accounts with opening and derived current balances. Card debt fields use the existing signed-balance model."
+          description={t.dataExport.accountsDescription}
           kind="accounts"
           operation={operation}
           recordCount={overview?.accounts}
           theme={theme}
-          title="Accounts">
-          <Text style={[styles.caption, { color: theme.mutedText }]}>Includes all account types. Credit-card-only columns stay blank for other accounts.</Text>
+          title={t.dataExport.accountsTitle}>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.accountsCaption}</Text>
           <ExportButton
             disabled={busy || loadingOverview || overview?.accounts === 0}
             kind="accounts"
-            label="Export accounts CSV"
+            label={t.dataExport.exportAccountsButton}
             operation={operation}
-            onPress={() => confirmExport('Export accounts?', exportAccounts)}
+            onPress={() => confirmExport(t.dataExport.exportAccountsTitle, exportAccounts)}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Monthly limits and the same calculated spending, remaining amount, percentage, and status used by Budgets."
+          description={t.dataExport.budgetsDescription}
           kind="budgets"
           operation={operation}
           recordCount={overview?.budgets}
           theme={theme}
-          title="Budgets">
+          title={t.dataExport.budgetsTitle}>
           <View style={styles.monthSelector}>
             <Pressable
-              accessibilityLabel="Previous budget month"
+              accessibilityLabel={t.dataExport.previousBudgetMonth}
               accessibilityRole="button"
               disabled={busy}
               onPress={() => setBudgetMonth(shiftBudgetMonth(budgetMonth, -1))}
               style={styles.monthButton}>
               <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={22} tintColor={theme.primaryAction} />
             </Pressable>
-            <Text accessibilityLabel={`Selected budget month ${budgetMonthLabel(budgetMonth)}`} style={[styles.monthLabel, { color: theme.primaryText }]}>{budgetMonthLabel(budgetMonth)}</Text>
+            <Text accessibilityLabel={t.dataExport.selectedBudgetMonth(budgetMonthLabel(budgetMonth))} style={[styles.monthLabel, { color: theme.primaryText }]}>{budgetMonthLabel(budgetMonth)}</Text>
             <Pressable
-              accessibilityLabel="Next budget month"
+              accessibilityLabel={t.dataExport.nextBudgetMonth}
               accessibilityRole="button"
               disabled={busy}
               onPress={() => setBudgetMonth(shiftBudgetMonth(budgetMonth, 1))}
@@ -258,23 +262,23 @@ export function DataExportScreen() {
           <ExportButton
             disabled={busy || loadingOverview || overview?.budgets === 0}
             kind="budgets"
-            label="Export budgets CSV"
+            label={t.dataExport.exportBudgetsButton}
             operation={operation}
-            onPress={() => confirmExport('Export budgets?', exportBudgets)}
+            onPress={() => confirmExport(t.dataExport.exportBudgetsTitle, exportBudgets)}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Recurring templates only: schedule, lifecycle, accounts, category, amount, and optional note. Exporting never generates occurrences or transactions."
+          description={t.dataExport.recurringDescription}
           kind="recurring-rules"
           operation={operation}
           recordCount={overview?.recurringRules}
           theme={theme}
-          title="Recurring transactions">
+          title={t.dataExport.recurringTitle}>
           <NotesToggle
             disabled={busy}
-            label="Include recurring notes"
+            label={t.dataExport.includeRecurringNotes}
             onValueChange={setRecurringIncludeNotes}
             theme={theme}
             value={recurringIncludeNotes}
@@ -282,90 +286,90 @@ export function DataExportScreen() {
           <ExportButton
             disabled={busy || loadingOverview || overview?.recurringRules === 0}
             kind="recurring-rules"
-            label="Export recurring rules CSV"
+            label={t.dataExport.exportRecurringButton}
             operation={operation}
             onPress={() => confirmExport(
-              'Export recurring rules?',
+              t.dataExport.exportRecurringTitle,
               exportRecurringRules,
-              recurringIncludeNotes ? 'Recurring notes are enabled and will be included.' : 'Recurring notes are excluded.',
+              recurringIncludeNotes ? t.dataExport.recurringNotesIncluded : t.dataExport.recurringNotesExcluded,
             )}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Historical statements with bank-entered balance/minimum, attributed qualifying payments, remaining amounts, and status."
+          description={t.dataExport.statementsDescription}
           kind="credit-card-statements"
           operation={operation}
           recordCount={overview?.creditCardStatements}
           theme={theme}
-          title="Credit-card statements">
-          <Text style={[styles.caption, { color: theme.mutedText }]}>No card numbers, CVV, expiration dates, installment inference, or credentials are stored or exported.</Text>
+          title={t.dataExport.statementsTitle}>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.statementsCaption}</Text>
           <ExportButton
             disabled={busy || loadingOverview || overview?.creditCardStatements === 0}
             kind="credit-card-statements"
-            label="Export statements CSV"
+            label={t.dataExport.exportStatementsButton}
             operation={operation}
-            onPress={() => confirmExport('Export credit-card statements?', exportCreditCardStatements)}
+            onPress={() => confirmExport(t.dataExport.exportStatementsTitle, exportCreditCardStatements)}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="One row per summary metric for the same persisted reporting periods and financial rules used by Reports."
+          description={t.dataExport.reportDescription}
           kind="report-summary"
           operation={operation}
           recordCount={overview?.reportMetrics}
           theme={theme}
-          title="Report summary">
+          title={t.dataExport.reportTitle}>
           <ReportPeriodSelector selection={reportSelection} onChange={setReportSelection} />
           <ExportButton
             disabled={busy || loadingOverview}
             kind="report-summary"
-            label="Export report summary CSV"
+            label={t.dataExport.exportReportButton}
             operation={operation}
-            onPress={() => confirmExport('Export report summary?', exportReport)}
+            onPress={() => confirmExport(t.dataExport.exportReportTitle, exportReport)}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Investment accounts with current value, net contributions, estimated gain/loss and simple return, and estimated value in your base currency (blank when no exchange rate is available). Archived investments are included."
+          description={t.dataExport.investmentsDescription}
           kind="investments"
           operation={operation}
           recordCount={overview?.investments}
           theme={theme}
-          title="Investments">
-          <Text style={[styles.caption, { color: theme.mutedText }]}>Values are estimated from the latest manual valuation; unrealized gain/loss is never counted as income.</Text>
+          title={t.dataExport.investmentsTitle}>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.investmentsCaption}</Text>
           <ExportButton
             disabled={busy || loadingOverview || overview?.investments === 0}
             kind="investments"
-            label="Export investments CSV"
+            label={t.dataExport.exportInvestmentsButton}
             operation={operation}
-            onPress={() => confirmExport('Export investments?', exportInvestments)}
+            onPress={() => confirmExport(t.dataExport.exportInvestmentsTitle, exportInvestments)}
             theme={theme}
           />
         </ExportCard>
 
         <ExportCard
-          description="Full manual valuation history for every investment account: date, currency, value, and optional note."
+          description={t.dataExport.valuationsDescription}
           kind="investment-valuations"
           operation={operation}
           recordCount={overview?.investments}
           theme={theme}
-          title="Investment valuations">
-          <Text style={[styles.caption, { color: theme.mutedText }]}>One row per recorded valuation across all investment accounts.</Text>
+          title={t.dataExport.valuationsTitle}>
+          <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.valuationsCaption}</Text>
           <ExportButton
             disabled={busy || loadingOverview || overview?.investments === 0}
             kind="investment-valuations"
-            label="Export investment valuations CSV"
+            label={t.dataExport.exportValuationsButton}
             operation={operation}
-            onPress={() => confirmExport('Export investment valuations?', exportInvestmentValuations)}
+            onPress={() => confirmExport(t.dataExport.exportValuationsTitle, exportInvestmentValuations)}
             theme={theme}
           />
         </ExportCard>
 
-        <Text style={[styles.footerNote, { color: theme.mutedText }]}>Files are generated locally, shared one at a time, and removed from Money Control’s temporary cache after the native interface closes. No data is uploaded by Money Control.</Text>
+        <Text style={[styles.footerNote, { color: theme.mutedText }]}>{t.dataExport.footerNote}</Text>
       </ScrollView>
 
       <TransactionFilterModal
@@ -413,6 +417,7 @@ function ExportCard({
   theme: Theme;
   title: string;
 }) {
+  const t = useMessages();
   return (
     <Card style={styles.card}>
       <View style={styles.cardHeading}>
@@ -421,14 +426,14 @@ function ExportCard({
           <Text style={[styles.body, { color: theme.secondaryText }]}>{description}</Text>
         </View>
         {recordCount === undefined ? <ActivityIndicator color={theme.primaryAction} size="small" /> : (
-          <Text accessibilityLabel={`${recordCount} records`} style={[styles.count, { backgroundColor: theme.elevatedSurface, color: theme.primaryText }]}>{recordCount.toLocaleString('en-US')}</Text>
+          <Text accessibilityLabel={t.dataExport.recordCount(recordCount)} style={[styles.count, { backgroundColor: theme.elevatedSurface, color: theme.primaryText }]}>{recordCount.toLocaleString(getIntlLocale())}</Text>
         )}
       </View>
       {recordCount === 0 && kind !== 'transactions' ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.emptyText, { color: theme.secondaryText }]}>Nothing to export here yet — this CSV would have no rows.</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.emptyText, { color: theme.secondaryText }]}>{t.dataExport.emptyCard}</Text>
       ) : null}
       {children}
-      <Text style={[styles.notBackup, { color: theme.mutedText }]}>Human-readable CSV · Not a restorable backup</Text>
+      <Text style={[styles.notBackup, { color: theme.mutedText }]}>{t.dataExport.notRestorable}</Text>
     </Card>
   );
 }
@@ -440,11 +445,12 @@ function NotesToggle({ disabled, label, onValueChange, theme, value }: {
   theme: Theme;
   value: boolean;
 }) {
+  const t = useMessages();
   return (
     <View style={styles.toggleRow}>
       <View style={styles.flex}>
         <Text style={[styles.body, { color: theme.primaryText }]}>{label}</Text>
-        <Text style={[styles.caption, { color: theme.mutedText }]}>Off by default for plaintext-file privacy.</Text>
+        <Text style={[styles.caption, { color: theme.mutedText }]}>{t.dataExport.notesPrivacy}</Text>
       </View>
       <Switch
         accessibilityLabel={label}

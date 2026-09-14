@@ -15,7 +15,9 @@ import { DialogHost, useDialog } from '@/components/dialog';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { describeRate, getCurrency, type CurrencyCode } from '@/features/currency/currency';
+import { getIntlLocale, getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
+import { currencyName, describeRate, type CurrencyCode } from '@/features/currency/currency';
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
 import { baseCurrencyLockMessage, settingsService } from '@/features/settings/settings';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
@@ -24,7 +26,7 @@ import { toDirectedRate, type ExchangeRateRecord, type ExchangeRateStatus } from
 import { ScreenHeader } from '@/components/screen-header';
 
 function formatFetchedAt(value: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getIntlLocale(), {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'America/Bogota',
@@ -32,13 +34,15 @@ function formatFetchedAt(value: string): string {
 }
 
 function sourceLabel(record: ExchangeRateRecord): string {
-  return record.source === 'frankfurter' ? 'Frankfurter reference rate' : 'Manual entry';
+  const t = getMessages().exchangeRates;
+  return record.source === 'frankfurter' ? t.sourceFrankfurter : t.sourceManual;
 }
 
 export function ExchangeRateSettingsScreen() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const dialog = useDialog();
+  const t = useMessages();
   const { baseCurrency, baseCurrencyLock: lock, statuses, loading, busyCurrency, error, reload, refresh, setManualRate } = useExchangeRates();
   const [manualInputs, setManualInputs] = useState<Partial<Record<CurrencyCode, string>>>({});
   const [notice, setNotice] = useState<string>();
@@ -50,7 +54,7 @@ export function ExchangeRateSettingsScreen() {
     try {
       await setManualRate(currency, manualInputs[currency] ?? '');
       setManualInputs((current) => ({ ...current, [currency]: '' }));
-      setNotice(`Saved the ${currency}/${baseCurrency} rate.`);
+      setNotice(t.exchangeRates.savedRate(currency, baseCurrency));
     } catch {
       // Surfaced through the hook's `error`.
     }
@@ -61,11 +65,11 @@ export function ExchangeRateSettingsScreen() {
     try {
       await settingsService.setBaseCurrency(code);
       await reload();
-      setNotice(`Base currency is now ${code}.`);
+      setNotice(t.exchangeRates.baseCurrencyNow(code));
     } catch (cause) {
       dialog.notice({
-        title: 'Cannot change the base currency',
-        message: toUserMessage(cause, 'Unable to change the base currency.'),
+        title: t.exchangeRates.cannotChangeBaseTitle,
+        message: toUserMessage(cause, t.exchangeRates.cannotChangeBaseFallback),
       });
     }
   }
@@ -73,9 +77,9 @@ export function ExchangeRateSettingsScreen() {
   function confirmBaseCurrency(code: CurrencyCode): void {
     if (code === baseCurrency) return;
     dialog.confirm({
-      title: `Use ${code} as the base currency?`,
-      message: `Every consolidated total — net worth, Home, Reports and Budgets — will be shown in ${code}. You can change this freely until you record your first transaction or budget.`,
-      confirmLabel: `Use ${code}`,
+      title: t.exchangeRates.confirmBaseTitle(code),
+      message: t.exchangeRates.confirmBaseMessage(code),
+      confirmLabel: t.exchangeRates.confirmBaseLabel(code),
       onConfirm: () => void chooseBaseCurrency(code),
     });
   }
@@ -84,7 +88,7 @@ export function ExchangeRateSettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="back" leadingDisabled={busy} title="Currency & Rates" />
+      <ScreenHeader leading="back" leadingDisabled={busy} title={t.exchangeRates.title} />
 
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
@@ -105,16 +109,15 @@ export function ExchangeRateSettingsScreen() {
         ) : null}
 
         <Card>
-          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Base currency</Text>
+          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.exchangeRates.baseCurrency}</Text>
           <Text style={[styles.rateValue, { color: theme.primaryText }]}>{baseCurrency}</Text>
           <Text style={[styles.body, { color: theme.secondaryText }]}>
-            {getCurrency(baseCurrency).name}. All consolidated totals — net worth, Home, Reports and Budgets — are
-            shown in {baseCurrency}. Each account keeps its own currency.
+            {t.exchangeRates.baseCurrencyBody(currencyName(baseCurrency), baseCurrency)}
           </Text>
           <Button
             disabled={locked || busy}
             fullWidth
-            label="Change base currency"
+            label={t.exchangeRates.changeBaseCurrency}
             onPress={() => setPickerOpen(true)}
             size="lg"
             variant="tonal"
@@ -125,8 +128,7 @@ export function ExchangeRateSettingsScreen() {
             <Text style={[styles.caption, { color: theme.warning }]}>{baseCurrencyLockMessage(lock)}</Text>
           ) : (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
-              This can be changed freely until you record your first transaction or budget. After that it is fixed,
-              because every stored amount is measured against it.
+              {t.exchangeRates.baseCurrencyUnlockedHint}
             </Text>
           )}
         </Card>
@@ -137,10 +139,9 @@ export function ExchangeRateSettingsScreen() {
           </Card>
         ) : statuses.length === 0 ? (
           <Card>
-            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Exchange rates</Text>
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.exchangeRates.exchangeRatesTitle}</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>
-              All of your accounts are in {baseCurrency}, so no exchange rate is needed. Add an account in another
-              currency and its rate will appear here.
+              {t.exchangeRates.noRatesNeeded(baseCurrency)}
             </Text>
           </Card>
         ) : (
@@ -161,17 +162,17 @@ export function ExchangeRateSettingsScreen() {
         )}
 
         <Text style={[styles.caption, { color: theme.mutedText }]}>
-          Frankfurter provides reference exchange rates from official sources. Your bank may use a different rate.
+          {t.exchangeRates.providerDisclaimer}
         </Text>
       </ScrollView>
 
       <CurrencyPicker
-        disabledCodes={{ [baseCurrency]: 'Already the base currency' }}
+        disabledCodes={{ [baseCurrency]: t.exchangeRates.alreadyBaseCurrency }}
         onClose={() => setPickerOpen(false)}
         onSelect={confirmBaseCurrency}
         selected={baseCurrency}
         suggested={[baseCurrency, ...statuses.map((status) => status.currencyCode)]}
-        title="Base currency"
+        title={t.exchangeRates.baseCurrency}
         visible={pickerOpen}
       />
       <DialogHost dialog={dialog} />
@@ -199,12 +200,13 @@ function RateCard({
   status: ExchangeRateStatus;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const { currencyCode, rate, freshness } = status;
 
   return (
     <Card>
       <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>
-        {currencyCode} · {getCurrency(currencyCode).name}
+        {currencyCode} · {currencyName(currencyCode)}
       </Text>
       {rate ? (
         <>
@@ -213,30 +215,29 @@ function RateCard({
           </Text>
           {freshness === 'stale' ? (
             <View style={[styles.badge, { backgroundColor: theme.tintWarning }]}>
-              <Text style={[styles.badgeText, { color: theme.warning }]}>Rate may be out of date</Text>
+              <Text style={[styles.badgeText, { color: theme.warning }]}>{t.exchangeRates.staleBadge}</Text>
             </View>
           ) : (
             <View style={[styles.badge, { backgroundColor: theme.tintIncome }]}>
-              <Text style={[styles.badgeText, { color: theme.income }]}>Up to date</Text>
+              <Text style={[styles.badgeText, { color: theme.income }]}>{t.exchangeRates.freshBadge}</Text>
             </View>
           )}
           <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Source</Text>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>{t.exchangeRates.source}</Text>
             <Text style={[styles.value, { color: theme.primaryText }]}>{sourceLabel(rate)}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Rate date</Text>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>{t.exchangeRates.rateDate}</Text>
             <Text style={[styles.value, { color: theme.primaryText }]}>{formatTransactionDate(rate.effectiveDate)}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={[styles.label, { color: theme.secondaryText }]}>Last updated</Text>
+            <Text style={[styles.label, { color: theme.secondaryText }]}>{t.exchangeRates.lastUpdated}</Text>
             <Text style={[styles.value, { color: theme.primaryText }]}>{formatFetchedAt(rate.fetchedAt)}</Text>
           </View>
         </>
       ) : (
         <Text style={[styles.body, { color: theme.secondaryText }]}>
-          No exchange rate is available. Accounts in {currencyCode} are left out of consolidated totals until one is
-          saved.
+          {t.exchangeRates.noRateAvailable(currencyCode)}
         </Text>
       )}
 
@@ -244,21 +245,21 @@ function RateCard({
         busy={busy}
         disabled={disabled && !busy}
         fullWidth
-        label="Refresh from Frankfurter"
+        label={t.exchangeRates.refreshFromFrankfurter}
         onPress={onRefresh}
         size="lg"
         variant="primary"
       />
 
       <Text style={[styles.body, { color: theme.secondaryText, marginTop: spacing.md }]}>
-        Or enter how many {baseCurrency} equal one {currencyCode}. Up to four decimal places.
+        {t.exchangeRates.manualRateHint(baseCurrency, currencyCode)}
       </Text>
       <TextInput
-        accessibilityLabel={`Manual ${currencyCode} to ${baseCurrency} rate`}
+        accessibilityLabel={t.exchangeRates.manualRateLabel(currencyCode, baseCurrency)}
         editable={!disabled}
         keyboardType="decimal-pad"
         onChangeText={onManualInputChange}
-        placeholder="e.g. 4100"
+        placeholder={t.exchangeRates.manualRatePlaceholder}
         placeholderTextColor={theme.mutedText}
         style={[styles.input, { backgroundColor: theme.elevatedSurface, borderColor: theme.border, color: theme.primaryText }]}
         value={manualInput}
@@ -266,7 +267,7 @@ function RateCard({
       <Button
         disabled={disabled || manualInput.trim().length === 0}
         fullWidth
-        label="Save manual rate"
+        label={t.exchangeRates.saveManualRate}
         onPress={onSaveManual}
         size="lg"
         variant="tonal"

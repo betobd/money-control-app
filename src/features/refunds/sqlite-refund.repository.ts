@@ -3,6 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { sqlite } from '@/database/client';
 import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import type { ExchangeRateSnapshotSource, TransactionRecord } from '@/features/transactions/transaction.types';
+import { getMessages } from '@/i18n/messages';
 import { RefundActionError } from './refund.service';
 import type { RefundCreateRecord, RefundRepository } from './refund.types';
 
@@ -111,30 +112,30 @@ export class SQLiteRefundRepository implements RefundRepository {
         record.originalTransactionId,
       );
       if (!original) {
-        throw new RefundActionError('original_not_found', 'The original expense no longer exists.');
+        throw new RefundActionError('original_not_found', getMessages().refunds.errors.originalNotFound);
       }
       if (original.type !== 'expense' || original.status !== 'posted' || !original.account_id) {
         throw new RefundActionError(
           'original_not_posted_expense',
-          'Refunds can only be added to a posted expense.',
+          getMessages().refunds.errors.notPostedExpense,
         );
       }
       if (record.transactionDate < original.transaction_date) {
         throw new RefundActionError(
           'refund_date_before_expense',
-          'Refund date cannot be earlier than the original expense.',
+          getMessages().refunds.errors.dateBeforeExpense,
         );
       }
       if (record.transactionDate > today) {
-        throw new RefundActionError('refund_date_in_future', 'Refund date cannot be in the future.');
+        throw new RefundActionError('refund_date_in_future', getMessages().refunds.errors.dateInFuture);
       }
       const remaining = original.amount - Number(original.refunded_amount);
       if (record.amount > remaining) {
         throw new RefundActionError(
           'refund_exceeds_remaining',
           remaining > 0
-            ? 'Refund cannot exceed the remaining refundable amount.'
-            : 'This expense has already been fully refunded.',
+            ? getMessages().refunds.errors.exceedsRemaining
+            : getMessages().refunds.errors.fullyRefunded,
         );
       }
 
@@ -165,10 +166,10 @@ export class SQLiteRefundRepository implements RefundRepository {
         record.updatedAt,
       );
       const row = await findRefund(transaction, record.id);
-      if (!row) throw new RefundActionError('refund_write_conflict', 'Unable to save the refund.');
+      if (!row) throw new RefundActionError('refund_write_conflict', getMessages().refunds.errors.unableToSave);
       created = mapRefund(row);
     });
-    if (!created) throw new RefundActionError('refund_write_conflict', 'Unable to save the refund.');
+    if (!created) throw new RefundActionError('refund_write_conflict', getMessages().refunds.errors.unableToSave);
     return created;
   }
 
@@ -177,10 +178,10 @@ export class SQLiteRefundRepository implements RefundRepository {
     await this.database.withExclusiveTransactionAsync(async (transaction) => {
       const current = await findRefund(transaction, id);
       if (!current || current.type !== 'refund') {
-        throw new RefundActionError('refund_not_found', 'Refund not found.');
+        throw new RefundActionError('refund_not_found', getMessages().refunds.errors.notFound);
       }
       if (current.status === 'voided') {
-        throw new RefundActionError('refund_already_voided', 'Refund is already voided.');
+        throw new RefundActionError('refund_already_voided', getMessages().refunds.errors.alreadyVoided);
       }
       const result = await transaction.runAsync(
         `UPDATE transactions
@@ -190,13 +191,13 @@ export class SQLiteRefundRepository implements RefundRepository {
         id,
       );
       if (result.changes !== 1) {
-        throw new RefundActionError('refund_write_conflict', 'Refund changed before it could be voided.');
+        throw new RefundActionError('refund_write_conflict', getMessages().refunds.errors.changedBeforeVoid);
       }
       const row = await findRefund(transaction, id);
-      if (!row) throw new RefundActionError('refund_write_conflict', 'Unable to load the voided refund.');
+      if (!row) throw new RefundActionError('refund_write_conflict', getMessages().refunds.errors.unableToLoadVoided);
       voided = mapRefund(row);
     });
-    if (!voided) throw new RefundActionError('refund_write_conflict', 'Unable to void the refund.');
+    if (!voided) throw new RefundActionError('refund_write_conflict', getMessages().refunds.errors.unableToVoid);
     return voided;
   }
 }

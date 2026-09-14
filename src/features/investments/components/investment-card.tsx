@@ -10,6 +10,7 @@ import { formatMoney, formatMoneyWithSymbol } from '@/features/currency/currency
 import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 import { formatEstimatedReturn, investmentLiquidityLabels, investmentTypeLabels } from '../investment-format';
 import type { InvestmentAccountView } from '../investment.types';
 
@@ -21,6 +22,7 @@ type InvestmentCardProps = {
 /** Portfolio row: one investment account with its current value and estimated return. */
 export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const baseCurrency = useBaseCurrency();
   const { account, metadata } = view;
   const currency = account.currency;
@@ -36,8 +38,8 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
 
   return (
     <PressableScale
-      accessibilityHint="Open investment details"
-      accessibilityLabel={`${account.name}, ${investmentTypeLabels[metadata.investmentType]}, current value ${formatMoneyWithSymbol(view.currentValueMinor, currency)}`}
+      accessibilityHint={t.investments.openDetailsHint}
+      accessibilityLabel={t.investments.cardAccessibilityLabel(account.name, investmentTypeLabels[metadata.investmentType], formatMoneyWithSymbol(view.currentValueMinor, currency))}
       accessibilityRole="button"
       onPress={onPress}>
       <Card style={styles.card} variant="raised">
@@ -52,7 +54,7 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
         </View>
 
         <View style={styles.valueBlock}>
-          <Overline color={theme.secondaryText}>Current value</Overline>
+          <Overline color={theme.secondaryText}>{t.investments.currentValue}</Overline>
           <Text
             adjustsFontSizeToFit
             minimumFontScale={0.7}
@@ -63,29 +65,29 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
           {isForeign ? (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
               {view.estimatedValueBaseMinor === null
-                ? `Estimated ${baseCurrency} — rate unavailable`
+                ? t.investments.estimatedBaseUnavailable(baseCurrency)
                 : `≈ ${formatMoney(view.estimatedValueBaseMinor, baseCurrency)}`}
             </Text>
           ) : null}
         </View>
 
         <MetricRow
-          label="Net contributions"
+          label={t.investments.netContributions}
           value={formatMoneyWithSymbol(view.netContributionsMinor, currency)}
         />
         <View style={styles.metricRow}>
-          <Text style={[styles.metricLabel, { color: theme.secondaryText }]}>Estimated gain/loss</Text>
+          <Text style={[styles.metricLabel, { color: theme.secondaryText }]}>{t.investments.estimatedGainLoss}</Text>
           <Text style={[styles.metricValue, { color: gainColor }]}>
             {gainSign}{formatMoneyWithSymbol(view.estimatedGainLossMinor, currency)} · {formatEstimatedReturn(view.estimatedReturn)}
           </Text>
         </View>
         <MetricRow
-          label="Latest valuation"
-          value={view.latestValuation ? formatTransactionDate(view.latestValuation.valuationDate) : 'No valuation yet'}
+          label={t.investments.latestValuation}
+          value={view.latestValuation ? formatTransactionDate(view.latestValuation.valuationDate) : t.investments.noValuationYet}
         />
-        <MetricRow label="Liquidity" value={investmentLiquidityLabels[metadata.liquidity]} />
+        <MetricRow label={t.investments.liquidity} value={investmentLiquidityLabels[metadata.liquidity]} />
         {metadata.maturityDate ? (
-          <MetricRow label="Maturity" value={formatTransactionDate(metadata.maturityDate)} />
+          <MetricRow label={t.investments.maturity} value={formatTransactionDate(metadata.maturityDate)} />
         ) : null}
       </Card>
     </PressableScale>

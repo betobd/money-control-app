@@ -43,12 +43,15 @@ import { TransactionValidationError } from '@/features/transactions/transaction.
 import { transactionService } from '@/features/transactions/transactions';
 import type { ExchangeRateSnapshotInput, TransactionValidationErrors } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type AccountPickerField = 'account' | 'source' | 'destination' | null;
 
 export default function AddTransactionModal() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const ta = t.addTransaction;
   const [type, setType] = useState<TransactionFormType>('expense');
   const [amountDigits, setAmountDigits] = useState('');
   const [destinationAmountDigits, setDestinationAmountDigits] = useState('');
@@ -138,7 +141,7 @@ export default function AddTransactionModal() {
     try {
       const parsedSource = parseMoney(amountDigits || '0', sourceCurrency);
       if (!parsedSource.ok) {
-        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setErrors({ amount: t.transactions.errors.invalidAmount });
         setSaving(false);
         return;
       }
@@ -156,7 +159,7 @@ export default function AddTransactionModal() {
         if (crossCurrency) {
           const parsedDestination = parseMoney(destinationAmountDigits || '0', destinationCurrency);
           if (!parsedDestination.ok || parsedDestination.minor <= 0) {
-            setErrors({ destinationAmount: 'Enter both the amount sent and the amount received.' });
+            setErrors({ destinationAmount: t.transactions.errors.incompleteTransfer });
             setSaving(false);
             return;
           }
@@ -187,7 +190,7 @@ export default function AddTransactionModal() {
           exchangeRate = rates.snapshotInputFor(sourceCurrency);
           if (!exchangeRate) {
             setErrors({
-              exchangeRate: `Add a ${sourceCurrency}/${baseCurrency} exchange rate before saving this transaction.`,
+              exchangeRate: ta.missingPairRate(sourceCurrency, baseCurrency),
             });
             setSaving(false);
             return;
@@ -207,7 +210,7 @@ export default function AddTransactionModal() {
       if (cause instanceof TransactionValidationError) {
         setErrors(cause.fields);
       } else {
-        setGeneralError(toUserMessage(cause, 'Unable to save transaction.'));
+        setGeneralError(toUserMessage(cause, ta.unableToSave));
       }
       setSaving(false);
     }
@@ -240,15 +243,15 @@ export default function AddTransactionModal() {
   }
 
   const transferHelper = destinationAccount?.type === 'credit_card'
-    ? 'This transfer reduces the card’s current debt.'
+    ? ta.transferReducesDebt
     : selectedAccount?.type === 'credit_card'
-      ? 'This increases the card’s current debt or reduces a credit balance.'
+      ? ta.transferIncreasesDebt
       : undefined;
   const pickerTitle = accountPickerField === 'source'
-    ? 'Select source account'
+    ? ta.selectSourceAccount
     : accountPickerField === 'destination'
-      ? 'Select destination account'
-      : 'Select account';
+      ? ta.selectDestinationAccount
+      : ta.selectAccount;
   const pickerSelectedId = accountPickerField === 'destination'
     ? destinationAccountId
     : selectedAccountId;
@@ -257,7 +260,7 @@ export default function AddTransactionModal() {
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable
-          accessibilityLabel="Close Add Transaction"
+          accessibilityLabel={ta.close}
           accessibilityRole="button"
           onPress={() => router.back()}
           style={styles.closeButton}>
@@ -268,7 +271,7 @@ export default function AddTransactionModal() {
           />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
-          Add Transaction
+          {ta.title}
         </Text>
         <View style={styles.closeButton} />
       </View>
@@ -288,11 +291,11 @@ export default function AddTransactionModal() {
           {needsForeignRate ? (
             rateSnapshot ? (
               <Text style={[styles.rateNote, { color: theme.secondaryText }]}>
-                Reference rate {describeRate(rateSnapshot.rate)} · rate date {rateSnapshot.effectiveDate}. Your bank may use a different rate.
+                {ta.referenceRate(describeRate(rateSnapshot.rate), rateSnapshot.effectiveDate)}
               </Text>
             ) : (
               <Text accessibilityLiveRegion="polite" style={[styles.rateWarning, { color: theme.destructive }]}>
-                No exchange rate is available. Add a {rateCurrency}/{baseCurrency} rate in More → Currency & Rates before saving.
+                {ta.noRate(rateCurrency, baseCurrency)}
               </Text>
             )
           ) : null}
@@ -309,21 +312,21 @@ export default function AddTransactionModal() {
           {type === 'transfer' ? (
             <>
               <TransferAccountFields
-                destination={destinationAccount?.name ?? 'Select account'}
+                destination={destinationAccount?.name ?? ta.selectAccount}
                 destinationError={errors.destinationAccountId}
                 helperText={transferHelper}
                 onSelectDestination={() => setAccountPickerField('destination')}
                 onSelectSource={() => setAccountPickerField('source')}
-                source={selectedAccount?.name ?? 'Select account'}
+                source={selectedAccount?.name ?? ta.selectAccount}
                 sourceError={errors.accountId}
               />
               {crossCurrency ? (
                 <View style={styles.field}>
                   <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>
-                    Amount received ({destinationCurrency})
+                    {ta.amountReceived(destinationCurrency)}
                   </Text>
                   <TextInput
-                    accessibilityLabel={`Amount received in ${destinationCurrency}`}
+                    accessibilityLabel={ta.amountReceivedA11y(destinationCurrency)}
                     keyboardType={getCurrency(destinationCurrency).fractionDigits === 0 ? 'number-pad' : 'decimal-pad'}
                     onChangeText={(value) => {
                       setDestinationAmountDigits(sanitizeAmountEntry(value, destinationCurrency));
@@ -343,13 +346,13 @@ export default function AddTransactionModal() {
                   />
                   {rates.has(sourceCurrency) && rates.has(destinationCurrency) ? (
                     <Pressable accessibilityRole="button" onPress={prefillDestination}>
-                      <Text style={[styles.rateNote, { color: theme.primaryAction }]}>Estimate from reference rate</Text>
+                      <Text style={[styles.rateNote, { color: theme.primaryAction }]}>{ta.estimateFromRate}</Text>
                     </Pressable>
                   ) : null}
                   {errors.destinationAmount ? (
                     <Text style={[styles.error, { color: theme.destructive }]}>{errors.destinationAmount}</Text>
                   ) : (
-                    <Text style={[styles.rateNote, { color: theme.mutedText }]}>Enter the actual amount your bank credited. Both amounts are saved.</Text>
+                    <Text style={[styles.rateNote, { color: theme.mutedText }]}>{ta.amountReceivedHelp}</Text>
                   )}
                 </View>
               ) : null}
@@ -367,22 +370,22 @@ export default function AddTransactionModal() {
               />
               {tree.length === 0 ? (
                 <Pressable onPress={() => router.push({ pathname: '/categories', params: { type } })}>
-                  <Text style={{ color: theme.primaryAction }}>Manage categories</Text>
+                  <Text style={{ color: theme.primaryAction }}>{ta.manageCategories}</Text>
                 </Pressable>
               ) : null}
               <FormFieldButton
                 error={errors.accountId}
                 icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-                label={type === 'income' ? 'Destination account' : 'Source account'}
+                label={type === 'income' ? ta.destinationAccount : ta.sourceAccount}
                 onPress={() => setAccountPickerField('account')}
-                value={selectedAccount?.name ?? 'Select account'}
+                value={selectedAccount?.name ?? ta.selectAccount}
               />
             </>
           )}
 
           <DateField
             error={errors.transactionDate}
-            label="Transaction date"
+            label={ta.transactionDate}
             onChange={(value) => {
               setTransactionDate(value);
               setErrors((current) => ({ ...current, transactionDate: undefined }));
@@ -391,13 +394,13 @@ export default function AddTransactionModal() {
           />
 
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>Note (optional)</Text>
+            <Text style={[styles.fieldLabel, { color: theme.secondaryText }]}>{ta.noteOptional}</Text>
             <TextInput
-              accessibilityLabel="Transaction note, optional"
+              accessibilityLabel={ta.noteA11y}
               maxLength={200}
               multiline
               onChangeText={setNote}
-              placeholder="Add a description…"
+              placeholder={ta.notePlaceholder}
               placeholderTextColor={theme.mutedText}
               style={[
                 styles.noteInput,
@@ -437,7 +440,7 @@ export default function AddTransactionModal() {
         onManage={() => router.push({ pathname: '/categories', params: { type } })}
         onSelect={selectCategory}
         selection={effectiveSelection}
-        title={type === 'income' ? 'Select income category' : 'Select expense category'}
+        title={type === 'income' ? ta.selectIncomeCategory : ta.selectExpenseCategory}
         visible={categoryPickerVisible}
       />
     </View>

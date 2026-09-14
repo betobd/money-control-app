@@ -18,10 +18,12 @@ import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
-import { formatMoneyEntry, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
+import { currencyName, formatMoneyEntry, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { CurrencyPicker } from '@/features/currency/components/currency-picker';
 import { getBaseCurrency } from '@/features/settings/settings';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { investmentLiquidityLabels, investmentTypeLabels } from '../investment-format';
 import { InvestmentValidationError } from '../investment.service';
 import {
@@ -62,6 +64,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
   const isEditing = Boolean(accountId);
 
   const [name, setName] = useState('');
@@ -85,7 +88,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
     investmentService
       .get(accountId)
       .then((loaded) => {
-        if (!loaded) throw new Error('Investment not found.');
+        if (!loaded) throw new Error(getMessages().investments.notFound);
         const { account, metadata } = loaded;
         setName(account.name);
         setCurrency(account.currency);
@@ -98,7 +101,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
         setMaturityDate(metadata.maturityDate ?? '');
         setNote(metadata.note ?? '');
       })
-      .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to load investment.')))
+      .catch((cause) => setGeneralError(toUserMessage(cause, getMessages().investments.loadFormError)))
       .finally(() => setLoading(false));
   }, [accountId]);
 
@@ -119,7 +122,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
     try {
       const openingParsed = parseMoney(openingBalance.trim() || '0', currency);
       if (!openingParsed.ok) {
-        setErrors({ openingBalance: 'Enter a valid, non-negative amount.' });
+        setErrors({ openingBalance: t.investments.invalidAmount });
         setSaving(false);
         return;
       }
@@ -139,7 +142,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof InvestmentValidationError) setErrors(cause.fields);
-      else setGeneralError(toUserMessage(cause, 'Unable to save investment.'));
+      else setGeneralError(toUserMessage(cause, t.investments.saveError));
     } finally {
       setSaving(false);
     }
@@ -158,27 +161,27 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close investment form" title={isEditing ? 'Edit Investment' : 'New Investment'} />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.investments.closeForm} title={isEditing ? t.investments.editTitle : t.investments.newTitle} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? (
           <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text>
         ) : null}
 
-        <FormField label="Investment name" error={errors.name} theme={theme}>
+        <FormField label={t.investments.nameLabel} error={errors.name} theme={theme}>
           <TextInput
-            accessibilityLabel="Investment name"
+            accessibilityLabel={t.investments.nameLabel}
             autoCapitalize="words"
             maxLength={80}
             onChangeText={(value) => { setName(value); clearError('name'); }}
-            placeholder="e.g. Brokerage — S&P 500"
+            placeholder={t.investments.namePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={inputStyle(Boolean(errors.name))}
             value={name}
           />
         </FormField>
 
-        <FormField label="Investment type" error={errors.investmentType} theme={theme}>
+        <FormField label={t.investments.typeLabel} error={errors.investmentType} theme={theme}>
           <View style={styles.grid}>
             {investmentTypes.map((option) => {
               const selected = investmentType === option;
@@ -197,7 +200,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
           </View>
         </FormField>
 
-        <FormField label="Liquidity" error={errors.liquidity} theme={theme}>
+        <FormField label={t.investments.liquidity} error={errors.liquidity} theme={theme}>
           <View style={styles.segment}>
             {investmentLiquidities.map((option) => {
               const selected = liquidity === option;
@@ -216,21 +219,21 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
           </View>
         </FormField>
 
-        <FormField label="Currency" error={errors.currency} theme={theme}>
+        <FormField label={t.investments.currency} error={errors.currency} theme={theme}>
           <Pressable
-            accessibilityLabel={`Currency, ${currency}, ${getCurrency(currency).name}`}
+            accessibilityLabel={t.investments.currencyAccessibilityLabel(currency, currencyName(currency))}
             accessibilityRole="button"
             onPress={() => setCurrencyPickerOpen(true)}
             style={[styles.segmentCell, { backgroundColor: theme.surface, borderColor: 'transparent' }]}>
             <Text style={[styles.segmentText, { color: theme.primaryText }]}>
-              {currency} · {getCurrency(currency).name}
+              {currency} · {currencyName(currency)}
             </Text>
           </Pressable>
         </FormField>
 
-        <FormField label={`Initial value (${currency})`} error={errors.openingBalance} theme={theme}>
+        <FormField label={t.investments.initialValueLabel(currency)} error={errors.openingBalance} theme={theme}>
           <TextInput
-            accessibilityLabel={`Initial value in ${getCurrency(currency).name}`}
+            accessibilityLabel={t.investments.initialValueAccessibilityLabel(currencyName(currency))}
             keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
             onChangeText={(value) => { setOpeningBalance(sanitizeMoneyInput(value, currency)); clearError('openingBalance'); }}
             placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
@@ -238,15 +241,15 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
             style={[styles.moneyInput, inputStyle(Boolean(errors.openingBalance))]}
             value={formatMoneyEntry(openingBalance, currency)}
           />
-          <Text style={[styles.help, { color: theme.secondaryText }]}>The capital initially placed in this investment. Record later contributions as transfers.</Text>
+          <Text style={[styles.help, { color: theme.secondaryText }]}>{t.investments.initialValueHelp}</Text>
         </FormField>
 
-        <FormField label="Provider (optional)" error={errors.providerName} theme={theme}>
+        <FormField label={t.investments.providerOptional} error={errors.providerName} theme={theme}>
           <TextInput
-            accessibilityLabel="Provider name"
+            accessibilityLabel={t.investments.providerAccessibilityLabel}
             maxLength={100}
             onChangeText={(value) => { setProviderName(value); clearError('providerName'); }}
-            placeholder="e.g. Bancolombia, Interactive Brokers"
+            placeholder={t.investments.providerPlaceholder}
             placeholderTextColor={theme.mutedText}
             style={inputStyle(Boolean(errors.providerName))}
             value={providerName}
@@ -256,29 +259,29 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
         <DateField
           clearable
           error={errors.startDate}
-          label="Start date (optional)"
+          label={t.investments.startDateOptional}
           onChange={(value) => { setStartDate(value); clearError('startDate'); }}
-          placeholder="No start date"
+          placeholder={t.investments.noStartDate}
           value={startDate}
         />
 
         <DateField
           clearable
           error={errors.maturityDate}
-          label="Maturity date (optional)"
+          label={t.investments.maturityDateOptional}
           minDate={startDate || undefined}
           onChange={(value) => { setMaturityDate(value); clearError('maturityDate'); }}
-          placeholder="No maturity date"
+          placeholder={t.investments.noMaturityDate}
           value={maturityDate}
         />
 
-        <FormField label="Note (optional)" error={errors.note} theme={theme}>
+        <FormField label={t.investments.noteOptional} error={errors.note} theme={theme}>
           <TextInput
-            accessibilityLabel="Note"
+            accessibilityLabel={t.investments.note}
             maxLength={200}
             multiline
             onChangeText={(value) => { setNote(value); clearError('note'); }}
-            placeholder="Anything worth remembering about this investment"
+            placeholder={t.investments.notePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[styles.multiline, inputStyle(Boolean(errors.note))]}
             value={note}
@@ -288,10 +291,10 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
 
       <FixedFooter bottomInset={insets.bottom}>
         <Button
-          accessibilityLabel={isEditing ? 'Save investment changes' : 'Create investment'}
+          accessibilityLabel={isEditing ? t.investments.saveChangesLabel : t.investments.createInvestment}
           busy={saving}
           fullWidth
-          label={isEditing ? 'Save changes' : 'Create investment'}
+          label={isEditing ? t.investments.saveChanges : t.investments.createInvestment}
           onPress={() => void save()}
           size="lg"
           variant="primary"
@@ -302,7 +305,7 @@ export function InvestmentForm({ accountId }: { accountId?: string }) {
         onSelect={(code) => { setCurrency(code); clearError('currency'); clearError('openingBalance'); }}
         selected={currency}
         suggested={[getBaseCurrency()]}
-        title="Investment currency"
+        title={t.investments.currencyPickerTitle}
         visible={currencyPickerOpen}
       />
     </KeyboardAvoidingView>

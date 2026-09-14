@@ -21,6 +21,7 @@ import { useAppLock } from '../app-lock-provider';
 import { PIN_LENGTH } from '../app-lock.types';
 import { PinInput, type PinInputHandle } from './pin-input';
 import { DialogHost, useDialog } from '@/components/dialog';
+import { useMessages } from '@/i18n/use-messages';
 
 export function AppLockBoundary({ children }: { children: React.ReactNode }) {
   const { sensitiveInputResetToken, state } = useAppLock();
@@ -30,6 +31,7 @@ export function AppLockBoundary({ children }: { children: React.ReactNode }) {
 
 function AppLockGate() {
   const dialog = useDialog();
+  const t = useMessages();
   const {
     config,
     retryConfiguration,
@@ -64,7 +66,7 @@ function AppLockGate() {
 
   async function submitPin(): Promise<void> {
     if (pin.length !== PIN_LENGTH) {
-      const message = `Enter your complete ${PIN_LENGTH}-digit PIN.`;
+      const message = t.security.gate.enterCompletePin(PIN_LENGTH);
       setInputError(message);
       AccessibilityInfo.announceForAccessibility(message);
       return;
@@ -79,16 +81,16 @@ function AppLockGate() {
   function forgotPin(): void {
     setPin('');
     dialog.confirm({
-      title: 'Forgot your PIN?',
-      message: 'Money Control has no account or recovery server, so the existing PIN cannot be recovered. The only recovery is to erase all app-private data from Android settings.',
-      confirmLabel: 'Continue',
+      title: t.security.gate.forgotTitle,
+      message: t.security.gate.forgotMessage,
+      confirmLabel: t.security.gate.continue,
       // Deliberately two steps: the first explains that nothing can be
       // recovered, the second states exactly what erasing destroys.
       onConfirm: () => dialog.confirm({
-        title: 'All local financial data will be erased',
-        message: 'Clearing app storage removes local accounts, transactions, budgets, reports data, recurring data, settings, and App Lock. Exported backup files outside the app are preserved and can be restored afterward.',
-        confirmLabel: 'Open app settings',
-        cancelLabel: 'Keep my data',
+        title: t.security.gate.eraseTitle,
+        message: t.security.gate.eraseMessage,
+        confirmLabel: t.security.gate.openAppSettings,
+        cancelLabel: t.security.gate.keepMyData,
         tone: 'destructive',
         onConfirm: () => void Linking.openSettings(),
       }),
@@ -121,58 +123,58 @@ function AppLockGate() {
             tintColor={theme.primaryAction}
           />
         </View>
-        <Text style={[styles.appName, { color: theme.primaryText }]}>Money Control</Text>
-        <Text style={[styles.title, { color: theme.primaryText }]}>App locked</Text>
-        <Text style={[styles.description, { color: theme.secondaryText }]}>Enter your local PIN to view financial information.</Text>
+        <Text style={[styles.appName, { color: theme.primaryText }]}>{t.common.appName}</Text>
+        <Text style={[styles.title, { color: theme.primaryText }]}>{t.security.gate.title}</Text>
+        <Text style={[styles.description, { color: theme.secondaryText }]}>{t.security.gate.description}</Text>
       </View>
 
       {state.status === 'loading' ? (
-        <View accessibilityLabel="Loading secure App Lock configuration" style={styles.centeredState}>
+        <View accessibilityLabel={t.security.gate.loadingLabel} style={styles.centeredState}>
           <ActivityIndicator color={theme.primaryAction} size="large" />
-          <Text style={[styles.description, { color: theme.secondaryText }]}>Checking App Lock…</Text>
+          <Text style={[styles.description, { color: theme.secondaryText }]}>{t.security.gate.checking}</Text>
         </View>
       ) : state.status === 'configurationError' ? (
         <Card padding={spacing.lg} style={styles.card}>
           <Text accessibilityLiveRegion="assertive" selectable style={[styles.error, { color: theme.destructive }]}>{state.message}</Text>
-          <PrimaryButton label="Retry secure storage" onPress={() => void retryConfiguration()} theme={theme} />
-          <Button label="Help / Forgot PIN" onPress={forgotPin} size="md" variant="ghost" />
+          <PrimaryButton label={t.security.gate.retrySecureStorage} onPress={() => void retryConfiguration()} theme={theme} />
+          <Button label={t.security.gate.helpForgotPin} onPress={forgotPin} size="md" variant="ghost" />
         </Card>
       ) : (
         <Card padding={spacing.lg} style={styles.card}>
           {temporarilyLocked ? (
-            <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>Too many incorrect attempts. Try again in {remainingSeconds} seconds.</Text>
+            <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{t.security.gate.tooManyAttempts(remainingSeconds)}</Text>
           ) : null}
           {state.status === 'locked' && state.message ? (
             <Text accessibilityLiveRegion="assertive" selectable style={[styles.error, { color: theme.destructive }]}>{state.message}</Text>
           ) : null}
           {inputError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{inputError}</Text> : null}
-          <Text style={[styles.label, { color: theme.primaryText }]}>6-digit PIN</Text>
+          <Text style={[styles.label, { color: theme.primaryText }]}>{t.security.gate.pinLabel}</Text>
           <PinInput
             ref={inputRef}
-            accessibilityLabel="Money Control 6-digit PIN"
+            accessibilityLabel={t.security.gate.pinAccessibilityLabel}
             editable={!busy && !temporarilyLocked}
             onChange={(value) => {
               setPin(value);
               setInputError(undefined);
             }}
-            onInvalidInput={() => setInputError('PIN must contain numbers only.')}
+            onInvalidInput={() => setInputError(t.security.errors.pinNumbersOnly)}
             onSubmitEditing={() => void submitPin()}
             value={pin}
           />
           <PrimaryButton
             busy={busy}
             disabled={busy || temporarilyLocked || pin.length !== PIN_LENGTH}
-            label="Unlock"
+            label={t.security.gate.unlock}
             onPress={() => void submitPin()}
             theme={theme}
           />
           {config?.biometricUnlockEnabled ? (
             <Button
-              accessibilityLabel="Unlock Money Control with device biometrics"
+              accessibilityLabel={t.security.gate.unlockWithBiometricsLabel}
               disabled={busy}
               fullWidth
               icon={{ ios: 'touchid', android: 'fingerprint', web: 'fingerprint' }}
-              label="Use device biometrics"
+              label={t.security.gate.useBiometrics}
               onPress={() => {
                 setPin('');
                 void unlockWithBiometrics();
@@ -181,11 +183,11 @@ function AppLockGate() {
               variant="tonal"
             />
           ) : null}
-          <Button label="Help / Forgot PIN" onPress={forgotPin} size="md" variant="ghost" />
+          <Button label={t.security.gate.helpForgotPin} onPress={forgotPin} size="md" variant="ghost" />
         </Card>
       )}
 
-      <Text style={[styles.limit, { color: theme.mutedText }]}>App Lock protects access to this app’s interface. It does not encrypt the SQLite database or exported plaintext backup files.</Text>
+      <Text style={[styles.limit, { color: theme.mutedText }]}>{t.security.gate.limitNotice}</Text>
       <DialogHost dialog={dialog} />
     </ScrollView>
   );

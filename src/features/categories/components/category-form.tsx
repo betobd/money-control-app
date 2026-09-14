@@ -13,6 +13,8 @@ import { CategoryValidationError } from '../category.service';
 import { categoryService } from '../categories';
 import type { Category, CategoryType, CategoryValidationErrors } from '../category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
+import { getMessages, type Messages } from '@/i18n/messages';
 import { ScreenHeader } from '@/components/screen-header';
 import { FixedFooter } from '@/components/fixed-footer';
 
@@ -31,26 +33,26 @@ type CategoryFormProps = {
  * reads as wrong to anyone looking at an apparently childless category.
  */
 function lockReason(
-  hasHistory: boolean,
-  subcategories: { active: number; archived: number },
+  messages: Messages['categories']['form'],
+  { hasHistory, subcategories }: ParentLockDetails,
 ): string | undefined {
-  if (hasHistory) {
-    return 'This category already has financial history, so it cannot move. Archive it and create a new one instead.';
-  }
+  if (hasHistory) return messages.lockedByHistory;
   const total = subcategories.active + subcategories.archived;
   if (total === 0) return undefined;
-  const archivedNote = subcategories.archived > 0
-    ? ` ${subcategories.archived} of them ${subcategories.archived === 1 ? 'is' : 'are'} archived, under Archived in the categories list.`
-    : '';
-  return `Nesting is limited to two levels, and this category has ${total} ${total === 1 ? 'subcategory' : 'subcategories'}.${archivedNote}`;
+  return messages.lockedBySubcategories(total, subcategories.archived);
 }
 
+type ParentLockDetails = { hasHistory: boolean; subcategories: { active: number; archived: number } };
+
 export function CategoryForm({ categoryId, initialType = 'expense', initialParentId }: CategoryFormProps) {
-  const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme();
+  const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme(); const t = useMessages();
   const [name, setName] = useState(''); const [type, setType] = useState<CategoryType>(initialType); const [icon, setIcon] = useState<CategoryIcon>('other');
   const [parentId, setParentId] = useState<string | null>(initialParentId ?? null);
   const [parents, setParents] = useState<Category[]>([]);
-  const [parentLock, setParentLock] = useState<string>();
+  // The facts, not the sentence: the reason is phrased at render time so it
+  // follows a language change.
+  const [parentLockDetails, setParentLockDetails] = useState<ParentLockDetails>();
+  const parentLock = parentLockDetails ? lockReason(t.categories.form, parentLockDetails) : undefined;
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [errors, setErrors] = useState<CategoryValidationErrors>({}); const [generalError, setGeneralError] = useState<string>();
   const [loading, setLoading] = useState(Boolean(categoryId)); const [saving, setSaving] = useState(false);
@@ -59,7 +61,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
   // meaningless while a parent is selected.
   const typeLocked = parentId !== null;
 
-  useEffect(() => { if (!categoryId) return; categoryService.get(categoryId).then((category) => { if (!category) throw new Error('Category not found.'); setName(category.name); setType(category.type); setParentId(category.parentCategoryId); setIcon(isCategoryIcon(category.icon) ? category.icon : fallbackCategoryIcon); }, (cause) => setGeneralError(toUserMessage(cause, 'Unable to load category.'))).finally(() => setLoading(false)); }, [categoryId]);
+  useEffect(() => { if (!categoryId) return; categoryService.get(categoryId).then((category) => { if (!category) throw new Error(getMessages().categories.errors.notFound); setName(category.name); setType(category.type); setParentId(category.parentCategoryId); setIcon(isCategoryIcon(category.icon) ? category.icon : fallbackCategoryIcon); }, (cause) => setGeneralError(toUserMessage(cause, getMessages().categories.form.loadFailed))).finally(() => setLoading(false)); }, [categoryId]);
 
   // Only active top-level categories of the current type can be chosen as a
   // parent. The archived list is loaded too, so that an archived parent this
@@ -84,7 +86,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
       categoryService.hasFinancialHistory(categoryId),
       categoryService.countSubcategories(categoryId),
     ]).then(([hasHistory, subcategories]) => {
-      if (!cancelled) setParentLock(lockReason(hasHistory, subcategories));
+      if (!cancelled) setParentLockDetails({ hasHistory, subcategories });
     }, () => undefined);
     return () => { cancelled = true; };
   }, [categoryId]);
@@ -96,25 +98,26 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
     if (parent) setType(parent.type);
   }
 
-  async function save() { setSaving(true); setErrors({}); setGeneralError(undefined); try { const input = { name, type, icon, parentCategoryId: parentId }; if (categoryId) await categoryService.update(categoryId, input); else await categoryService.create(input); router.back(); } catch (cause) { if (cause instanceof CategoryValidationError) setErrors(cause.fields); else setGeneralError(toUserMessage(cause, 'Unable to save category.')); } finally { setSaving(false); } }
+  async function save() { setSaving(true); setErrors({}); setGeneralError(undefined); try { const input = { name, type, icon, parentCategoryId: parentId }; if (categoryId) await categoryService.update(categoryId, input); else await categoryService.create(input); router.back(); } catch (cause) { if (cause instanceof CategoryValidationError) setErrors(cause.fields); else setGeneralError(toUserMessage(cause, t.categories.form.saveFailed)); } finally { setSaving(false); } }
 
   if (loading) return <View style={[styles.loading, { backgroundColor: theme.appBackground }]}><ActivityIndicator color={theme.primaryAction} /></View>;
+  const form = t.categories.form;
   const heading = categoryId
-    ? (parentId ? 'Edit Subcategory' : 'Edit Category')
-    : (parentId ? 'New Subcategory' : 'New Category');
+    ? (parentId ? form.editSubcategory : form.editCategory)
+    : (parentId ? form.newSubcategory : form.newCategory);
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-    <ScreenHeader leading="close" leadingAccessibilityLabel="Close category form" title={heading} />
+    <ScreenHeader leading="close" leadingAccessibilityLabel={form.close} title={heading} />
     <ScrollView contentContainerStyle={[styles.content, { paddingBottom: spacing.xxl }]} keyboardShouldPersistTaps="handled">
       {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
-      <View style={styles.field}><Overline color={theme.mutedText}>{parentId ? 'Subcategory name' : 'Category name'}</Overline><TextInput accessibilityLabel="Category name" onChangeText={setName} value={name} style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.name ? theme.destructive : theme.hairline, color: theme.primaryText }]} />{errors.name ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.name}</Text> : null}</View>
+      <View style={styles.field}><Overline color={theme.mutedText}>{parentId ? form.subcategoryName : form.categoryName}</Overline><TextInput accessibilityLabel={form.categoryName} onChangeText={setName} value={name} style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.name ? theme.destructive : theme.hairline, color: theme.primaryText }]} />{errors.name ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.name}</Text> : null}</View>
 
       <View style={styles.field}>
-        <Overline color={theme.mutedText}>Belongs to</Overline>
+        <Overline color={theme.mutedText}>{form.belongsTo}</Overline>
         {parentLock ? (
           <>
             <View style={[styles.lockedValue, { backgroundColor: theme.disabledSurface }]}>
               <Text style={{ color: theme.secondaryText }}>
-                {parentId === null ? 'Top-level category' : selectedParent?.name ?? ''}
+                {parentId === null ? form.topLevel : selectedParent?.name ?? ''}
               </Text>
             </View>
             <Text style={[styles.hint, { color: theme.mutedText }]}>{parentLock}</Text>
@@ -123,12 +126,12 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
           <>
             <View accessibilityRole="radiogroup" style={styles.parentList}>
               <Pressable
-                accessibilityLabel="Top-level category, no parent"
+                accessibilityLabel={form.topLevelOption}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: parentId === null }}
                 onPress={() => selectParent(null)}
                 style={[styles.parentOption, { backgroundColor: parentId === null ? theme.tintPrimary : theme.surface, borderColor: parentId === null ? theme.primaryAction : 'transparent' }]}>
-                <Text style={{ color: parentId === null ? theme.primaryText : theme.secondaryText }}>Top-level category</Text>
+                <Text style={{ color: parentId === null ? theme.primaryText : theme.secondaryText }}>{form.topLevel}</Text>
               </Pressable>
               {parents.map((parent) => {
                 const selected = parentId === parent.id;
@@ -136,7 +139,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
                 // already inside it. It stays visible but cannot be chosen.
                 return (
                   <Pressable
-                    accessibilityLabel={`Subcategory of ${parent.name}${parent.isArchived ? ', archived' : ''}`}
+                    accessibilityLabel={form.subcategoryOf(parent.name, parent.isArchived)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected, disabled: parent.isArchived }}
                     disabled={parent.isArchived}
@@ -144,7 +147,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
                     onPress={() => selectParent(parent.id)}
                     style={[styles.parentOption, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent' }]}>
                     <Text numberOfLines={1} style={{ color: selected ? theme.primaryText : theme.secondaryText }}>
-                      {parent.isArchived ? `${parent.name} (archived)` : parent.name}
+                      {parent.isArchived ? form.archivedParent(parent.name) : parent.name}
                     </Text>
                   </Pressable>
                 );
@@ -152,21 +155,21 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
             </View>
             <Text style={[styles.hint, { color: theme.mutedText }]}>
               {parents.length === 0
-                ? 'There are no top-level categories of this type yet, so this will be one.'
-                : 'A subcategory can only be one level deep.'}
+                ? form.noParentsHint
+                : form.oneLevelHint}
             </Text>
           </>
         )}
         {errors.parentCategoryId ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.parentCategoryId}</Text> : null}
       </View>
 
-      <View style={styles.field}><Overline color={theme.mutedText}>Category type</Overline><View style={styles.row}>{(['expense', 'income'] as CategoryType[]).map((value) => { const selected = type === value; return <Pressable accessibilityRole="radio" accessibilityState={{ selected, disabled: typeLocked }} disabled={typeLocked} key={value} onPress={() => setType(value)} style={[styles.choice, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent', opacity: typeLocked && !selected ? 0.4 : 1 }]}><Text style={{ color: selected ? theme.primaryText : theme.secondaryText }}>{value === 'expense' ? 'Expense' : 'Income'}</Text></Pressable>; })}</View>{typeLocked ? <Text style={[styles.hint, { color: theme.mutedText }]}>A subcategory always uses its parent&apos;s type.</Text> : null}{errors.type ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.type}</Text> : null}</View>
+      <View style={styles.field}><Overline color={theme.mutedText}>{t.categories.typeLabel}</Overline><View style={styles.row}>{(['expense', 'income'] as CategoryType[]).map((value) => { const selected = type === value; return <Pressable accessibilityRole="radio" accessibilityState={{ selected, disabled: typeLocked }} disabled={typeLocked} key={value} onPress={() => setType(value)} style={[styles.choice, { backgroundColor: selected ? theme.tintPrimary : theme.surface, borderColor: selected ? theme.primaryAction : 'transparent', opacity: typeLocked && !selected ? 0.4 : 1 }]}><Text style={{ color: selected ? theme.primaryText : theme.secondaryText }}>{value === 'expense' ? t.categories.expense : t.categories.income}</Text></Pressable>; })}</View>{typeLocked ? <Text style={[styles.hint, { color: theme.mutedText }]}>{form.typeLockedHint}</Text> : null}{errors.type ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.type}</Text> : null}</View>
 
       <View style={styles.field}>
-        <Overline color={theme.mutedText}>Icon</Overline>
+        <Overline color={theme.mutedText}>{form.icon}</Overline>
         <Pressable
-          accessibilityHint="Opens the icon picker"
-          accessibilityLabel={`Icon, ${categoryIconCatalog[icon].label}`}
+          accessibilityHint={form.iconFieldHint}
+          accessibilityLabel={form.iconField(t.categories.icons[icon])}
           accessibilityRole="button"
           onPress={() => setIconPickerOpen(true)}
           style={[styles.iconField, { backgroundColor: theme.surface, borderColor: errors.icon ? theme.destructive : theme.hairline }]}>
@@ -174,7 +177,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
             <SymbolView name={categoryIconCatalog[icon].symbol} size={24} tintColor={theme.primaryAction} />
           </View>
           <Text numberOfLines={1} style={[styles.iconFieldLabel, { color: theme.primaryText }]}>
-            {categoryIconCatalog[icon].label}
+            {t.categories.icons[icon]}
           </Text>
           <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.mutedText} />
         </Pressable>
@@ -188,7 +191,7 @@ export function CategoryForm({ categoryId, initialType = 'expense', initialParen
       visible={iconPickerOpen}
     />
     <FixedFooter bottomInset={insets.bottom}>
-      <Button busy={saving} fullWidth label={parentId ? 'Save subcategory' : 'Save category'} onPress={() => void save()} size="lg" variant="primary" />
+      <Button busy={saving} fullWidth label={parentId ? form.saveSubcategory : form.saveCategory} onPress={() => void save()} size="lg" variant="primary" />
     </FixedFooter>
   </KeyboardAvoidingView>;
 }

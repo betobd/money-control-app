@@ -49,6 +49,22 @@ export class NotificationScheduler {
     });
   }
 
+  /**
+   * Cancels every known notification that has not been delivered yet: repeating
+   * ones and those whose trigger is still in the future. One-shot notifications
+   * whose trigger has passed keep their record, so reconciling afterwards does not
+   * deliver them a second time.
+   */
+  cancelUndelivered(): Promise<void> {
+    return this.serialize(async () => {
+      const now = Date.parse(this.now());
+      for (const record of await this.repository.list()) {
+        const triggerAt = Date.parse(record.triggerAt);
+        if (Number.isNaN(triggerAt) || triggerAt > now) await this.cancelRecord(record);
+      }
+    });
+  }
+
   private serialize(work: () => Promise<void>): Promise<void> {
     const next = this.queue.then(work, work);
     this.queue = next.catch(() => undefined);

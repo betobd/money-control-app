@@ -39,11 +39,14 @@ import { budgetPerformance } from '../report-insights';
 import { useReportBudgets } from '../use-report-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { ScreenHeader } from '@/components/screen-header';
+import { getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 export function ReportsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const [selection, setSelection] = useState<ReportPeriodSelection>({ preset: 'current-month' });
   const reports = useReports(selection);
   const { portfolio } = useInvestments();
@@ -81,7 +84,7 @@ export function ReportsScreen() {
 
       {reports.loading ? (
         <Text accessibilityLiveRegion="polite" style={[styles.updating, { color: theme.secondaryText }]}>
-          Updating all report sections…
+          {t.reports.updating}
         </Text>
       ) : null}
       {reports.error ? (
@@ -89,7 +92,7 @@ export function ReportsScreen() {
           <Text accessibilityLiveRegion="assertive" style={[styles.errorText, { color: theme.destructive }]}>
             {reports.error}
           </Text>
-          <Button label="Retry" onPress={reports.reload} size="sm" variant="ghost" />
+          <Button label={t.common.retry} onPress={reports.reload} size="sm" variant="ghost" />
         </View>
       ) : null}
 
@@ -103,30 +106,30 @@ export function ReportsScreen() {
                 tintColor={theme.secondaryText}
               />
               <View style={styles.emptyText}>
-                <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>No posted income or expenses</Text>
+                <Text style={[styles.emptyTitle, { color: theme.primaryText }]}>{t.reports.emptyTitle}</Text>
                 <Text style={[styles.emptyDescription, { color: theme.secondaryText }]}>
-                  Totals remain zero for this period. Transfers, voided transactions, and pending or skipped recurring occurrences do not count.
+                  {t.reports.emptyDescription}
                 </Text>
               </View>
             </View>
           ) : null}
 
           <ReportSection
-            description="Posted income and expenses in the selected period."
-            title="Period summary">
+            description={t.reports.summaryDescription}
+            title={t.reports.summaryTitle}>
             <PeriodHeadline comparison={data.comparison} summary={data.summary} />
             <CollapsibleDetails>
               <View style={styles.summaryGrid}>
-                <SummaryMetric label="Gross expenses" tone="expense" value={formatBase(data.summary.grossExpenses)} />
-                <SummaryMetric label="Refunds" tone="refund" value={formatBase(data.summary.refunds)} />
-                <SummaryMetric label="Average expense" value={formatBase(data.summary.averageExpense)} />
-                <SummaryMetric label="Expense transactions" value={String(data.summary.expenseCount)} />
-                <SummaryMetric label="Income transactions" value={String(data.summary.incomeCount)} />
-                <SummaryMetric label="Refund transactions" value={String(data.summary.refundCount)} />
+                <SummaryMetric label={t.reports.grossExpenses} tone="expense" value={formatBase(data.summary.grossExpenses)} />
+                <SummaryMetric label={t.reports.refunds} tone="refund" value={formatBase(data.summary.refunds)} />
+                <SummaryMetric label={t.reports.averageExpense} value={formatBase(data.summary.averageExpense)} />
+                <SummaryMetric label={t.reports.expenseTransactions} value={String(data.summary.expenseCount)} />
+                <SummaryMetric label={t.reports.incomeTransactions} value={String(data.summary.incomeCount)} />
+                <SummaryMetric label={t.reports.refundTransactions} value={String(data.summary.refundCount)} />
               </View>
             </CollapsibleDetails>
             <View style={[styles.largest, { borderTopColor: theme.hairline }]}>
-              <Text style={[styles.largestLabel, { color: theme.secondaryText }]}>Largest expense</Text>
+              <Text style={[styles.largestLabel, { color: theme.secondaryText }]}>{t.reports.largestExpense}</Text>
               {data.summary.largestExpense ? (
                 <>
                   <Text style={[styles.largestAmount, { color: theme.expense }]}>
@@ -138,44 +141,44 @@ export function ReportsScreen() {
                   </Text>
                 </>
               ) : (
-                <Text style={[styles.largestMeta, { color: theme.secondaryText }]}>No posted expenses in this period.</Text>
+                <Text style={[styles.largestMeta, { color: theme.secondaryText }]}>{t.reports.noLargestExpense}</Text>
               )}
             </View>
           </ReportSection>
 
           <ReportSection
-            description={`One column per ${data.period.grouping === 'day' ? 'Bogotá-local day' : 'calendar month'}. Income rises above the line, expenses fall below it.`}
-            title="Income vs expenses">
+            description={data.period.grouping === 'day' ? t.reports.cashFlowDescriptionDay : t.reports.cashFlowDescriptionMonth}
+            title={t.reports.cashFlowTitle}>
             <CashFlowChart buckets={data.cashFlow} />
           </ReportSection>
 
           {data.pace.length > 1 ? (
             <ReportSection
-              description={`Running total of net expenses, against the same point of ${data.comparison.previousPeriod.label}.`}
-              title="Spending pace">
-              <PaceChart pace={data.pace} previousLabel="Previous period" />
+              description={t.reports.paceDescription(data.comparison.previousPeriod.label)}
+              title={t.reports.paceTitle}>
+              <PaceChart pace={data.pace} previousLabel={t.reports.previousPeriod} />
             </ReportSection>
           ) : null}
 
           {budgets.length > 0 ? (
             <ReportSection
-              description="Category budgets against what was actually spent. Spending is already net of refunds and excludes transfers."
-              title="Budget vs actual">
+              description={t.reports.budgetDescription}
+              title={t.reports.budgetTitle}>
               <BudgetPerformanceList budgets={budgets} monthCount={monthCount} />
             </ReportSection>
           ) : null}
 
           {data.weekdaySpending.length > 0 ? (
             <ReportSection
-              description="Average net expenses per weekday, divided by how many of each weekday the period contained."
-              title="Spending by weekday">
+              description={t.reports.weekdayDescription}
+              title={t.reports.weekdayTitle}>
               <WeekdayChart weekdays={data.weekdaySpending} />
             </ReportSection>
           ) : null}
 
           <ReportSection
-            description="All posted expenses ranked by stable category ID, including archived historical categories."
-            title="Expenses by category">
+            description={t.reports.categoryDescription}
+            title={t.reports.categoryTitle}>
             {data.categoryExpenses.length > 0 ? (
               <>
                 <CategoryDonut categories={data.categoryExpenses} />
@@ -183,50 +186,52 @@ export function ReportsScreen() {
                 <CategoryExpenseList categories={data.categoryExpenses} />
               </>
             ) : (
-              <SectionEmpty text="No posted expenses to rank for this period." />
+              <SectionEmpty text={t.reports.categoryEmpty} />
             )}
           </ReportSection>
 
           <ReportSection
-            description={`Starts with net worth before ${formatReportDate(data.period.dateFrom)}, then applies posted history through each ${data.period.grouping === 'day' ? 'day' : 'month end'}.`}
-            title="Net worth evolution">
+            description={data.period.grouping === 'day'
+              ? t.reports.netWorthDescriptionDay(formatReportDate(data.period.dateFrom))
+              : t.reports.netWorthDescriptionMonth(formatReportDate(data.period.dateFrom))}
+            title={t.reports.netWorthTitle}>
             <NetWorthChart points={data.netWorth} />
           </ReportSection>
 
           {portfolio.investmentAccountCount > 0 ? (
             <ReportSection
-              description="Current investment position (estimated) plus realized investment income for the period. Unrealized valuation changes raise net worth but are never counted as ordinary income."
-              title="Investments">
+              description={t.reports.investmentsDescription}
+              title={t.reports.investmentsTitle}>
               <View style={styles.summaryGrid}>
                 <SummaryMetric
-                  label="Current value"
-                  value={portfolio.totalCurrentValueBaseMinor === null ? 'Estimated — incomplete' : formatBase(portfolio.totalCurrentValueBaseMinor)}
+                  label={t.reports.currentValue}
+                  value={portfolio.totalCurrentValueBaseMinor === null ? t.reports.estimatedIncomplete : formatBase(portfolio.totalCurrentValueBaseMinor)}
                 />
                 <SummaryMetric
-                  label="Net contributions"
+                  label={t.reports.netContributions}
                   value={portfolio.netContributionsBaseMinor === null ? '—' : formatBase(portfolio.netContributionsBaseMinor)}
                 />
                 <SummaryMetric
-                  label="Estimated gain/loss"
+                  label={t.reports.estimatedGainLoss}
                   tone={portfolio.estimatedGainLossBaseMinor === null ? undefined : portfolio.estimatedGainLossBaseMinor >= 0 ? 'income' : 'expense'}
                   value={portfolio.estimatedGainLossBaseMinor === null ? '—' : formatBase(portfolio.estimatedGainLossBaseMinor)}
                 />
-                <SummaryMetric label="Simple estimated return" value={formatEstimatedReturn(portfolio.estimatedReturn)} />
-                <SummaryMetric label="Investment income (period)" tone="income" value={formatBase(data.investments.incomeBaseMinor)} />
-                <SummaryMetric label="Income transactions" value={String(data.investments.incomeCount)} />
+                <SummaryMetric label={t.reports.simpleEstimatedReturn} value={formatEstimatedReturn(portfolio.estimatedReturn)} />
+                <SummaryMetric label={t.reports.investmentIncomePeriod} tone="income" value={formatBase(data.investments.incomeBaseMinor)} />
+                <SummaryMetric label={t.reports.incomeTransactions} value={String(data.investments.incomeCount)} />
               </View>
             </ReportSection>
           ) : null}
 
           <ReportSection
-            description={`Compared with ${data.comparison.previousPeriod.label}. Expense increases use a negative semantic indicator.`}
-            title="Previous period comparison">
+            description={t.reports.comparisonDescription(data.comparison.previousPeriod.label)}
+            title={t.reports.comparisonTitle}>
             <View style={styles.comparisons}>
-              <ComparisonRow label="Income" metric={data.comparison.income} />
-              <ComparisonRow label="Net expenses" metric={data.comparison.expenses} />
-              <ComparisonRow label="Net result" metric={data.comparison.net} />
-              <ComparisonRow label="Average expense" metric={data.comparison.averageExpense} />
-              <ComparisonRow count label="Expense transactions" metric={data.comparison.expenseCount} />
+              <ComparisonRow label={t.reports.income} metric={data.comparison.income} />
+              <ComparisonRow label={t.reports.netExpenses} metric={data.comparison.expenses} />
+              <ComparisonRow label={t.reports.netResult} metric={data.comparison.net} />
+              <ComparisonRow label={t.reports.averageExpense} metric={data.comparison.averageExpense} />
+              <ComparisonRow count label={t.reports.expenseTransactions} metric={data.comparison.expenseCount} />
             </View>
           </ReportSection>
         </View>
@@ -236,13 +241,14 @@ export function ReportsScreen() {
 }
 
 function ReportsHeader({ onBack, topInset }: { onBack: () => void; topInset: number }) {
+  const t = useMessages();
   return (
     <ScreenHeader
       leading="back"
-      leadingAccessibilityLabel="Back from Reports"
+      leadingAccessibilityLabel={t.reports.backFromReports}
       onLeadingPress={onBack}
-      subtitle="Persisted financial history"
-      title="Reports"
+      subtitle={t.reports.headerSubtitle}
+      title={t.reports.title}
       topInset={topInset}
     />
   );
@@ -278,6 +284,7 @@ function ReportSection({
  */
 function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; comparison: PreviousPeriodComparison }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const positive = summary.net >= 0;
   const netColor = positive ? theme.income : theme.expense;
 
@@ -285,7 +292,7 @@ function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; compa
     <View style={styles.headline}>
       <View style={styles.headlineTop}>
         <View style={styles.headlineMain}>
-          <Text style={[styles.headlineLabel, { color: theme.mutedText }]}>Net result</Text>
+          <Text style={[styles.headlineLabel, { color: theme.mutedText }]}>{t.reports.netResult}</Text>
           <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.headlineValue, { color: netColor }]}>
             {positive ? '+' : '-'}{formatBase(Math.abs(summary.net))}
           </Text>
@@ -295,17 +302,17 @@ function PeriodHeadline({ summary, comparison }: { summary: PeriodSummary; compa
 
       {summary.savingsRateBasisPoints === null ? (
         <Text style={[styles.headlineHint, { color: theme.mutedText }]}>
-          No income this period, so a savings rate does not apply.
+          {t.reports.savingsRateNotApplicable}
         </Text>
       ) : (
         <Text style={[styles.headlineHint, { color: theme.secondaryText }]}>
-          You kept {formatPercentage(summary.savingsRateBasisPoints)} of what you earned.
+          {t.reports.savingsRate(formatPercentage(summary.savingsRateBasisPoints))}
         </Text>
       )}
 
       <View style={styles.headlineRow}>
-        <SummaryMetric label="Income" tone="income" value={formatBase(summary.income)} />
-        <SummaryMetric label="Net expenses" tone="expense" value={formatBase(summary.expenses)} />
+        <SummaryMetric label={t.reports.income} tone="income" value={formatBase(summary.income)} />
+        <SummaryMetric label={t.reports.netExpenses} tone="expense" value={formatBase(summary.expenses)} />
       </View>
     </View>
   );
@@ -339,18 +346,19 @@ function DeltaChip({ metric }: { metric: ComparisonMetric }) {
 
 function CollapsibleDetails({ children }: { children: React.ReactNode }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const [open, setOpen] = useState(false);
   return (
     <View style={styles.details}>
       <Pressable
-        accessibilityLabel={open ? 'Hide summary details' : 'Show summary details'}
+        accessibilityLabel={open ? t.reports.hideSummaryDetails : t.reports.showSummaryDetails}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         hitSlop={spacing.sm}
         onPress={() => setOpen((value) => !value)}
         style={styles.detailsToggle}>
         <Text style={[styles.detailsToggleLabel, { color: theme.primaryAction }]}>
-          {open ? 'Hide details' : 'Show details'}
+          {open ? t.reports.hideDetails : t.reports.showDetails}
         </Text>
         <SymbolView
           name={open
@@ -400,6 +408,7 @@ function ComparisonRow({
   count?: boolean;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const toneColor = metric.tone === 'positive'
     ? theme.income
     : metric.tone === 'negative'
@@ -407,17 +416,19 @@ function ComparisonRow({
       : theme.secondaryText;
   const currentValue = count ? String(metric.current) : formatBase(metric.current);
   const differenceValue = count ? String(Math.abs(metric.difference)) : formatBase(Math.abs(metric.difference));
-  let change = 'No change';
+  let change = t.reports.noChange;
   if (!metric.hasPreviousData) {
-    change = 'No previous-period data';
+    change = t.reports.noPreviousData;
   } else if (metric.direction !== 'unchanged') {
     const percentage = metric.percentageChangeBasisPoints === null
-      ? 'percentage unavailable'
-      : `${formatPercentage(Math.abs(metric.percentageChangeBasisPoints))}`;
-    change = `${metric.direction === 'increased' ? 'Increased' : 'Decreased'} by ${differenceValue} (${percentage})`;
+      ? t.reports.percentageUnavailable
+      : formatPercentage(Math.abs(metric.percentageChangeBasisPoints));
+    change = metric.direction === 'increased'
+      ? t.reports.increasedBy(differenceValue, percentage)
+      : t.reports.decreasedBy(differenceValue, percentage);
   }
   return (
-    <View accessibilityLabel={`${label}. Current ${currentValue}. ${change}.`} style={[styles.comparisonRow, { borderBottomColor: theme.hairline }]}>
+    <View accessibilityLabel={t.reports.comparisonRowLabel(label, currentValue, change)} style={[styles.comparisonRow, { borderBottomColor: theme.hairline }]}>
       <View style={styles.comparisonValues}>
         <Text style={[styles.comparisonLabel, { color: theme.primaryText }]}>{label}</Text>
         <Text style={[styles.comparisonCurrent, { color: theme.primaryText }]}>{currentValue}</Text>
@@ -435,10 +446,11 @@ function SectionEmpty({ text }: { text: string }) {
 function ReportsLoading({ onBack }: { onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={[styles.stateScreen, { backgroundColor: theme.appBackground }]}>
       <ReportsHeader onBack={onBack} topInset={insets.top} />
-      <View accessibilityLabel="Loading reports" style={styles.skeletons}>
+      <View accessibilityLabel={t.reports.loadingReports} style={styles.skeletons}>
         {[0, 1, 2].map((item) => (
           <View key={item} style={[styles.skeleton, { backgroundColor: theme.elevatedSurface }]} />
         ))}
@@ -458,14 +470,15 @@ function ReportsError({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={[styles.stateScreen, { backgroundColor: theme.appBackground }]}>
       <ReportsHeader onBack={onBack} topInset={insets.top} />
       <View style={styles.errorState}>
-        <Text accessibilityLiveRegion="assertive" style={[styles.errorTitle, { color: theme.primaryText }]}>Unable to load reports</Text>
+        <Text accessibilityLiveRegion="assertive" style={[styles.errorTitle, { color: theme.primaryText }]}>{t.reports.loadErrorTitle}</Text>
         <Text style={[styles.errorDescription, { color: theme.secondaryText }]}>{message}</Text>
         <Pressable accessibilityRole="button" onPress={onRetry} style={[styles.primaryRetry, { backgroundColor: theme.primaryAction }]}>
-          <Text style={[styles.retryText, { color: theme.onPrimaryAction }]}>Try again</Text>
+          <Text style={[styles.retryText, { color: theme.onPrimaryAction }]}>{t.common.tryAgain}</Text>
         </Pressable>
       </View>
     </View>
@@ -473,7 +486,7 @@ function ReportsError({
 }
 
 function formatPercentage(basisPoints: number): string {
-  return `${(basisPoints / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
+  return `${(basisPoints / 100).toLocaleString(getIntlLocale(), { maximumFractionDigits: 2 })}%`;
 }
 
 const styles = StyleSheet.create({

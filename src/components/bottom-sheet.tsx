@@ -12,6 +12,7 @@ import Animated, {
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 const OPEN_MS = 240;
 const CLOSE_MS = 180;
@@ -36,6 +37,7 @@ type BottomSheetProps = {
 export function BottomSheet({ visible, onClose, title, description, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const reducedMotion = useReducedMotion();
   const progress = useSharedValue(0);
   // The Modal must outlive `visible` so the exit animation can play. `exiting`
@@ -77,7 +79,7 @@ export function BottomSheet({ visible, onClose, title, description, children }: 
       <View style={styles.root}>
         <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: theme.overlay }]}>
           <Pressable
-            accessibilityLabel="Close"
+            accessibilityLabel={t.common.close}
             accessibilityRole="button"
             onPress={onClose}
             style={StyleSheet.absoluteFill}

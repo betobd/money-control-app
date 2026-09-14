@@ -5,6 +5,7 @@ import {
   resolveReportPeriod,
 } from './report-period';
 import type { CurrencyCode } from '@/features/currency/currency';
+import { getMessages } from '@/i18n/messages';
 import type { ValuationRates } from '@/features/exchange-rates/valuation-rates';
 import { calculateBasisPoints, roundedIntegerDivision, safeInteger } from './report-math';
 import { cumulativePace, foldCategoryExpenses, savingsRateBasisPoints, weekdaySpending } from './report-insights';
@@ -220,7 +221,7 @@ export class ReportService {
     const startDate = dayBefore(period.dateFrom);
     const points: NetWorthPoint[] = [{
       key: `start-${period.dateFrom}`,
-      label: 'Start',
+      label: getMessages().reports.netWorthStart,
       date: startDate,
       netWorth: safeInteger(base + investmentAdjustmentAsOf(investmentSeries, startDate, rates), 'Net worth'),
       isStartingPoint: true,

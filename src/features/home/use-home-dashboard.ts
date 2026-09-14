@@ -17,6 +17,7 @@ import { transactionService } from '@/features/transactions/transactions';
 import type { MonthlyTransactionSummary, TransactionListItem } from '@/features/transactions/transaction.types';
 import { toUserMessage } from '@/errors/user-error';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 
 type State = {
   netWorth: EstimatedNetWorth;
@@ -107,7 +108,7 @@ export function useHomeDashboard() {
       });
       setHasLoaded(true);
     } catch (cause) {
-      setError(toUserMessage(cause, 'Unable to load your dashboard right now.'));
+      setError(toUserMessage(cause, getMessages().home.loadError));
     } finally {
       setLoading(false);
     }

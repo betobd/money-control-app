@@ -19,7 +19,7 @@ import { IconChip } from '@/components/icon-chip';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, budgetColorKeys, fonts, spacing, typography, type BudgetColorKey } from '@/constants/theme';
 import { AmountInput } from '@/features/add-transaction/components/amount-input';
-import { budgetMonthLabel } from '@/features/budgets/budget-month';
+import { budgetMonthTitle } from '@/features/budgets/budget-month';
 import { BudgetValidationError } from '@/features/budgets/budget.service';
 import type { BudgetValidationErrors } from '@/features/budgets/budget.types';
 import { budgetService } from '@/features/budgets/budgets';
@@ -28,6 +28,9 @@ import { BudgetColorPicker } from '@/features/budgets/components/budget-color-pi
 import { categoryService } from '@/features/categories/categories';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { intlLocaleFor } from '@/i18n/languages';
+import { getMessages } from '@/i18n/messages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 import { FixedFooter } from '@/components/fixed-footer';
@@ -37,6 +40,8 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const locale = intlLocaleFor(useLanguage());
   const [categoryId, setCategoryId] = useState('');
   const [month, setMonth] = useState(initialMonth);
   const [digits, setDigits] = useState('');
@@ -60,7 +65,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
       budgetId ? budgetService.getEditModel(budgetId) : Promise.resolve(null),
     ])
       .then(([tree, budget]) => {
-        if (budgetId && !budget) throw new Error('Budget not found.');
+        if (budgetId && !budget) throw new Error(getMessages().budgets.notFound);
         // Flattened parent-then-children, so a subcategory is listed next to the
         // category it belongs to rather than alphabetically somewhere else.
         const options: BudgetCategoryOption[] = tree.flatMap((category) => [
@@ -93,7 +98,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         }
         setCategories(options);
       })
-      .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to load budget.')))
+      .catch((cause) => setGeneralError(toUserMessage(cause, getMessages().budgets.loadError)))
       .finally(() => setLoading(false));
   }, [budgetId]);
 
@@ -112,7 +117,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
       router.back();
     } catch (cause) {
       if (cause instanceof BudgetValidationError) setErrors(cause.fields);
-      else setGeneralError(toUserMessage(cause, 'Unable to save budget.'));
+      else setGeneralError(toUserMessage(cause, t.budgets.saveError));
     } finally {
       setSaving(false);
     }
@@ -121,16 +126,14 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
   function confirmRemove() {
     if (!budgetId) return;
     dialog.confirm({
-      title: 'Remove budget?',
-      message: wasRecurring
-        ? 'This stops the recurring budget and removes this month and future months. Past months stay. Categories and transactions are not deleted.'
-        : 'This removes only this monthly plan. Categories and transactions are not deleted.',
-      confirmLabel: 'Remove budget',
+      title: t.budgets.removeTitle,
+      message: wasRecurring ? t.budgets.removeRecurringMessage : t.budgets.removeOneOffMessage,
+      confirmLabel: t.budgets.removeBudget,
       tone: 'destructive',
       onConfirm: () => {
         void budgetService.remove(budgetId)
           .then(() => router.back())
-          .catch((cause) => setGeneralError(toUserMessage(cause, 'Unable to remove budget.')));
+          .catch((cause) => setGeneralError(toUserMessage(cause, t.budgets.removeError)));
       },
     });
   }
@@ -141,13 +144,13 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.flex, { backgroundColor: theme.appBackground }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close budget form" title={editing ? 'Edit Budget' : 'Create Budget'} topInset={insets.top + spacing.sm} />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.budgets.closeForm} title={editing ? t.budgets.editTitle : t.budgets.createTitle} topInset={insets.top + spacing.sm} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? <Text accessibilityLiveRegion="assertive" style={[styles.error, { color: theme.destructive }]}>{generalError}</Text> : null}
         {lockCategoryAndMonth ? (
           <View style={styles.field}>
-            <Overline color={theme.mutedText}>Category</Overline>
+            <Overline color={theme.mutedText}>{t.budgets.category}</Overline>
             <View style={[styles.readonlyRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
               <IconChip background={theme.elevatedSurface} color={theme.secondaryText} icon={getCategoryIcon(lockedCategory?.icon ?? 'other')} iconSize={19} size={36} />
               <Text style={[styles.readonlyText, { color: theme.primaryText }]}>{lockedCategory?.name ?? ''}</Text>
@@ -165,20 +168,20 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
         )}
 
         <View style={styles.field}>
-          <Overline color={theme.mutedText}>Budget month</Overline>
+          <Overline color={theme.mutedText}>{t.budgets.budgetMonth}</Overline>
           {lockCategoryAndMonth ? (
             <View style={[styles.readonlyRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
-              <Text style={[styles.readonlyText, { color: theme.primaryText }]}>{budgetMonthLabel(month)}</Text>
+              <Text style={[styles.readonlyText, { color: theme.primaryText }]}>{budgetMonthTitle(month, locale)}</Text>
             </View>
           ) : (
             <>
               <TextInput
-                accessibilityLabel="Budget month in YYYY-MM format"
+                accessibilityLabel={t.budgets.budgetMonthInput}
                 autoCapitalize="none"
                 keyboardType="number-pad"
                 maxLength={7}
                 onChangeText={(value) => { setMonth(value.replace(/[^\d-]/g, '').slice(0, 7)); clear('month'); }}
-                placeholder="YYYY-MM"
+                placeholder={t.budgets.monthPlaceholder}
                 placeholderTextColor={theme.mutedText}
                 style={[styles.input, { backgroundColor: theme.surface, borderColor: errors.month ? theme.destructive : theme.hairline, color: theme.primaryText }]}
                 value={month}
@@ -192,7 +195,7 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
           autoFocus={false}
           digits={digits}
           error={errors.limitAmount}
-          label="Budget limit"
+          label={t.budgets.budgetLimit}
           onDigitsChange={(value) => { setDigits(value); clear('limitAmount'); }}
           type="expense"
         />
@@ -202,29 +205,29 @@ export function BudgetForm({ budgetId, initialMonth }: { budgetId?: string; init
 
         <View style={[styles.recurringRow, { backgroundColor: theme.surface, borderColor: theme.hairline }]}>
           <View style={styles.recurringText}>
-            <Text style={[styles.recurringTitle, { color: theme.primaryText }]}>Repeat every month</Text>
+            <Text style={[styles.recurringTitle, { color: theme.primaryText }]}>{t.budgets.repeatTitle}</Text>
             <Text style={[styles.recurringHint, { color: theme.mutedText }]}>
-              Reappears automatically each month. Editing the amount applies from this month onward.
+              {t.budgets.repeatHint}
             </Text>
           </View>
           <Switch
-            accessibilityLabel="Repeat this budget every month"
+            accessibilityLabel={t.budgets.repeatAccessibility}
             onValueChange={setRecurring}
             value={recurring}
           />
         </View>
 
         {editing ? (
-          <Button accessibilityLabel="Remove budget" fullWidth label="Remove budget" onPress={confirmRemove} size="lg" variant="destructive" />
+          <Button accessibilityLabel={t.budgets.removeBudget} fullWidth label={t.budgets.removeBudget} onPress={confirmRemove} size="lg" variant="destructive" />
         ) : null}
       </ScrollView>
 
       <FixedFooter bottomInset={insets.bottom}>
         <Button
-          accessibilityLabel={editing ? 'Save budget changes' : 'Create budget'}
+          accessibilityLabel={editing ? t.budgets.saveBudgetChanges : t.budgets.createBudget}
           busy={saving}
           fullWidth
-          label={editing ? 'Save changes' : 'Create budget'}
+          label={editing ? t.budgets.saveChanges : t.budgets.createBudget}
           onPress={() => void save()}
           size="lg"
           variant="primary"

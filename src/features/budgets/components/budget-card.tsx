@@ -6,12 +6,14 @@ import { IconChip } from '@/components/icon-chip';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { formatBase } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
-import { budgetMonthLabel } from '@/features/budgets/budget-month';
+import { budgetMonthTitle } from '@/features/budgets/budget-month';
 import { useBudgetColor } from '@/features/budgets/budget-color';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import { BudgetStatusBadge, getStatusPresentation } from '@/features/budgets/components/budget-status-badge';
 import type { BudgetView } from '@/features/budgets/budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { intlLocaleFor } from '@/i18n/languages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 
 type BudgetCardProps = {
   budget: BudgetView;
@@ -22,17 +24,28 @@ type BudgetCardProps = {
 
 export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps) {
   const theme = useAppTheme();
+  const t = useMessages();
+  const locale = intlLocaleFor(useLanguage());
   const resolveColor = useBudgetColor();
-  const presentation = getStatusPresentation(budget.status, theme);
+  const presentation = getStatusPresentation(budget.status, theme, t);
   const accentColor = resolveColor(budget.color, presentation.accent);
   const overBudget = budget.remaining < 0;
-  const remainingLabel = overBudget ? 'Over by' : 'Remaining';
+  const remainingLabel = overBudget ? t.budgets.overBy : t.budgets.remaining;
   const remainingValue = overBudget ? formatBase(Math.abs(budget.remaining)) : formatBase(budget.remaining);
 
   return (
     <PressableScale
-      accessibilityHint="Opens budget editing"
-      accessibilityLabel={`${budget.categoryName}${budget.categoryIsArchived ? ', archived category' : ''}, ${presentation.label}, spent ${formatBase(budget.spent)} of ${formatBase(budget.limitAmount)}, ${remainingLabel.toLowerCase()} ${remainingValue}, ${budget.percentageUsed}% used`}
+      accessibilityHint={t.budgets.cardHint}
+      accessibilityLabel={t.budgets.cardAccessibility({
+        category: budget.categoryName,
+        archived: budget.categoryIsArchived,
+        status: presentation.label,
+        spent: formatBase(budget.spent),
+        limit: formatBase(budget.limitAmount),
+        over: overBudget,
+        remaining: remainingValue,
+        percentage: budget.percentageUsed,
+      })}
       accessibilityRole="button"
       onPress={onPress}
       style={[styles.card, nested && styles.nestedCard, { backgroundColor: nested ? theme.elevatedSurface : theme.surface }]}>
@@ -44,9 +57,9 @@ export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps)
             {/* Nested cards sit under their category, so repeating the month and
                 the parent name there would just be noise. */}
             {nested
-              ? `Sub-limit${budget.isRecurring ? ' · Monthly' : ''}`
-              : `${budgetMonthLabel(budget.month)}${budget.isRecurring ? ' · Monthly' : ''}${budget.categoryParentName ? ` · in ${budget.categoryParentName}` : ''}`}
-            {budget.categoryIsArchived ? ' · Archived category' : ''}
+              ? `${t.budgets.subLimit}${budget.isRecurring ? ` · ${t.budgets.monthlyTag}` : ''}`
+              : `${budgetMonthTitle(budget.month, locale)}${budget.isRecurring ? ` · ${t.budgets.monthlyTag}` : ''}${budget.categoryParentName ? ` · ${t.budgets.inParent(budget.categoryParentName)}` : ''}`}
+            {budget.categoryIsArchived ? ` · ${t.budgets.archivedCategory}` : ''}
           </Text>
         </View>
         <BudgetStatusBadge status={budget.status} />
@@ -54,9 +67,9 @@ export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps)
 
       <View style={styles.amounts}>
         <View style={styles.spentColumn}>
-          <Text style={[styles.metaLabel, { color: theme.mutedText }]}>Spent</Text>
+          <Text style={[styles.metaLabel, { color: theme.mutedText }]}>{t.budgets.spent}</Text>
           <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.spent, { color: theme.primaryText }]}>
-            {formatBase(budget.spent)} of {formatBase(budget.limitAmount)}
+            {t.budgets.spentOfLimit(formatBase(budget.spent), formatBase(budget.limitAmount))}
           </Text>
         </View>
         <View style={styles.remainingColumn}>
@@ -67,7 +80,7 @@ export function BudgetCard({ budget, onPress, nested = false }: BudgetCardProps)
         </View>
       </View>
 
-      <Text style={[styles.percentage, { color: theme.secondaryText }]}>{budget.percentageUsed}% used</Text>
+      <Text style={[styles.percentage, { color: theme.secondaryText }]}>{t.budgets.percentUsed(budget.percentageUsed)}</Text>
       <BudgetProgressBar color={budget.color} percentage={budget.percentageUsed} progressWidth={budget.progressWidth} status={budget.status} />
     </PressableScale>
   );

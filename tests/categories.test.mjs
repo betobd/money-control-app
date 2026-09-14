@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CategoryActionError, CategoryService, CategoryValidationError } from '../src/features/categories/category.service.ts';
 import { categoryIconKeys, fallbackCategoryIcon, getCategoryIcon, isCategoryIcon, searchCategoryIcons } from '../src/features/categories/category-icons.ts';
+import { supportedLanguages } from '../src/i18n/languages.ts';
+import { getMessagesFor } from '../src/i18n/messages.ts';
 
 const NOW = '2026-07-12T12:00:00.000Z';
 class MemoryRepository {
@@ -185,4 +187,127 @@ test('exposes financial history and child checks the form uses to lock the paren
   assert.equal(await service.hasFinancialHistory(market.id), false);
   repository.references.add(market.id);
   assert.equal(await service.hasFinancialHistory(market.id), true);
+});
+
+/* ------------------------------------------------------------ localization */
+
+test('seeds default names from the catalog', async () => {
+  const { repository, service } = setup();
+  await service.seedDefaults();
+  const food = repository.categories.find((item) => item.id === 'default-expense-food-dining');
+  assert.equal(food.name, 'Food & Dining');
+  assert.equal(repository.categories.find((item) => item.id === 'default-income-investment').name, 'Investment Income');
+});
+
+test('icon search matches English keywords and the label in the chosen language, ignoring accents', () => {
+  assert.ok(searchCategoryIcons('pets', 'es').includes('pets'), 'English label still matches in Spanish');
+  assert.ok(searchCategoryIcons('mecato', 'de').includes('snacks'), 'keywords match in every language');
+  assert.ok(searchCategoryIcons('mascotas', 'es').includes('pets'));
+  assert.ok(!searchCategoryIcons('mascotas', 'en').includes('pets'));
+  assert.ok(searchCategoryIcons('Kopfhorer', 'de').includes('headphones'));
+  assert.ok(searchCategoryIcons('ÉLECTRICITÉ', 'fr').includes('electricity'));
+  assert.ok(searchCategoryIcons('famille', 'fr').includes('family'), 'localized group title matches');
+  assert.equal(searchCategoryIcons('', 'it').length, categoryIconKeys.length);
+});
+
+test('every icon and default category has a label in every language', () => {
+  for (const language of supportedLanguages) {
+    const messages = getMessagesFor(language).categories;
+    for (const key of categoryIconKeys) assert.ok(messages.icons[key]?.trim(), `${language}: icon ${key}`);
+    assert.equal(Object.keys(messages.defaultNames).length, 14, `${language}: default names`);
+  }
+});
+
+async function seeded() {
+  const context = setup();
+  await context.service.seedDefaults();
+  const byId = (id) => context.repository.categories.find((item) => item.id === id);
+  return { ...context, byId };
+}
+
+test('localizes untouched default names into the requested language', async () => {
+  const { service, byId } = await seeded();
+  await service.localizeDefaultNames('es');
+  assert.equal(byId('default-expense-food-dining').name, 'Comida y restaurantes');
+  assert.equal(byId('default-expense-other').name, 'Otros');
+  assert.equal(byId('default-income-other').name, 'Otros', 'same name is fine across types');
+  assert.equal(byId('default-income-investment').name, 'Rendimientos de inversión');
+  // From one translation straight to another, not only from English.
+  await service.localizeDefaultNames('de');
+  assert.equal(byId('default-expense-food-dining').name, 'Essen & Trinken');
+  await service.localizeDefaultNames('en');
+  assert.equal(byId('default-expense-food-dining').name, 'Food & Dining');
+});
+
+test('recognizes a default name regardless of case and surrounding spaces', async () => {
+  const { repository, service, byId } = await seeded();
+  byId('default-expense-health').name = '  SALUD ';
+  await service.localizeDefaultNames('fr');
+  assert.equal(byId('default-expense-health').name, 'Santé');
+  byId('default-expense-bills').name = 'factures';
+  const before = byId('default-expense-bills').updatedAt;
+  await service.localizeDefaultNames('fr');
+  assert.equal(byId('default-expense-bills').name, 'factures', 'already the target name in another case: left alone');
+  assert.equal(byId('default-expense-bills').updatedAt, before);
+  assert.equal(repository.categories.length, 14);
+});
+
+test('never renames a default category the user renamed', async () => {
+  const { service, byId } = await seeded();
+  byId('default-expense-food-dining').name = 'Mercado';
+  byId('default-income-salary').name = 'Salary (main job)';
+  await service.localizeDefaultNames('it');
+  assert.equal(byId('default-expense-food-dining').name, 'Mercado');
+  assert.equal(byId('default-income-salary').name, 'Salary (main job)');
+  assert.equal(byId('default-expense-bills').name, 'Bollette');
+});
+
+test('a name that is another default category\'s translation is not treated as this one\'s', async () => {
+  const { service, byId } = await seeded();
+  // "Bills" in Spanish, typed into the Food default: not this id's default name.
+  byId('default-expense-food-dining').name = 'Facturas';
+  byId('default-expense-bills').name = 'Paperwork';
+  await service.localizeDefaultNames('en');
+  assert.equal(byId('default-expense-food-dining').name, 'Facturas');
+});
+
+test('skips a rename that would collide with another active category in the same scope', async () => {
+  const { service, byId } = await seeded();
+  const custom = await service.create({ name: 'salud', type: 'expense', icon: 'health' });
+  const incomeTwin = await service.create({ name: 'Salario', type: 'income', icon: 'salary', parentCategoryId: 'default-income-freelance' });
+  await service.localizeDefaultNames('es');
+  assert.equal(byId('default-expense-health').name, 'Health', 'collides with the user category "salud"');
+  assert.equal((await service.get(custom.id)).name, 'salud');
+  assert.equal(byId('default-income-salary').name, 'Salario', 'a same-name subcategory elsewhere is no collision');
+  assert.equal((await service.get(incomeTwin.id)).name, 'Salario');
+  assert.equal(byId('default-expense-bills').name, 'Facturas', 'other defaults still localize');
+});
+
+test('an archived namesake does not block the rename, and archived defaults are renamed too', async () => {
+  const { service, byId } = await seeded();
+  const old = await service.create({ name: 'Transporte', type: 'expense', icon: 'bus' });
+  await service.archive(old.id);
+  await service.archive('default-expense-shopping');
+  await service.localizeDefaultNames('pt');
+  assert.equal(byId('default-expense-transport').name, 'Transporte');
+  assert.equal(byId('default-expense-shopping').name, 'Compras');
+  assert.equal(byId('default-expense-shopping').isArchived, true);
+});
+
+test('skips defaults that were deleted and does nothing on an empty database', async () => {
+  const { repository, service, byId } = await seeded();
+  await service.permanentlyDelete('default-income-gift');
+  await service.localizeDefaultNames('es');
+  assert.equal(byId('default-income-gift'), undefined);
+  assert.equal(repository.categories.length, 13);
+  const empty = setup();
+  await empty.service.localizeDefaultNames('fr');
+  assert.equal(empty.repository.categories.length, 0);
+});
+
+test('without an argument, localizes into the active language', async () => {
+  const { service, byId } = await seeded();
+  await service.localizeDefaultNames('es');
+  await service.localizeDefaultNames();
+  assert.equal(byId('default-expense-food-dining').name, 'Food & Dining');
 });

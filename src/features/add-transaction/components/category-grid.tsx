@@ -8,6 +8,7 @@ import type { TransactionFormType } from '@/features/add-transaction/transaction
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import type { Category, CategoryTree } from '@/features/categories/category.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 function getTypeTint(type: TransactionFormType, theme: ReturnType<typeof useAppTheme>) {
   if (type === 'income') return theme.tintIncome;
@@ -49,6 +50,8 @@ export function CategoryGrid({
   subcategoryError,
 }: CategoryGridProps) {
   const theme = useAppTheme();
+  const t = useMessages();
+  const tg = t.addTransaction.categoryGrid;
   const tone = getTypeTone(type, theme);
   const tint = getTypeTint(type, theme);
   const selectedCategory = categories.find((category) => category.id === selection?.categoryId);
@@ -57,13 +60,13 @@ export function CategoryGrid({
   return (
     <View style={styles.group}>
       <View style={styles.heading}>
-        <Text style={[styles.title, { color: theme.secondaryText }]}>Category</Text>
+        <Text style={[styles.title, { color: theme.secondaryText }]}>{tg.title}</Text>
         <PressableScale
-          accessibilityLabel="View all categories"
+          accessibilityLabel={tg.viewAllA11y}
           accessibilityRole="button"
           onPress={onViewAll}
           style={styles.viewAll}>
-          <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View All</Text>
+          <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>{tg.viewAll}</Text>
         </PressableScale>
       </View>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.empty, { color: theme.destructive }]}>{error}</Text> : null}
@@ -74,8 +77,8 @@ export function CategoryGrid({
           const childCount = category.subcategories.length;
           return (
             <PressableScale
-              accessibilityHint={childCount > 0 ? `Has ${childCount} subcategories` : undefined}
-              accessibilityLabel={`${category.name} category`}
+              accessibilityHint={childCount > 0 ? tg.hasSubcategories(childCount) : undefined}
+              accessibilityLabel={tg.categoryA11y(category.name)}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               key={category.id}
@@ -108,18 +111,18 @@ export function CategoryGrid({
             </PressableScale>
           );
         })}
-        {categories.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>No active categories.</Text> : null}
+        {categories.length === 0 ? <Text style={[styles.empty, { color: theme.secondaryText }]}>{tg.noActive}</Text> : null}
       </View>
 
       {subcategories.length > 0 && selectedCategory ? (
         <View style={styles.subcategoryGroup}>
           <Text style={[styles.title, { color: theme.secondaryText }]}>
-            {selectedCategory.name} detail
+            {tg.detail(selectedCategory.name)}
           </Text>
           <View accessibilityRole="radiogroup" style={styles.chipRow}>
             <SubcategoryChip
-              label="None"
-              accessibilityLabel={`No subcategory, ${selectedCategory.name} only`}
+              label={tg.none}
+              accessibilityLabel={tg.noneA11y(selectedCategory.name)}
               selected={selection?.subcategoryId == null}
               onPress={() => onSelect({ categoryId: selectedCategory.id, subcategoryId: null })}
               tint={tint}
@@ -129,7 +132,7 @@ export function CategoryGrid({
               <SubcategoryChip
                 key={subcategory.id}
                 label={subcategory.name}
-                accessibilityLabel={`${subcategory.name} subcategory of ${selectedCategory.name}`}
+                accessibilityLabel={tg.subcategoryA11y(subcategory.name, selectedCategory.name)}
                 selected={selection?.subcategoryId === subcategory.id}
                 onPress={() => onSelect({ categoryId: selectedCategory.id, subcategoryId: subcategory.id })}
                 tint={tint}

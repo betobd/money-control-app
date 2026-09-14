@@ -16,6 +16,7 @@ import {
   type AppLockRepository,
 } from './app-lock.repository';
 import type { BiometricService } from './biometric.service';
+import { getMessages } from '@/i18n/messages';
 import type { PinVerificationService } from './pin-verification.service';
 
 const FAILURES_PER_CYCLE = 5;
@@ -72,7 +73,7 @@ export class AppLockService {
   enable(pin: string, confirmation: string): Promise<AppLockConfigV1> {
     return this.serialized(async () => {
       if (await this.repository.readConfig()) {
-        throw new AppLockActionError('already_enabled', 'App Lock is already enabled.');
+        throw new AppLockActionError('already_enabled', getMessages().security.errors.alreadyEnabled);
       }
       this.pins.validateConfirmation(pin, confirmation);
       const verifier = await this.pins.create(pin);
@@ -163,14 +164,14 @@ export class AppLockService {
       if (enabled) {
         const availability = await this.biometrics.getAvailability();
         if (availability.status !== 'available') {
-          throw new AppLockActionError('biometrics_unavailable', 'Strong device biometrics are not available.');
+          throw new AppLockActionError('biometrics_unavailable', getMessages().security.errors.strongBiometricsUnavailable);
         }
         const result = await this.biometrics.authenticate();
         if (result.status === 'cancelled') {
-          throw new AppLockActionError('biometrics_cancelled', 'Biometric setup was cancelled.');
+          throw new AppLockActionError('biometrics_cancelled', getMessages().security.errors.biometricSetupCancelled);
         }
         if (result.status !== 'success') {
-          throw new AppLockActionError('biometrics_failed', 'Biometric authentication was not successful.');
+          throw new AppLockActionError('biometrics_failed', getMessages().security.errors.biometricsNotSuccessful);
         }
       }
       const updated = { ...config, biometricUnlockEnabled: enabled };
@@ -258,17 +259,17 @@ export class AppLockService {
     if (result.status === 'temporarilyLocked') {
       throw new AppLockActionError(
         'temporarily_locked',
-        'PIN entry is temporarily unavailable.',
+        getMessages().security.errors.pinTemporarilyUnavailable,
         result.untilEpochMs,
       );
     }
-    throw new AppLockActionError('incorrect_pin', 'Current PIN is incorrect.');
+    throw new AppLockActionError('incorrect_pin', getMessages().security.errors.currentPinIncorrect);
   }
 
   private async requireActiveConfig(): Promise<AppLockConfigV1> {
     const config = await this.repository.readConfig();
     if (!config || config.status !== 'active') {
-      throw new AppLockActionError('not_enabled', 'App Lock is not enabled.');
+      throw new AppLockActionError('not_enabled', getMessages().security.errors.notEnabled);
     }
     return config;
   }

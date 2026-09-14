@@ -5,22 +5,25 @@ import { Button } from '@/components/button';
 import { Skeleton } from '@/components/skeleton';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export function EmptyBudgetsState({ onCreate }: { onCreate: () => void }) {
+  const t = useMessages();
   return (
     <EmptyState
-      action={{ label: 'Create budget', onPress: onCreate, accessibilityLabel: 'Create the first budget' }}
-      body="Create a category budget to start planning your monthly spending."
+      action={{ label: t.budgets.createBudget, onPress: onCreate, accessibilityLabel: t.budgets.createFirstBudget }}
+      body={t.budgets.emptyBody}
       icon={{ ios: 'chart.bar', android: 'monitoring', web: 'monitoring' }}
-      title="No budgets for this month"
+      title={t.budgets.emptyTitle}
     />
   );
 }
 
 export function LoadingBudgetCard() {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
-    <View accessibilityLabel="Loading budgets" accessibilityRole="progressbar" style={[styles.loading, { backgroundColor: theme.surface }]}>
+    <View accessibilityLabel={t.budgets.loadingBudgets} accessibilityRole="progressbar" style={[styles.loading, { backgroundColor: theme.surface }]}>
       <View style={styles.loadingHeader}>
         <Skeleton style={styles.loadingIcon} />
         <Skeleton style={styles.loadingTitle} />
@@ -33,10 +36,11 @@ export function LoadingBudgetCard() {
 
 export function BudgetErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={[styles.empty, { backgroundColor: theme.surface }]}>
       <Text accessibilityLiveRegion="assertive" style={[styles.emptyBody, { color: theme.destructive }]}>{message}</Text>
-      <Button accessibilityLabel="Retry loading budgets" label="Retry" onPress={onRetry} variant="tonal" />
+      <Button accessibilityLabel={t.budgets.retryLoading} label={t.common.retry} onPress={onRetry} variant="tonal" />
     </View>
   );
 }

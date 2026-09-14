@@ -17,9 +17,10 @@ import { Card } from '@/components/card';
 import { DateField } from '@/components/date-field';
 import { Overline } from '@/components/overline';
 import { borderRadii, borderWidths, fonts, spacing, typography } from '@/constants/theme';
-import { formatMoneyEntry, formatMoneyWithSymbol, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
+import { currencyName, formatMoneyEntry, formatMoneyWithSymbol, getCurrency, parseMoney, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 import { InvestmentValuationError } from '../investment-valuation.service';
 import { investmentValuationService } from '../investments';
 import { useInvestmentDetails } from '../use-investments';
@@ -35,6 +36,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
   const { view, loading, error } = useInvestmentDetails(accountId);
 
   const [value, setValue] = useState('');
@@ -51,11 +53,11 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
   if (error || !view) {
     return (
       <View style={[styles.loading, { backgroundColor: theme.appBackground, padding: spacing.lg }]}>
-        <Text style={[styles.headerTitle, { color: theme.primaryText }]}>Unable to load investment</Text>
-        <Text style={[styles.help, { color: theme.secondaryText }]}>{error ?? 'This account is not an investment.'}</Text>
+        <Text style={[styles.headerTitle, { color: theme.primaryText }]}>{t.investments.loadInvestmentError}</Text>
+        <Text style={[styles.help, { color: theme.secondaryText }]}>{error ?? t.investments.notAnInvestment}</Text>
         <Button
           fullWidth
-          label="Go back"
+          label={t.investments.goBack}
           onPress={() => router.back()}
           size="lg"
           style={{ marginTop: spacing.md }}
@@ -90,7 +92,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
     try {
       const result = parseMoney(value.trim() || '', currency);
       if (!result.ok) {
-        setFieldError('Enter a valid, non-negative amount.');
+        setFieldError(t.investments.invalidAmount);
         setSaving(false);
         return;
       }
@@ -102,7 +104,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof InvestmentValuationError) setGeneralError(cause.message);
-      else setGeneralError('Unable to record valuation. Please try again.');
+      else setGeneralError(t.investments.recordValuationError);
     } finally {
       setSaving(false);
     }
@@ -117,7 +119,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close valuation form" title="Update Value" />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.investments.closeValuationForm} title={t.investments.updateValueTitle} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.help, { color: theme.secondaryText }]}>{view.account.name}</Text>
@@ -126,9 +128,9 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
         ) : null}
 
         <View style={styles.field}>
-          <Overline color={theme.mutedText}>{`Current value (${currency})`}</Overline>
+          <Overline color={theme.mutedText}>{t.investments.currentValueLabel(currency)}</Overline>
           <TextInput
-            accessibilityLabel={`Current value in ${getCurrency(currency).name}`}
+            accessibilityLabel={t.investments.currentValueAccessibilityLabel(currencyName(currency))}
             keyboardType={getCurrency(currency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
             onChangeText={(text) => { setValue(sanitizeMoneyInput(text, currency)); setFieldError(undefined); }}
             placeholder={getCurrency(currency).fractionDigits > 0 ? '0.00' : '0'}
@@ -139,16 +141,16 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
           {fieldError ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{fieldError}</Text> : null}
         </View>
 
-        <DateField label="Valuation date" onChange={setValuationDate} value={valuationDate} />
+        <DateField label={t.investments.valuationDate} onChange={setValuationDate} value={valuationDate} />
 
         <View style={styles.field}>
-          <Overline color={theme.mutedText}>Note (optional)</Overline>
+          <Overline color={theme.mutedText}>{t.investments.noteOptional}</Overline>
           <TextInput
-            accessibilityLabel="Note"
+            accessibilityLabel={t.investments.note}
             maxLength={200}
             multiline
             onChangeText={setNote}
-            placeholder="e.g. Statement value as of month end"
+            placeholder={t.investments.valuationNotePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[styles.multiline, inputStyle(false)]}
             value={note}
@@ -156,17 +158,17 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
         </View>
 
         <Card style={styles.preview} variant="raised">
-          <Overline color={theme.secondaryText}>Preview</Overline>
-          <PreviewRow label="Previous value" value={previousMinor === null ? '—' : money(previousMinor)} color={theme.primaryText} />
-          <PreviewRow label="New value" value={newMinor === null ? '—' : money(newMinor)} color={theme.primaryText} />
+          <Overline color={theme.secondaryText}>{t.investments.preview}</Overline>
+          <PreviewRow label={t.investments.previousValue} value={previousMinor === null ? '—' : money(previousMinor)} color={theme.primaryText} />
+          <PreviewRow label={t.investments.newValue} value={newMinor === null ? '—' : money(newMinor)} color={theme.primaryText} />
           <PreviewRow
-            label="Change"
+            label={t.investments.change}
             value={changeMinor === null ? '—' : `${signed(changeMinor)}${changePercent === null ? '' : ` · ${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`}`}
             color={colorFor(changeMinor)}
           />
-          <PreviewRow label="Net contributions" value={money(netContributionsMinor)} color={theme.primaryText} />
+          <PreviewRow label={t.investments.netContributions} value={money(netContributionsMinor)} color={theme.primaryText} />
           <PreviewRow
-            label="Estimated gain/loss"
+            label={t.investments.estimatedGainLoss}
             value={estimatedGainMinor === null ? '—' : signed(estimatedGainMinor)}
             color={colorFor(estimatedGainMinor)}
           />
@@ -174,7 +176,7 @@ export function InvestmentValuationForm({ accountId }: { accountId: string }) {
       </ScrollView>
 
       <FixedFooter bottomInset={insets.bottom}>
-        <Button busy={saving} fullWidth label="Save valuation" onPress={() => void save()} size="lg" variant="primary" />
+        <Button busy={saving} fullWidth label={t.investments.saveValuation} onPress={() => void save()} size="lg" variant="primary" />
       </FixedFooter>
     </KeyboardAvoidingView>
   );

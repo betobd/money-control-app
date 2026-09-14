@@ -1,4 +1,4 @@
-import { getCurrency } from '@/features/currency/currency';
+import { currencyName } from '@/features/currency/currency';
 import { SymbolView } from 'expo-symbols';
 import { Link, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -27,6 +27,8 @@ import {
 } from '@/features/transactions/transaction-presentation';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 function MonthPill({
   label,
@@ -40,13 +42,14 @@ function MonthPill({
   onNext: () => void;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View
-      accessibilityLabel={`Selected month, ${longLabel}`}
+      accessibilityLabel={t.home.selectedMonth(longLabel)}
       style={[styles.monthPill, { backgroundColor: theme.elevatedSurface }]}>
       <Pressable
-        accessibilityHint="Shows the previous month's summary and budgets"
-        accessibilityLabel="Previous month"
+        accessibilityHint={t.home.previousMonthHint}
+        accessibilityLabel={t.common.date.previousMonth}
         accessibilityRole="button"
         hitSlop={spacing.sm}
         onPress={onPrevious}
@@ -55,8 +58,8 @@ function MonthPill({
       </Pressable>
       <Text accessibilityLiveRegion="polite" style={[styles.monthLabel, { color: theme.primaryText }]}>{label}</Text>
       <Pressable
-        accessibilityHint="Shows the next month's summary and budgets"
-        accessibilityLabel="Next month"
+        accessibilityHint={t.home.nextMonthHint}
+        accessibilityLabel={t.common.date.nextMonth}
         accessibilityRole="button"
         hitSlop={spacing.sm}
         onPress={onNext}
@@ -69,12 +72,13 @@ function MonthPill({
 
 export default function HomeScreen() {
   const theme = useAppTheme();
+  const t = useMessages();
   const router = useRouter();
   const dashboard = useHomeDashboard();
   const pullToRefresh = usePullToRefresh(dashboard.reload);
   const monthDate = new Date(`${dashboard.month}-01T00:00:00Z`);
-  const monthShort = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(monthDate).toUpperCase();
-  const monthLong = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthDate);
+  const monthShort = new Intl.DateTimeFormat(getIntlLocale(), { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(monthDate).toUpperCase();
+  const monthLong = new Intl.DateTimeFormat(getIntlLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(monthDate);
   const shiftMonth = (delta: number) => dashboard.setMonth((current) => shiftCalendarMonth(current, delta));
   const monthPill = (
     <MonthPill
@@ -101,8 +105,8 @@ export default function HomeScreen() {
   if (!dashboard.hasLoaded && dashboard.loading) {
     return (
       <ScreenContainer contentStyle={styles.content}>
-        <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
-        <View accessibilityLabel="Loading your dashboard" style={styles.stateArea}>
+        <PrimaryScreenHeader accessory={monthPill} title={t.common.appName} />
+        <View accessibilityLabel={t.home.loadingDashboard} style={styles.stateArea}>
           <ActivityIndicator color={theme.primaryAction} size="large" />
         </View>
       </ScreenContainer>
@@ -112,10 +116,10 @@ export default function HomeScreen() {
   if (!dashboard.hasLoaded && dashboard.error) {
     return (
       <ScreenContainer contentStyle={styles.content}>
-        <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
+        <PrimaryScreenHeader accessory={monthPill} title={t.common.appName} />
         <View accessibilityLiveRegion="assertive" style={styles.stateArea}>
           <Text style={[styles.stateText, { color: theme.secondaryText }]}>{dashboard.error}</Text>
-          <Button label="Try again" onPress={() => void dashboard.reload()} variant="primary" />
+          <Button label={t.common.tryAgain} onPress={() => void dashboard.reload()} variant="primary" />
         </View>
       </ScreenContainer>
     );
@@ -123,7 +127,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
-      <PrimaryScreenHeader accessory={monthPill} title="Money Control" />
+      <PrimaryScreenHeader accessory={monthPill} title={t.common.appName} />
 
       {dashboard.error ? (
         <Text accessibilityLiveRegion="polite" style={[styles.inlineError, { color: theme.warning }]}>
@@ -134,16 +138,16 @@ export default function HomeScreen() {
       <Card
         accessibilityLabel={
           dashboard.netWorth.totalBaseMinor === null
-            ? `Estimated net worth is incomplete because no exchange rate is available for ${dashboard.netWorth.missingCurrencies.join(', ')}`
-            : `${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} ${formatBase(dashboard.netWorth.totalBaseMinor)} ${getCurrency(dashboard.netWorth.baseCurrency).name}`
+            ? t.home.netWorthIncompleteLabel(dashboard.netWorth.missingCurrencies.join(', '))
+            : `${dashboard.netWorth.includesForeign ? t.home.estimatedNetWorth : t.home.totalBalance} ${formatBase(dashboard.netWorth.totalBaseMinor)} ${currencyName(dashboard.netWorth.baseCurrency)}`
         }
         style={styles.hero}
         variant="hero">
         <Overline color={theme.mutedText}>
-          {`${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} · ${dashboard.netWorth.baseCurrency}`}
+          {`${dashboard.netWorth.includesForeign ? t.home.estimatedNetWorth : t.home.totalBalance} · ${dashboard.netWorth.baseCurrency}`}
         </Overline>
         {dashboard.netWorth.totalBaseMinor === null ? (
-          <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.warning }]}>Estimated — incomplete</Text>
+          <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.warning }]}>{t.home.estimatedIncomplete}</Text>
         ) : (
           <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.primaryText }]}>
             {formatBase(dashboard.netWorth.totalBaseMinor)}
@@ -156,7 +160,7 @@ export default function HomeScreen() {
             tintColor={netColor}
           />
           <Text style={[styles.trendValue, { color: netColor }]}>{netLabel}</Text>
-          <Text style={[styles.trendMeta, { color: theme.mutedText }]}>net in {monthLong}</Text>
+          <Text style={[styles.trendMeta, { color: theme.mutedText }]}>{t.home.netInMonth(monthLong)}</Text>
         </View>
       </Card>
 
@@ -169,21 +173,21 @@ export default function HomeScreen() {
 
       {investments.investmentAccountCount > 0 ? (
         <PressableScale
-          accessibilityHint="Open the investments screen"
-          accessibilityLabel={`Investments, current value ${investments.totalCurrentValueBaseMinor === null ? 'estimated, incomplete' : `${formatBase(investments.totalCurrentValueBaseMinor)} ${getCurrency(investments.baseCurrency).name}`}`}
+          accessibilityHint={t.home.investmentsHint}
+          accessibilityLabel={t.home.investmentsLabel(investments.totalCurrentValueBaseMinor === null ? t.home.investmentsIncompleteValue : `${formatBase(investments.totalCurrentValueBaseMinor)} ${currencyName(investments.baseCurrency)}`)}
           accessibilityRole="button"
           activeScale={0.985}
           onPress={() => router.push('/investments')}>
           <Card variant="raised">
             <View style={styles.investmentHeader}>
-              <Overline color={theme.mutedText}>{`Investments · ${investments.baseCurrency}`}</Overline>
+              <Overline color={theme.mutedText}>{`${t.home.investments} · ${investments.baseCurrency}`}</Overline>
               <View style={styles.viewAll}>
-                <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View investments</Text>
+                <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>{t.home.viewInvestments}</Text>
                 <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />
               </View>
             </View>
             {investments.totalCurrentValueBaseMinor === null ? (
-              <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.warning }]}>Estimated — incomplete</Text>
+              <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.warning }]}>{t.home.estimatedIncomplete}</Text>
             ) : (
               <Text numberOfLines={1} style={[styles.investmentValue, { color: theme.primaryText }]}>
                 {formatBase(investments.totalCurrentValueBaseMinor)}
@@ -191,9 +195,9 @@ export default function HomeScreen() {
             )}
             <Text style={[styles.investmentMeta, { color: investmentGainColor }]}>
               {investmentGain === null
-                ? 'Estimated gain/loss unavailable'
-                : `${investmentGain > 0 ? '+' : investmentGain < 0 ? '-' : ''}${formatBase(Math.abs(investmentGain))} estimated gain/loss`}
-              {latestValuationDate ? ` · as of ${formatTransactionDate(latestValuationDate)}` : ''}
+                ? t.home.gainLossUnavailable
+                : t.home.gainLoss(`${investmentGain > 0 ? '+' : investmentGain < 0 ? '-' : ''}${formatBase(Math.abs(investmentGain))}`)}
+              {latestValuationDate ? ` · ${t.home.asOf(formatTransactionDate(latestValuationDate))}` : ''}
             </Text>
           </Card>
         </PressableScale>
@@ -204,13 +208,13 @@ export default function HomeScreen() {
       <SectionHeader
         action={
           <Link asChild href="/transactions">
-            <Pressable accessibilityLabel="View all transactions" style={styles.viewAll}>
-              <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View all</Text>
+            <Pressable accessibilityLabel={t.home.viewAllTransactions} style={styles.viewAll}>
+              <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>{t.home.viewAll}</Text>
               <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />
             </Pressable>
           </Link>
         }
-        title="Recent transactions"
+        title={t.home.recentTransactions}
       />
 
       <View style={styles.transactions}>
@@ -226,7 +230,7 @@ export default function HomeScreen() {
           />
         ))}
         {!dashboard.loading && !dashboard.error && dashboard.recent.length === 0 ? (
-          <Text style={[styles.empty, { color: theme.secondaryText }]}>No recent transactions.</Text>
+          <Text style={[styles.empty, { color: theme.secondaryText }]}>{t.home.noRecentTransactions}</Text>
         ) : null}
       </View>
     </ScreenContainer>

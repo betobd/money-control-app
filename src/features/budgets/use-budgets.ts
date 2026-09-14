@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { budgetService } from './budgets';
 import type { BudgetMonthView } from './budget.types';
 
@@ -27,7 +28,7 @@ export function useBudgets(month: string) {
     try {
       setData(await budgetService.listMonth(month));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load budgets.');
+      setError(cause instanceof Error ? cause.message : getMessages().budgets.loadBudgetsError);
     } finally {
       setLoading(false);
     }

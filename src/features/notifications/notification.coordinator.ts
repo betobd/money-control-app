@@ -79,6 +79,21 @@ export class NotificationCoordinator {
     });
   }
 
+  /**
+   * Re-creates the Android channels so their names follow the new language, and
+   * re-schedules pending notifications so their text does too. Budget alert state
+   * is kept: a threshold that already alerted must not alert again.
+   */
+  languageChanged(): Promise<void> {
+    return this.run('channel-creation-failed', () => this.adapter.ensureAndroidChannels()).then(() =>
+      this.run('schedule-failed', async () => {
+        await this.scheduler.cancelUndelivered();
+        await this.recurring.reconcile();
+        await this.daily.reconcile();
+        await this.creditCards.reconcile();
+      }));
+  }
+
   private run(code: NonNullable<NotificationSettings['lastErrorCode']>, work: () => Promise<void>): Promise<void> {
     const operation = this.queue.then(async () => {
       try {

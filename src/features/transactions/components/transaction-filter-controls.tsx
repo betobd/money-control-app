@@ -11,27 +11,30 @@ import type {
   TransactionStatus,
 } from '@/features/transactions/transaction.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
-export const typeFilterOptions: { label: string; value: SupportedTransactionType | null }[] = [
-  { label: 'All', value: null },
-  { label: 'Expense', value: 'expense' },
-  { label: 'Income', value: 'income' },
-  { label: 'Transfer', value: 'transfer' },
-  { label: 'Refund', value: 'refund' },
+// Labels are getters so they are read in the active language at render time.
+export const typeFilterOptions: { readonly label: string; value: SupportedTransactionType | null }[] = [
+  { get label() { return getMessages().transactions.filters.all; }, value: null },
+  { get label() { return getMessages().transactions.types.expense; }, value: 'expense' },
+  { get label() { return getMessages().transactions.types.income; }, value: 'income' },
+  { get label() { return getMessages().transactions.types.transfer; }, value: 'transfer' },
+  { get label() { return getMessages().transactions.types.refund; }, value: 'refund' },
 ];
 
-export const statusFilterOptions: { label: string; value: TransactionStatus | null }[] = [
-  { label: 'All', value: null },
-  { label: 'Posted', value: 'posted' },
-  { label: 'Voided', value: 'voided' },
+export const statusFilterOptions: { readonly label: string; value: TransactionStatus | null }[] = [
+  { get label() { return getMessages().transactions.filters.all; }, value: null },
+  { get label() { return getMessages().transactions.status.posted; }, value: 'posted' },
+  { get label() { return getMessages().transactions.status.voided; }, value: 'voided' },
 ];
 
-export const dateFilterOptions: { label: string; value: TransactionDateRangePreset }[] = [
-  { label: 'Current month', value: 'current-month' },
-  { label: 'Previous month', value: 'previous-month' },
-  { label: 'Last 30 days', value: 'last-30-days' },
-  { label: 'Custom range', value: 'custom' },
-  { label: 'All time', value: 'all-time' },
+export const dateFilterOptions: { readonly label: string; value: TransactionDateRangePreset }[] = [
+  { get label() { return getMessages().transactions.filters.currentMonth; }, value: 'current-month' },
+  { get label() { return getMessages().transactions.filters.previousMonth; }, value: 'previous-month' },
+  { get label() { return getMessages().transactions.filters.last30Days; }, value: 'last-30-days' },
+  { get label() { return getMessages().transactions.filters.customRange; }, value: 'custom' },
+  { get label() { return getMessages().transactions.date.allTime; }, value: 'all-time' },
 ];
 
 export function FilterSection({ children, title }: { children: React.ReactNode; title: string }) {
@@ -135,9 +138,10 @@ export function FilterValueRow({
   value: string;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <Pressable
-      accessibilityHint={`Opens the ${label.toLocaleLowerCase('en')} list`}
+      accessibilityHint={t.transactions.filters.openListHint(label)}
       accessibilityLabel={`${label}, ${value}`}
       accessibilityRole="button"
       onPress={onPress}
@@ -171,6 +175,7 @@ export function FilterOptionSheet({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const [query, setQuery] = useState('');
   const needle = foldForSearch(query);
   // The "no filter" option is never searched away: it is how the filter is
@@ -188,7 +193,7 @@ export function FilterOptionSheet({
       <View style={[styles.sheet, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
         <View style={styles.sheetHeader}>
           <Pressable
-            accessibilityLabel={`Close ${title.toLocaleLowerCase('en')}`}
+            accessibilityLabel={t.transactions.filters.closeSheet(title)}
             accessibilityRole="button"
             onPress={close}
             style={styles.sheetHeaderButton}>
@@ -199,10 +204,10 @@ export function FilterOptionSheet({
         </View>
         <View style={styles.sheetSearch}>
           <TextInput
-            accessibilityLabel={`Search ${title.toLocaleLowerCase('en')}`}
+            accessibilityLabel={t.transactions.filters.searchSheet(title)}
             autoCorrect={false}
             onChangeText={setQuery}
-            placeholder="Search"
+            placeholder={t.transactions.filters.search}
             placeholderTextColor={theme.mutedText}
             style={[styles.searchInput, { backgroundColor: theme.surface, borderColor: theme.hairline, color: theme.primaryText }]}
             value={query}
@@ -213,7 +218,7 @@ export function FilterOptionSheet({
           contentContainerStyle={[styles.sheetContent, { paddingBottom: insets.bottom + spacing.xl }]}
           keyboardShouldPersistTaps="handled">
           {matches.length === 1 && needle ? (
-            <Text style={[styles.groupLabel, { color: theme.secondaryText }]}>No matches.</Text>
+            <Text style={[styles.groupLabel, { color: theme.secondaryText }]}>{t.transactions.filters.noMatches}</Text>
           ) : null}
           {groups.map((group) => {
             const rows = matches.filter((option) => option.group === group);

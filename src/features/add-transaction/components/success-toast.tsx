@@ -5,13 +5,14 @@ import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export function SuccessToast({ visible, type }: { visible: boolean; type: TransactionFormType }) {
   const theme = useAppTheme();
+  const t = useMessages();
   if (!visible) return null;
 
   const tone = getTypeTone(type, theme);
-  const typeLabel = type[0].toUpperCase() + type.slice(1);
 
   return (
     <View
@@ -23,7 +24,7 @@ export function SuccessToast({ visible, type }: { visible: boolean; type: Transa
         size={20}
         tintColor={theme.onPrimaryAction}
       />
-      <Text style={[styles.text, { color: theme.onPrimaryAction }]}>{typeLabel} saved</Text>
+      <Text style={[styles.text, { color: theme.onPrimaryAction }]}>{t.addTransaction.saved[type]}</Text>
     </View>
   );
 }

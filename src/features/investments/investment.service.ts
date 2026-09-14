@@ -2,6 +2,7 @@ import type { AccountRepository } from '@/features/accounts/account.repository';
 import type { Account } from '@/features/accounts/account.types';
 import { isSupportedCurrency } from '@/features/currency/currency';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import { getMessages } from '@/i18n/messages';
 import type { InvestmentRepository } from './investment.repository';
 import {
   investmentLiquidities,
@@ -70,6 +71,7 @@ export function validateInvestmentInput(input: InvestmentAccountInput): {
   errors: InvestmentValidationErrors;
   normalized: NormalizedInput;
 } {
+  const t = getMessages().investments;
   const errors: InvestmentValidationErrors = {};
   const normalized: NormalizedInput = {
     name: input.name.trim(),
@@ -83,28 +85,28 @@ export function validateInvestmentInput(input: InvestmentAccountInput): {
     note: trimOrNull(input.note),
   };
 
-  if (!normalized.name) errors.name = 'Enter an investment name.';
-  if (!isSupportedCurrency(normalized.currency)) errors.currency = 'Select a supported currency.';
+  if (!normalized.name) errors.name = t.nameRequired;
+  if (!isSupportedCurrency(normalized.currency)) errors.currency = t.currencyUnsupported;
   if (!Number.isSafeInteger(normalized.openingBalanceMinor) || normalized.openingBalanceMinor < 0) {
-    errors.openingBalance = 'Initial value must be a whole, non-negative amount.';
+    errors.openingBalance = t.openingBalanceInvalid;
   }
   if (!(investmentTypes as readonly string[]).includes(normalized.investmentType)) {
-    errors.investmentType = 'Select an investment type.';
+    errors.investmentType = t.typeRequired;
   }
   if (!(investmentLiquidities as readonly string[]).includes(normalized.liquidity)) {
-    errors.liquidity = 'Select a liquidity.';
+    errors.liquidity = t.liquidityRequired;
   }
   if (normalized.providerName && normalized.providerName.length > MAX_PROVIDER_LENGTH) {
-    errors.providerName = `Provider name must be ${MAX_PROVIDER_LENGTH} characters or fewer.`;
+    errors.providerName = t.providerTooLong(MAX_PROVIDER_LENGTH);
   }
   if (normalized.note && normalized.note.length > MAX_NOTE_LENGTH) {
-    errors.note = `Note must be ${MAX_NOTE_LENGTH} characters or fewer.`;
+    errors.note = t.noteTooLong(MAX_NOTE_LENGTH);
   }
   if (normalized.startDate && !isCalendarDate(normalized.startDate)) {
-    errors.startDate = 'Enter a valid start date.';
+    errors.startDate = t.startDateInvalid;
   }
   if (normalized.maturityDate && !isCalendarDate(normalized.maturityDate)) {
-    errors.maturityDate = 'Enter a valid maturity date.';
+    errors.maturityDate = t.maturityDateInvalid;
   }
   if (
     normalized.startDate
@@ -113,7 +115,7 @@ export function validateInvestmentInput(input: InvestmentAccountInput): {
     && !errors.maturityDate
     && normalized.maturityDate < normalized.startDate
   ) {
-    errors.maturityDate = 'Maturity date cannot be before the start date.';
+    errors.maturityDate = t.maturityBeforeStart;
   }
   return { errors, normalized };
 }
@@ -182,7 +184,7 @@ export class InvestmentService {
   async update(accountId: string, input: InvestmentAccountInput): Promise<void> {
     const current = await this.accountRepository.findById(accountId);
     if (!current || current.type !== 'investment') {
-      throw new InvestmentActionError('investment_not_found', 'Investment not found.');
+      throw new InvestmentActionError('investment_not_found', getMessages().investments.notFound);
     }
     const normalized = await this.validate(input, accountId);
 
@@ -190,7 +192,7 @@ export class InvestmentService {
       const eligibility = await this.accountRepository.getDeletionEligibility(accountId);
       if (eligibility.hasFinancialReferences || current.openingBalance !== 0) {
         throw new InvestmentValidationError({
-          currency: 'The currency cannot be changed after this investment has financial activity.',
+          currency: getMessages().investments.currencyLocked,
         });
       }
     }
@@ -200,7 +202,7 @@ export class InvestmentService {
       && (await this.accountRepository.hasPostedTransactions(accountId))
     ) {
       throw new InvestmentValidationError({
-        openingBalance: 'Initial value cannot change after posted activity.',
+        openingBalance: getMessages().investments.openingBalanceLocked,
       });
     }
 
@@ -233,7 +235,7 @@ export class InvestmentService {
         normalizeName(normalized.name),
         excludingId,
       );
-      if (duplicate) errors.name = 'An active account already uses this name.';
+      if (duplicate) errors.name = getMessages().investments.duplicateName;
     }
     if (Object.keys(errors).length > 0) throw new InvestmentValidationError(errors);
     return normalized;

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { reportService } from './reports';
 import type { ReportData, ReportPeriodSelection } from './report.types';
 
@@ -21,7 +22,7 @@ export function useReports(selection: ReportPeriodSelection) {
       if (request === sequence.current) setData(next);
     } catch (cause) {
       if (request === sequence.current) {
-        setError(cause instanceof Error ? cause.message : 'Unable to load reports.');
+        setError(cause instanceof Error ? cause.message : getMessages().reports.loadError);
       }
     } finally {
       if (request === sequence.current) {

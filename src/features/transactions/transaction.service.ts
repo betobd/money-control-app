@@ -9,6 +9,7 @@ import {
 } from '@/features/currency/currency';
 import { notifyFinancialDataChanged, type FinancialDataChange } from './financial-data-events';
 import { getBaseCurrency } from '@/features/settings/base-currency';
+import { getMessages } from '@/i18n/messages';
 import { isValidCalendarDate } from './transaction-date';
 import type { TransactionRepository } from './transaction.repository';
 import {
@@ -25,8 +26,10 @@ import {
   type TransactionValidationErrors,
 } from './transaction.types';
 
-const MISSING_RATE_MESSAGE = 'Add an exchange rate before saving this foreign-currency transaction.';
-const INCOMPLETE_TRANSFER_MESSAGE = 'Enter both the amount sent and the amount received.';
+/** The active catalog's transaction errors, read when the message is built. */
+function errorText() {
+  return getMessages().transactions.errors;
+}
 
 function isValidRateInput(rate: ExchangeRateSnapshotInput | null | undefined): rate is ExchangeRateSnapshotInput {
   return Boolean(
@@ -121,13 +124,13 @@ export function normalizeTransactionListQuery(
     throw new TransactionListQueryValidationError('Unsupported transaction status filter.');
   }
   if (query.dateFrom && !isValidCalendarDate(query.dateFrom)) {
-    throw new TransactionListQueryValidationError('Start date must use YYYY-MM-DD.');
+    throw new TransactionListQueryValidationError(getMessages().transactions.date.startDateFormat);
   }
   if (query.dateTo && !isValidCalendarDate(query.dateTo)) {
-    throw new TransactionListQueryValidationError('End date must use YYYY-MM-DD.');
+    throw new TransactionListQueryValidationError(getMessages().transactions.date.endDateFormat);
   }
   if (query.dateFrom && query.dateTo && query.dateTo < query.dateFrom) {
-    throw new TransactionListQueryValidationError('End date cannot be earlier than start date.');
+    throw new TransactionListQueryValidationError(getMessages().transactions.date.endBeforeStart);
   }
   const limit = query.limit ?? DEFAULT_LIST_LIMIT;
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIST_LIMIT) {
@@ -168,7 +171,7 @@ export class TransactionValidationError extends Error {
   readonly isTransactionValidationError = true;
 
   constructor(public readonly fields: TransactionValidationErrors) {
-    super('Transaction validation failed.');
+    super(errorText().validationFailed);
   }
 }
 
@@ -314,26 +317,26 @@ export class TransactionService {
     if (current.type === 'refund') {
       throw new TransactionActionError(
         'refund_action_not_supported',
-        'Posted refunds cannot be edited. Void the refund and create a new one.',
+        errorText().refundsCannotBeEdited,
       );
     }
     if (current.status === 'voided') {
       throw new TransactionActionError(
         'editing_voided_transaction',
-        'Voided transactions cannot be edited.',
+        errorText().voidedCannotBeEdited,
       );
     }
     if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
       throw new TransactionActionError(
         'linked_refunds_exist',
-        'Void the linked refunds before editing this expense.',
+        errorText().voidRefundsBeforeEditing,
       );
     }
 
     const normalized = this.normalize(input);
     const errors: TransactionValidationErrors = {};
     if (normalized.type !== current.type) {
-      errors.type = 'Transaction type cannot be changed.';
+      errors.type = errorText().typeCannotChange;
     }
     const resolved = await this.validate(normalized, current, errors);
 
@@ -364,19 +367,19 @@ export class TransactionService {
     if (current.type === 'refund') {
       throw new TransactionActionError(
         'refund_action_not_supported',
-        'Use refund details to void this refund.',
+        errorText().useRefundDetailsToVoid,
       );
     }
     if (current.status === 'voided') {
       throw new TransactionActionError(
         'transaction_already_voided',
-        'Transaction is already voided.',
+        errorText().alreadyVoided,
       );
     }
     if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
       throw new TransactionActionError(
         'linked_refunds_exist',
-        'Void or remove the linked refunds before voiding this expense.',
+        errorText().voidOrRemoveRefundsBeforeVoiding,
       );
     }
     if (!(await this.repository.voidPosted(id, this.now()))) {
@@ -399,19 +402,19 @@ export class TransactionService {
     requireExchangeRate = true,
   ): Promise<ResolvedTransactionInput> {
     if (!supportedTransactionTypes.includes(input.type)) {
-      errors.type = 'Select a supported transaction type.';
+      errors.type = errorText().selectSupportedType;
     }
     if (!Number.isSafeInteger(input.amount) || input.amount <= 0) {
-      errors.amount = 'Enter a valid amount greater than zero.';
+      errors.amount = errorText().invalidAmount;
     }
     if (input.currency !== undefined && !isSupportedCurrency(input.currency)) {
-      errors.currency = 'Select a supported currency.';
+      errors.currency = errorText().selectSupportedCurrency;
     }
     if (!isValidCalendarDate(input.transactionDate)) {
-      errors.transactionDate = 'Enter a valid date in YYYY-MM-DD format.';
+      errors.transactionDate = errorText().invalidDate;
     }
     if (input.note && input.note.length > 200) {
-      errors.note = 'Note must be 200 characters or fewer.';
+      errors.note = errorText().noteTooLong;
     }
 
     const resolved = input.type === 'transfer'
@@ -429,11 +432,11 @@ export class TransactionService {
   ): Promise<ResolvedTransactionInput> {
     const account = input.accountId ? await this.accounts.findById(input.accountId) : null;
     if (!input.accountId) {
-      errors.accountId = 'Select an account.';
+      errors.accountId = errorText().selectAccount;
     } else if (!this.isAllowedHistoricalReference(account, input.accountId, original?.accountId)) {
-      errors.accountId = 'Select an active account.';
+      errors.accountId = errorText().selectActiveAccount;
     } else if (input.currency !== undefined && account && account.currency !== input.currency) {
-      errors.currency = 'The amount currency must match the account currency.';
+      errors.currency = errorText().currencyMismatch;
     }
 
     const selection = await this.resolveCategorySelection(input, errors, original);
@@ -446,7 +449,7 @@ export class TransactionService {
     // posting time. Recurring templates skip this: they capture the rate later,
     // when each occurrence is posted (see confirmOccurrence).
     if (requireExchangeRate && currency !== baseCurrency && !isValidRateInput(input.exchangeRate)) {
-      errors.exchangeRate = MISSING_RATE_MESSAGE;
+      errors.exchangeRate = errorText().missingRate;
     }
 
     const { exchangeRate, ...rest } = input;
@@ -479,13 +482,13 @@ export class TransactionService {
   ): Promise<{ categoryId: string; subcategoryId: string | null }> {
     const requested = { categoryId: input.categoryId, subcategoryId: input.subcategoryId ?? null };
     if (!input.categoryId) {
-      errors.categoryId = 'Select a category.';
+      errors.categoryId = errorText().selectCategory;
       return requested;
     }
 
     const selected = await this.categories.findById(input.categoryId);
     if (!selected) {
-      errors.categoryId = 'Select an active category.';
+      errors.categoryId = errorText().selectActiveCategory;
       return requested;
     }
 
@@ -499,28 +502,30 @@ export class TransactionService {
 
     const category = infersParent ? await this.categories.findById(categoryId) : selected;
     if (!category) {
-      errors.categoryId = 'Select an active category.';
+      errors.categoryId = errorText().selectActiveCategory;
       return resolved;
     }
     if ((category.parentCategoryId ?? null) !== null) {
       // Only reachable when a caller sends both a leaf category and a subcategory.
-      errors.categoryId = 'Select a top-level category.';
+      errors.categoryId = errorText().selectTopLevelCategory;
       return resolved;
     }
     if (!this.isAllowedHistoricalReference(category, categoryId, original?.categoryId)) {
-      errors.categoryId = 'Select an active category.';
+      errors.categoryId = errorText().selectActiveCategory;
     } else if (category.type !== input.type) {
-      errors.categoryId = `Select an ${input.type} category.`;
+      errors.categoryId = input.type === 'income'
+        ? errorText().selectIncomeCategory
+        : errorText().selectExpenseCategory;
     }
 
     if (subcategoryId !== null) {
       const subcategory = infersParent ? selected : await this.categories.findById(subcategoryId);
       if (!subcategory) {
-        errors.subcategoryId = 'Select an active subcategory.';
+        errors.subcategoryId = errorText().selectActiveSubcategory;
       } else if ((subcategory.parentCategoryId ?? null) !== categoryId) {
-        errors.subcategoryId = 'The subcategory must belong to the selected category.';
+        errors.subcategoryId = errorText().subcategoryMismatch;
       } else if (!this.isAllowedHistoricalReference(subcategory, subcategoryId, original?.subcategoryId)) {
-        errors.subcategoryId = 'Select an active subcategory.';
+        errors.subcategoryId = errorText().selectActiveSubcategory;
       }
     }
 
@@ -557,10 +562,10 @@ export class TransactionService {
       exchangeRate: input.exchangeRate ?? null,
     };
 
-    if (!input.accountId) errors.accountId = 'Select a source account.';
-    if (!input.destinationAccountId) errors.destinationAccountId = 'Select a destination account.';
+    if (!input.accountId) errors.accountId = errorText().selectSourceAccount;
+    if (!input.destinationAccountId) errors.destinationAccountId = errorText().selectDestinationAccount;
     if (input.accountId && input.destinationAccountId && input.accountId === input.destinationAccountId) {
-      errors.destinationAccountId = 'Source and destination accounts must be different.';
+      errors.destinationAccountId = errorText().accountsMustDiffer;
     }
     if (errors.accountId || errors.destinationAccountId) return resolved;
 
@@ -575,14 +580,14 @@ export class TransactionService {
     if (errors.accountId || errors.destinationAccountId || !source || !destination) return resolved;
 
     if (!Number.isSafeInteger(destinationAmountMinor) || destinationAmountMinor <= 0) {
-      errors.destinationAmount = INCOMPLETE_TRANSFER_MESSAGE;
+      errors.destinationAmount = errorText().incompleteTransfer;
     }
     if (crossCurrency) {
       // Cross-currency: both amounts are authoritative and an effective rate is saved.
-      if (!isValidRateInput(input.exchangeRate)) errors.exchangeRate = INCOMPLETE_TRANSFER_MESSAGE;
+      if (!isValidRateInput(input.exchangeRate)) errors.exchangeRate = errorText().incompleteTransfer;
     } else if (destinationAmountMinor !== input.amount) {
       // Same-currency: the destination must receive exactly the source amount.
-      errors.destinationAmount = 'A same-currency transfer must send and receive the same amount.';
+      errors.destinationAmount = errorText().sameCurrencyMismatch;
     }
     if (errors.amount || errors.destinationAmount || errors.exchangeRate) return resolved;
     if (!validateFunds) return resolved;
@@ -604,7 +609,7 @@ export class TransactionService {
       const balance = projected.get(accountId);
       if (!account || balance === undefined) continue;
       if (!Number.isSafeInteger(balance)) {
-        errors.amount = 'Transfer would exceed the supported safe balance range.';
+        errors.amount = errorText().exceedsSafeRange;
         return resolved;
       }
       if (
@@ -612,7 +617,7 @@ export class TransactionService {
         && balance < 0
         && balance < account.balance
       ) {
-        errors.amount = 'Transfer would leave an asset account with insufficient funds.';
+        errors.amount = errorText().insufficientFunds;
         return resolved;
       }
     }
@@ -636,7 +641,7 @@ export class TransactionService {
   ): void {
     if (!account || (account.isArchived && proposedId !== originalId)) {
       errors[role === 'source' ? 'accountId' : 'destinationAccountId'] =
-        `Select an active ${role} account.`;
+        role === 'source' ? errorText().selectActiveSourceAccount : errorText().selectActiveDestinationAccount;
     }
   }
 
@@ -654,7 +659,7 @@ export class TransactionService {
   private async requireTransaction(id: string): Promise<TransactionListItem> {
     const transaction = await this.repository.findById(id);
     if (!transaction) {
-      throw new TransactionActionError('transaction_not_found', 'Transaction not found.');
+      throw new TransactionActionError('transaction_not_found', errorText().notFound);
     }
     return transaction;
   }
@@ -662,22 +667,22 @@ export class TransactionService {
   private async throwFailedWrite(id: string, action: 'edit' | 'void'): Promise<never> {
     const current = await this.repository.findById(id);
     if (!current) {
-      throw new TransactionActionError('transaction_not_found', 'Transaction not found.');
+      throw new TransactionActionError('transaction_not_found', errorText().notFound);
     }
     if (current.status === 'voided') {
       throw new TransactionActionError(
         action === 'edit' ? 'editing_voided_transaction' : 'transaction_already_voided',
-        action === 'edit' ? 'Voided transactions cannot be edited.' : 'Transaction is already voided.',
+        action === 'edit' ? errorText().voidedCannotBeEdited : errorText().alreadyVoided,
       );
     }
     if (current.type === 'expense' && await this.repository.hasPostedRefunds(id)) {
       throw new TransactionActionError(
         'linked_refunds_exist',
         action === 'edit'
-          ? 'Void the linked refunds before editing this expense.'
-          : 'Void the linked refunds before voiding this expense.',
+          ? errorText().voidRefundsBeforeEditing
+          : errorText().voidRefundsBeforeVoiding,
       );
     }
-    throw new Error(`Unable to ${action} transaction.`);
+    throw new Error(action === 'edit' ? errorText().unableToEdit : errorText().unableToVoid);
   }
 }

@@ -9,6 +9,8 @@ import { budgetMonthLabel } from '@/features/budgets/budget-month';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import type { MonthlyBudgetView } from '@/features/budgets/monthly-budget.types';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { intlLocaleFor } from '@/i18n/languages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 
 /**
  * The overall monthly ceiling.
@@ -26,33 +28,35 @@ export function MonthlyCeilingCard({
   onEdit: () => void;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
+  const locale = intlLocaleFor(useLanguage());
   const over = ceiling.remaining < 0;
   const remainingLabel = over ? formatBase(Math.abs(ceiling.remaining)) : formatBase(ceiling.remaining);
   return (
     <Card
-      accessibilityLabel={`Monthly ceiling ${formatBase(ceiling.limitAmount)}, spent ${formatBase(ceiling.spent)}, ${over ? 'over by' : 'remaining'} ${remainingLabel}, ${ceiling.percentageUsed}% used`}
+      accessibilityLabel={t.budgets.ceilingAccessibility(formatBase(ceiling.limitAmount), formatBase(ceiling.spent), over, remainingLabel, ceiling.percentageUsed)}
       style={styles.card}
       variant="raised">
       <View style={styles.heading}>
-        <Overline>Monthly ceiling</Overline>
-        <Button label="Edit" onPress={onEdit} size="sm" variant="ghost" />
+        <Overline>{t.budgets.monthlyCeiling}</Overline>
+        <Button label={t.common.edit} onPress={onEdit} size="sm" variant="ghost" />
       </View>
       <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={[styles.total, { color: theme.primaryText }]}>
         {formatBase(ceiling.limitAmount)}
       </Text>
       {ceiling.inheritedFrom ? (
         <Text style={[styles.note, { color: theme.mutedText }]}>
-          Carried forward from {budgetMonthLabel(ceiling.inheritedFrom)}.
+          {t.budgets.carriedForward(budgetMonthLabel(ceiling.inheritedFrom, locale))}
         </Text>
       ) : null}
 
       <View style={styles.amounts}>
-        <Amount label="Spent this month" value={formatBase(ceiling.spent)} />
-        <Amount destructive={over} label={over ? 'Over by' : 'Remaining'} value={remainingLabel} />
+        <Amount label={t.budgets.spentThisMonth} value={formatBase(ceiling.spent)} />
+        <Amount destructive={over} label={over ? t.budgets.overBy : t.budgets.remaining} value={remainingLabel} />
       </View>
 
       <View style={styles.progressLabelRow}>
-        <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>All spending</Text>
+        <Text style={[styles.progressLabel, { color: theme.secondaryText }]}>{t.budgets.allSpending}</Text>
         <Text style={[styles.progressValue, { color: over ? theme.destructive : theme.primaryText }]}>
           {ceiling.percentageUsed}%
         </Text>
@@ -63,8 +67,8 @@ export function MonthlyCeilingCard({
           watching, which is exactly the spending that used to go unnoticed. */}
       <Text style={[styles.note, { color: ceiling.unallocated < 0 ? theme.warning : theme.mutedText }]}>
         {ceiling.unallocated < 0
-          ? `Category budgets add up to ${formatBase(ceiling.categoryBudgetTotal)}, which is ${formatBase(Math.abs(ceiling.unallocated))} above this ceiling.`
-          : `${formatBase(ceiling.categoryBudgetTotal)} is planned in category budgets; ${formatBase(ceiling.unallocated)} of this ceiling is unbudgeted.`}
+          ? t.budgets.ceilingOverAllocated(formatBase(ceiling.categoryBudgetTotal), formatBase(Math.abs(ceiling.unallocated)))
+          : t.budgets.ceilingUnallocated(formatBase(ceiling.categoryBudgetTotal), formatBase(ceiling.unallocated))}
       </Text>
     </Card>
   );
@@ -73,17 +77,17 @@ export function MonthlyCeilingCard({
 /** Shown in place of the card when no ceiling applies to the month. */
 export function MonthlyCeilingEmptyCard({ onCreate }: { onCreate: () => void }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <Card style={styles.card}>
-      <Overline>Monthly ceiling</Overline>
+      <Overline>{t.budgets.monthlyCeiling}</Overline>
       <Text style={[styles.emptyBody, { color: theme.secondaryText }]}>
-        Set one overall limit for the month. Every expense counts against it, including the ones
-        no category budget covers.
+        {t.budgets.ceilingEmptyBody}
       </Text>
       <Button
         fullWidth
         icon={{ ios: 'plus', android: 'add', web: 'add' }}
-        label="Set monthly ceiling"
+        label={t.budgets.setMonthlyCeiling}
         onPress={onCreate}
         size="md"
         variant="tonal"

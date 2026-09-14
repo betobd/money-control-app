@@ -9,6 +9,7 @@ import type { BudgetSummary, BudgetView } from '@/features/budgets/budget.types'
 import type { MonthlyBudgetView } from '@/features/budgets/monthly-budget.types';
 import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export function BudgetProgressCard({
   summary,
@@ -20,6 +21,7 @@ export function BudgetProgressCard({
   ceiling?: MonthlyBudgetView | null;
 }) {
   const theme = useAppTheme();
+  const t = useMessages();
   // The ceiling takes the headline when it exists: it covers every expense, so
   // the category total below it is a subset rather than a competing number.
   const headline = ceiling
@@ -28,22 +30,23 @@ export function BudgetProgressCard({
   const hasBudget = headline.total > 0;
   const overBudget = headline.spent > headline.total;
   const fillColor = overBudget ? theme.destructive : theme.progressFill;
+  const title = ceiling ? t.home.monthlyCeiling : t.home.monthlyBudget;
 
   return (
     <Card
       accessibilityLabel={
         hasBudget
-          ? `${ceiling ? 'Monthly ceiling' : 'Monthly budget'}, ${formatBase(headline.spent)} spent of ${formatBase(headline.total)}, ${headline.percentageUsed}% used${overBudget ? ', over budget' : ''}`
-          : 'No budgets set for this month'
+          ? t.home.budgetCardLabel(title, formatBase(headline.spent), formatBase(headline.total), headline.percentageUsed, overBudget)
+          : t.home.noBudgets
       }
       style={styles.card}>
       <View style={styles.headerRow}>
         <Text style={[styles.title, { color: theme.primaryText }]}>
-          {ceiling ? 'Monthly ceiling' : 'Monthly budget'}
+          {title}
         </Text>
         {hasBudget ? (
           <Text style={[styles.meta, { color: overBudget ? theme.destructive : theme.secondaryText }]}>
-            {headline.percentageUsed}% used{overBudget ? ' · Over budget' : ''}
+            {t.home.percentUsed(headline.percentageUsed)}{overBudget ? ` · ${t.home.overBudget}` : ''}
           </Text>
         ) : null}
       </View>
@@ -58,22 +61,22 @@ export function BudgetProgressCard({
             value={headline.percentageUsed / 100}
           />
           <View style={styles.footerRow}>
-            <Text style={[styles.spent, { color: theme.secondaryText }]}>{formatBase(headline.spent)} spent</Text>
-            <Text style={[styles.meta, { color: theme.mutedText }]}>of {formatBase(headline.total)}</Text>
+            <Text style={[styles.spent, { color: theme.secondaryText }]}>{t.home.spent(formatBase(headline.spent))}</Text>
+            <Text style={[styles.meta, { color: theme.mutedText }]}>{t.home.ofTotal(formatBase(headline.total))}</Text>
           </View>
           {ceiling ? (
             <Text style={[styles.meta, { color: theme.mutedText }]}>
-              All spending this month, including what no category budget covers.
+              {t.home.ceilingNote}
             </Text>
           ) : null}
 
           {budgets.length > 0 ? (
             <View style={[styles.breakdown, { borderTopColor: theme.hairline }]}>
               <View style={styles.breakdownHeader}>
-                <Text style={[styles.breakdownTitle, { color: theme.mutedText }]}>By category</Text>
+                <Text style={[styles.breakdownTitle, { color: theme.mutedText }]}>{t.home.byCategory}</Text>
                 <Link asChild href="/budgets">
-                  <Pressable accessibilityLabel="View all budgets" accessibilityRole="button" hitSlop={8}>
-                    <Text style={[styles.viewAll, { color: theme.primaryAction }]}>View all</Text>
+                  <Pressable accessibilityLabel={t.home.viewAllBudgets} accessibilityRole="button" hitSlop={8}>
+                    <Text style={[styles.viewAll, { color: theme.primaryAction }]}>{t.home.viewAll}</Text>
                   </Pressable>
                 </Link>
               </View>
@@ -81,7 +84,7 @@ export function BudgetProgressCard({
                 const over = budget.status === 'over-budget';
                 return (
                   <View
-                    accessibilityLabel={`${budget.categoryName}, ${budget.percentageUsed}% used${over ? ', over budget' : ''}`}
+                    accessibilityLabel={t.home.categoryRowLabel(budget.categoryName, budget.percentageUsed, over)}
                     key={budget.id}
                     style={styles.row}>
                     <View style={styles.rowHeader}>
@@ -105,7 +108,7 @@ export function BudgetProgressCard({
           ) : null}
         </>
       ) : (
-        <Text style={[styles.meta, { color: theme.mutedText }]}>No budgets set for this month</Text>
+        <Text style={[styles.meta, { color: theme.mutedText }]}>{t.home.noBudgets}</Text>
       )}
     </Card>
   );

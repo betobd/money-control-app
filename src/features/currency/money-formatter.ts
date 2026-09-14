@@ -13,6 +13,8 @@
  * - `accessibleMoney` -> screen-reader text including the currency name, e.g.
  *   `1.250.000 Colombian pesos`.
  */
+import { getMessages } from '@/i18n/messages';
+import { currencyName } from './currency-name';
 import { getCurrency, type CurrencyCode } from './currency-registry';
 
 function splitMinor(minor: number, factor: number): { negative: boolean; whole: number; fraction: number } {
@@ -49,6 +51,10 @@ export function formatMoneyWithSymbol(minor: number, code: CurrencyCode): string
 
 export function accessibleMoney(minor: number, code: CurrencyCode): string {
   const definition = getCurrency(code);
-  const number = formatMoneyNumber(minor, code);
-  return `${number} ${definition.name}${Math.abs(minor) === definition.minorUnitFactor ? '' : 's'}`;
+  return getMessages().currency.accessibleMoney(
+    formatMoneyNumber(minor, code),
+    definition.name,
+    currencyName(code),
+    Math.abs(minor) === definition.minorUnitFactor,
+  );
 }

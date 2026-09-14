@@ -30,6 +30,8 @@ import type {
 } from '@/features/transactions/transaction.types';
 import { useTransactions } from '@/features/transactions/use-transactions';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getIntlLocale, type Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { AppliedFilterBadge } from './filter-chip';
 import { SearchField } from './search-field';
 import { TransactionFilterModal } from './transaction-filter-modal';
@@ -53,6 +55,7 @@ export function TransactionsScreen() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
 
   const query = useMemo(
     () => buildTransactionListQuery(filters, querySearch),
@@ -117,28 +120,28 @@ export function TransactionsScreen() {
 
   const listHeader = (
     <View style={styles.headerContent}>
-      <PrimaryScreenHeader title="Transactions" />
+      <PrimaryScreenHeader title={t.common.tabs.transactions} />
       <View style={styles.controls}>
         <SearchField onChangeText={changeSearch} onClear={clearSearch} value={search} />
         <View style={styles.filterSummary}>
           <Text style={[styles.dateSummary, { color: theme.secondaryText }]}>
-            Date: {formatTransactionDateRange(activeDateRange)}
+            {t.transactions.list.dateSummary(formatTransactionDateRange(activeDateRange))}
           </Text>
           <View style={styles.activeCountRow}>
             <Text accessibilityLiveRegion="polite" style={[styles.activeCount, { color: theme.mutedText }]}>
-              {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
+              {t.transactions.list.activeFilters(activeFilterCount)}
             </Text>
             {activeFilterCount > 0 ? (
               <Pressable accessibilityRole="button" onPress={clearFilters} style={styles.inlineAction}>
-                <Text style={[styles.inlineActionLabel, { color: theme.primaryAction }]}>Clear all</Text>
+                <Text style={[styles.inlineActionLabel, { color: theme.primaryAction }]}>{t.transactions.list.clearAll}</Text>
               </Pressable>
             ) : null}
           </View>
         </View>
         <View style={styles.filters}>
           <Pressable
-            accessibilityHint="Opens the complete transaction filters screen"
-            accessibilityLabel="Open all transaction filters"
+            accessibilityHint={t.transactions.list.openFiltersHint}
+            accessibilityLabel={t.transactions.list.openFilters}
             accessibilityRole="button"
             hitSlop={spacing.xs}
             onPress={openFullFilters}
@@ -148,53 +151,53 @@ export function TransactionsScreen() {
               size={16}
               tintColor={theme.secondaryText}
             />
-            <Text numberOfLines={1} style={[styles.fullFiltersLabel, { color: theme.secondaryText }]}>Filters</Text>
+            <Text numberOfLines={1} style={[styles.fullFiltersLabel, { color: theme.secondaryText }]}>{t.transactions.list.filters}</Text>
           </Pressable>
           {filters.type ? (
             <AppliedFilterBadge
-              accessibilityLabel={`Transaction type filter applied: ${capitalize(filters.type)}`}
+              accessibilityLabel={t.transactions.list.appliedType(t.transactions.types[filters.type])}
               icon="type"
-              label={capitalize(filters.type)}
+              label={t.transactions.types[filters.type]}
             />
           ) : null}
           {filters.status ? (
             <AppliedFilterBadge
-              accessibilityLabel={`Transaction status filter applied: ${capitalize(filters.status)}`}
+              accessibilityLabel={t.transactions.list.appliedStatus(t.transactions.status[filters.status])}
               icon="status"
-              label={capitalize(filters.status)}
+              label={t.transactions.status[filters.status]}
             />
           ) : null}
           {filters.accountId ? (
             <AppliedFilterBadge
-              accessibilityLabel={`Transaction account filter applied: ${filterOptionLabel(account)}`}
+              accessibilityLabel={t.transactions.list.appliedAccount(filterOptionLabel(t, account))}
               icon="account"
-              label={filterOptionLabel(account)}
+              label={filterOptionLabel(t, account)}
             />
           ) : null}
           {filters.categoryId ? (
             <AppliedFilterBadge
-              accessibilityLabel={`Transaction category filter applied: ${filterOptionLabel(category)}`}
+              accessibilityLabel={t.transactions.list.appliedCategory(filterOptionLabel(t, category))}
               icon="category"
-              label={filterOptionLabel(category)}
+              label={filterOptionLabel(t, category)}
             />
           ) : null}
           {filters.datePreset !== 'all-time' ? (
             <AppliedFilterBadge
-              accessibilityLabel={`Transaction date filter applied: ${dateChipLabel(filters, activeDateRange)}`}
+              accessibilityLabel={t.transactions.list.appliedDate(dateChipLabel(t, filters, activeDateRange))}
               icon="date"
-              label={dateChipLabel(filters, activeDateRange)}
+              label={dateChipLabel(t, filters, activeDateRange)}
             />
           ) : null}
         </View>
         {loading && transactions.length > 0 ? (
-          <View accessibilityLabel="Refreshing transactions" style={styles.refreshing}>
+          <View accessibilityLabel={t.transactions.list.refreshingA11y} style={styles.refreshing}>
             <ActivityIndicator color={theme.primaryAction} size="small" />
-            <Text style={[styles.refreshingLabel, { color: theme.secondaryText }]}>Refreshing…</Text>
+            <Text style={[styles.refreshingLabel, { color: theme.secondaryText }]}>{t.transactions.list.refreshing}</Text>
           </View>
         ) : null}
         {error && transactions.length > 0 ? (
           <Pressable accessibilityRole="button" onPress={() => void reload()} style={styles.errorBanner}>
-            <Text style={[styles.errorBannerText, { color: theme.destructive }]}>{error} Tap to retry.</Text>
+            <Text style={[styles.errorBannerText, { color: theme.destructive }]}>{t.transactions.list.tapToRetry(error)}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -235,14 +238,14 @@ export function TransactionsScreen() {
           <View style={styles.footer}>
             {hasMore ? (
               <Button
-                accessibilityLabel="Load more transactions"
+                accessibilityLabel={t.transactions.list.loadMoreA11y}
                 busy={loadingMore}
-                label="Load more"
+                label={t.transactions.list.loadMore}
                 onPress={() => void loadMore()}
                 variant="tonal"
               />
             ) : (
-              <Text style={[styles.endLabel, { color: theme.mutedText }]}>End of transaction history</Text>
+              <Text style={[styles.endLabel, { color: theme.mutedText }]}>{t.transactions.list.endOfHistory}</Text>
             )}
           </View>
         ) : null}
@@ -279,25 +282,22 @@ export function TransactionsScreen() {
   );
 }
 
-function capitalize(value: string): string {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
-}
-
-function filterOptionLabel(option: { isArchived: boolean; name: string } | undefined): string {
-  if (!option) return 'Selected';
-  return `${option.name}${option.isArchived ? ' (Archived)' : ''}`;
+function filterOptionLabel(t: Messages, option: { isArchived: boolean; name: string } | undefined): string {
+  if (!option) return t.transactions.list.selected;
+  return option.isArchived ? t.transactions.list.archived(option.name) : option.name;
 }
 
 function dateChipLabel(
+  t: Messages,
   filters: TransactionListFilters,
   range: TransactionDateRange,
 ): string {
-  if (filters.datePreset === 'all-time') return 'Date';
-  if (filters.datePreset === 'last-30-days') return 'Last 30 days';
+  if (filters.datePreset === 'all-time') return t.transactions.list.date;
+  if (filters.datePreset === 'last-30-days') return t.transactions.filters.last30Days;
   if (filters.datePreset === 'custom') return formatTransactionDateRange(range);
-  if (!range.dateFrom) return 'Date';
+  if (!range.dateFrom) return t.transactions.list.date;
 
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat(getIntlLocale(), {
     month: 'short',
     timeZone: 'UTC',
     year: 'numeric',

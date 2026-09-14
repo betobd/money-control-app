@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { ScreenContainer } from '@/components/screen-container';
 import { borderRadii, spacing, typography } from '@/constants/theme';
-import { budgetMonthLabel, currentBudgetMonth, shiftBudgetMonth } from '@/features/budgets/budget-month';
+import { budgetMonthTitle, currentBudgetMonth, shiftBudgetMonth } from '@/features/budgets/budget-month';
 import { groupBudgets } from '@/features/budgets/budget.service';
 import { BudgetCard } from '@/features/budgets/components/budget-card';
 import { BudgetErrorState, EmptyBudgetsState, LoadingBudgetCard } from '@/features/budgets/components/budget-states';
@@ -15,13 +15,17 @@ import { MonthlyCeilingCard, MonthlyCeilingEmptyCard } from '@/features/budgets/
 import { useBudgets } from '@/features/budgets/use-budgets';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { intlLocaleFor } from '@/i18n/languages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 
 export default function BudgetsScreen() {
   const theme = useAppTheme();
+  const t = useMessages();
+  const locale = intlLocaleFor(useLanguage());
   const [month, setMonth] = useState(() => currentBudgetMonth());
   const data = useBudgets(month);
   const pullToRefresh = usePullToRefresh(data.reload);
-  const label = budgetMonthLabel(month);
+  const label = budgetMonthTitle(month, locale);
   const openForm = (id?: string) => router.push({
     pathname: '/budget-form',
     params: { month, ...(id ? { id } : {}) },
@@ -30,14 +34,14 @@ export default function BudgetsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
-      <PrimaryScreenHeader onAdd={{ accessibilityLabel: 'Create budget', onPress: () => openForm() }} title="Budgets" />
+      <PrimaryScreenHeader onAdd={{ accessibilityLabel: t.budgets.createBudget, onPress: () => openForm() }} title={t.common.tabs.budgets} />
 
-      <View accessibilityLabel={`Selected month, ${label}`} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
-        <Pressable accessibilityLabel="Previous month" accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, -1))} style={styles.monthButton}>
+      <View accessibilityLabel={t.budgets.selectedMonth(label)} style={[styles.monthSelector, { backgroundColor: theme.elevatedSurface }]}>
+        <Pressable accessibilityLabel={t.common.date.previousMonth} accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, -1))} style={styles.monthButton}>
           <SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={18} tintColor={theme.secondaryText} />
         </Pressable>
         <Text style={[styles.month, { color: theme.primaryText }]}>{label}</Text>
-        <Pressable accessibilityLabel="Next month" accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, 1))} style={styles.monthButton}>
+        <Pressable accessibilityLabel={t.common.date.nextMonth} accessibilityRole="button" onPress={() => setMonth((value) => shiftBudgetMonth(value, 1))} style={styles.monthButton}>
           <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.secondaryText} />
         </Pressable>
       </View>
@@ -57,10 +61,10 @@ export default function BudgetsScreen() {
         <>
           <BudgetSummaryCard summary={data.summary} />
           <View style={styles.sectionHeader}>
-            <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>Monthly budgets</Text>
+            <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.budgets.monthlyBudgets}</Text>
             <Text style={[styles.sectionMonth, { color: theme.mutedText }]}>{label}</Text>
           </View>
-          <View accessibilityLabel="Monthly category budgets" style={styles.budgets}>
+          <View accessibilityLabel={t.budgets.monthlyCategoryBudgets} style={styles.budgets}>
             {groupBudgets(data.budgets).map((group) => (
               <View key={group.budget.id} style={styles.group}>
                 <BudgetCard budget={group.budget} onPress={() => openForm(group.budget.id)} />

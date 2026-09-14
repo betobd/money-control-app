@@ -1,0 +1,128 @@
+type RecurringUnit = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export const recurring = {
+  title: 'Recurring',
+  createRecurring: 'Create recurring transaction',
+  closeRecurring: 'Close recurring transactions',
+  sections: 'Recurring sections',
+  tabDue: 'Due',
+  tabRules: 'Rules',
+  tabHistory: 'History',
+  updating: 'Updating…',
+  backlogLimited: 'A large backlog was limited for this load. Reopen this screen to continue safely.',
+  loadError: 'Unable to load recurring transactions.',
+
+  // Due
+  noneDue: 'No recurring transactions are due today.',
+  dueOn: (date: string) => `Due ${date}`,
+  confirmOccurrence: (label: string) => `Confirm ${label}`,
+  editOccurrence: (label: string) => `Edit ${label} occurrence`,
+  skipOccurrence: (label: string) => `Skip ${label} occurrence`,
+  skip: 'Skip',
+  skipTitle: 'Skip this occurrence?',
+  skipMessage: 'It will remain in recurring history and will not affect balances or reports.',
+  unableToConfirm: 'Unable to confirm',
+  confirmFallback: 'Review the occurrence and try again.',
+  unableToSkip: 'Unable to skip',
+  tryAgain: 'Try again.',
+
+  // Rules
+  activeRules: 'Active rules',
+  pausedRules: 'Paused rules',
+  endedRules: 'Ended rules',
+  sectionCount: (title: string, count: number) => `${title} · ${count}`,
+  createRule: 'Create rule',
+  createFirstRule: 'Create your first recurring rule',
+  emptyTitle: 'No recurring rules yet',
+  emptyBody: 'Create a rule for expenses, income, or transfers you expect regularly.',
+  noActiveRules: 'No active rules right now. Paused and ended rules are listed below.',
+  ruleStatus: {
+    active: 'Active',
+    paused: 'Paused',
+    ended: 'Ended',
+  },
+  ruleStatusAccessibility: (status: string) => `Rule status ${status}`,
+  nextOn: (date: string) => `Next ${date}`,
+  editFuture: 'Edit future',
+  pause: 'Pause',
+  resume: 'Resume',
+  end: 'End',
+  endTitle: 'End recurring transaction?',
+  endMessage: 'No future occurrences will be generated. Existing history and pending items are preserved.',
+  unableToUpdateRule: 'Unable to update rule',
+  unableToEndRule: 'Unable to end rule',
+  account: 'Account',
+  category: 'Category',
+
+  /** Rule card summary of a schedule. */
+  frequency: {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+  },
+  everyTwoWeeks: 'Every two weeks',
+  everyInterval: (count: number, unit: RecurringUnit) => `Every ${count} ${unit}`,
+
+  // History
+  historyEmpty: 'Confirmed and skipped occurrences will appear here.',
+  occurrenceStatus: {
+    posted: 'Posted',
+    skipped: 'Skipped',
+  },
+  occurrenceStatusSpoken: {
+    pending: 'pending',
+    posted: 'posted',
+    skipped: 'skipped',
+  },
+  historyAccessibility: (status: string, label: string, amount: string, date: string) =>
+    `${status}, ${label}, ${amount}, ${date}`,
+
+  // Editor
+  createTitle: 'Create Recurring Transaction',
+  editRuleTitle: 'Edit Future Rule',
+  editOccurrenceTitle: 'Edit This Occurrence',
+  optionDaily: 'Daily',
+  optionWeekly: 'Weekly',
+  optionEveryTwoWeeks: 'Every 2 weeks',
+  optionMonthly: 'Monthly',
+  optionYearly: 'Yearly',
+  frequencyLabel: 'Frequency',
+  sourceAccount: 'Source account',
+  destinationAccount: 'Destination account',
+  selectAccount: 'Select account',
+  selectSourceAccount: 'Select source account',
+  selectDestinationAccount: 'Select destination account',
+  selectIncomeCategory: 'Select income category',
+  selectExpenseCategory: 'Select expense category',
+  startDate: 'Start date',
+  scheduledDate: 'Scheduled date',
+  endDateOptional: 'End date (optional)',
+  noteOptional: 'Note (optional)',
+  noteAccessibility: 'Recurring transaction note',
+  notePlaceholder: 'Add a description…',
+  saveRecurring: 'Save recurring transaction',
+  saveError: 'Unable to save recurring transaction.',
+  errorAmount: 'Enter a valid amount greater than zero.',
+
+  // Routes
+  ruleLoadError: 'Unable to load recurring transaction.',
+  occurrenceLoadError: 'Unable to load occurrence.',
+
+  // Service errors
+  ruleNotFound: 'Recurring transaction not found.',
+  occurrenceNotFound: 'Recurring occurrence not found.',
+  alreadyHandled: 'This recurring occurrence was already handled.',
+  endedCannotEdit: 'Ended recurring transactions cannot be edited.',
+  endedCannotResume: 'Ended recurring transactions cannot resume.',
+  hasEnded: 'This recurring transaction has ended.',
+  missingExchangeRate: (currency: string, baseCurrency: string) =>
+    `Add a ${currency}/${baseCurrency} exchange rate before posting this transaction.`,
+  errorDateFormat: 'Enter a valid date in YYYY-MM-DD format.',
+  errorFrequency: 'Select a supported frequency.',
+  errorInterval: 'Interval must be a positive whole number.',
+  errorStartDate: 'Enter a valid start date.',
+  errorEndDate: 'Enter a valid end date.',
+  errorEndBeforeStart: 'End date cannot be earlier than start date.',
+  errorCrossCurrencyTransfer: 'Recurring cross-currency transfers are not supported in Multi-Currency v1.',
+};

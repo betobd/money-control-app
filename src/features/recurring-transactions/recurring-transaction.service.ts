@@ -9,6 +9,7 @@ import type {
   TransactionInput,
 } from '@/features/transactions/transaction.types';
 import type { CurrencyCode } from '@/features/currency/currency';
+import { getMessages } from '@/i18n/messages';
 import { collectDueDates, firstScheduledOnOrAfter } from './recurring-schedule';
 import { notifyRecurringDataChanged } from './recurring-data-events';
 import type { RecurringTransactionRepository } from './recurring-transaction.repository';
@@ -118,7 +119,7 @@ export class RecurringTransactionService {
   async updateRule(id: string, input: RecurringRuleInput): Promise<RecurringRuleRecord> {
     const current = await this.requireRule(id);
     if (current.endedAt) {
-      throw new RecurringActionError('rule_ended', 'Ended recurring transactions cannot be edited.');
+      throw new RecurringActionError('rule_ended', getMessages().recurring.endedCannotEdit);
     }
     const { input: normalized, currency } = await this.validateRule(input);
     const latest = await this.repository.findLatestScheduledDate(id);
@@ -190,7 +191,7 @@ export class RecurringTransactionService {
 
   async pauseRule(id: string): Promise<void> {
     const rule = await this.requireRule(id);
-    if (rule.endedAt) throw new RecurringActionError('rule_ended', 'This recurring transaction has ended.');
+    if (rule.endedAt) throw new RecurringActionError('rule_ended', getMessages().recurring.hasEnded);
     await this.repository.updateRuleLifecycle(id, {
       isActive: false,
       endedAt: null,
@@ -202,7 +203,7 @@ export class RecurringTransactionService {
 
   async resumeRule(id: string): Promise<void> {
     const rule = await this.requireRule(id);
-    if (rule.endedAt) throw new RecurringActionError('rule_ended', 'Ended recurring transactions cannot resume.');
+    if (rule.endedAt) throw new RecurringActionError('rule_ended', getMessages().recurring.endedCannotResume);
     const nextOccurrenceDate = firstScheduledOnOrAfter(
       rule.startDate,
       this.today(),
@@ -247,7 +248,7 @@ export class RecurringTransactionService {
   ): Promise<void> {
     const current = await this.requirePendingOccurrence(id);
     if (!isValidCalendarDate(shape.scheduledDate)) {
-      throw new RecurringRuleValidationError({ startDate: 'Enter a valid date in YYYY-MM-DD format.' });
+      throw new RecurringRuleValidationError({ startDate: getMessages().recurring.errorDateFormat });
     }
     const { shape: normalizedShape, currency } = await this.validateShape(shape, shape.scheduledDate);
     if (!(await this.repository.updatePendingOccurrence(id, {
@@ -282,7 +283,7 @@ export class RecurringTransactionService {
       if (!exchangeRate) {
         throw new RecurringActionError(
           'missing_exchange_rate',
-          `Add a ${occurrence.currency}/${baseCurrency} exchange rate before posting this transaction.`,
+          getMessages().recurring.missingExchangeRate(occurrence.currency, baseCurrency),
         );
       }
     }
@@ -294,7 +295,7 @@ export class RecurringTransactionService {
         if (!(await this.repository.postPendingOccurrence(id, record, timestamp))) {
           throw new RecurringActionError(
             'occurrence_not_pending',
-            'This recurring occurrence was already handled.',
+            getMessages().recurring.alreadyHandled,
           );
         }
       },
@@ -307,15 +308,16 @@ export class RecurringTransactionService {
     input: RecurringRuleInput,
   ): Promise<{ input: RecurringRuleInput; currency: CurrencyCode }> {
     const { shape: normalizedShape, currency } = await this.validateShape(input, input.startDate);
+    const t = getMessages().recurring;
     const errors: RecurringRuleValidationErrors = {};
-    if (!recurringFrequencies.includes(input.frequency)) errors.frequency = 'Select a supported frequency.';
+    if (!recurringFrequencies.includes(input.frequency)) errors.frequency = t.errorFrequency;
     if (!Number.isInteger(input.interval) || input.interval < 1) {
-      errors.interval = 'Interval must be a positive whole number.';
+      errors.interval = t.errorInterval;
     }
-    if (!isValidCalendarDate(input.startDate)) errors.startDate = 'Enter a valid start date.';
-    if (input.endDate && !isValidCalendarDate(input.endDate)) errors.endDate = 'Enter a valid end date.';
+    if (!isValidCalendarDate(input.startDate)) errors.startDate = t.errorStartDate;
+    if (input.endDate && !isValidCalendarDate(input.endDate)) errors.endDate = t.errorEndDate;
     if (input.endDate && input.startDate && input.endDate < input.startDate) {
-      errors.endDate = 'End date cannot be earlier than start date.';
+      errors.endDate = t.errorEndBeforeStart;
     }
     if (Object.keys(errors).length) throw new RecurringRuleValidationError(errors);
     return {
@@ -342,7 +344,7 @@ export class RecurringTransactionService {
       const normalized = await this.transactions.validateTemplate(transactionInput);
       if (normalized.type === 'transfer' && normalized.currency !== normalized.destinationCurrencyCode) {
         throw new RecurringRuleValidationError({
-          destinationAccountId: 'Recurring cross-currency transfers are not supported in Multi-Currency v1.',
+          destinationAccountId: getMessages().recurring.errorCrossCurrencyTransfer,
         });
       }
       const shape = (normalized.type === 'transfer'
@@ -373,7 +375,7 @@ export class RecurringTransactionService {
       // A transfer that fails only on the destination leg/rate is a cross-currency pair.
       if (input.type === 'transfer' && (cause.fields.destinationAmount || cause.fields.exchangeRate)) {
         throw new RecurringRuleValidationError({
-          destinationAccountId: 'Recurring cross-currency transfers are not supported in Multi-Currency v1.',
+          destinationAccountId: getMessages().recurring.errorCrossCurrencyTransfer,
         });
       }
       const { transactionDate: dateError, ...fields } = cause.fields;
@@ -415,17 +417,17 @@ export class RecurringTransactionService {
 
   private async requireRule(id: string) {
     const rule = await this.repository.findRule(id);
-    if (!rule) throw new RecurringActionError('rule_not_found', 'Recurring transaction not found.');
+    if (!rule) throw new RecurringActionError('rule_not_found', getMessages().recurring.ruleNotFound);
     return rule;
   }
 
   private async requirePendingOccurrence(id: string) {
     const occurrence = await this.repository.findOccurrence(id);
     if (!occurrence) {
-      throw new RecurringActionError('occurrence_not_found', 'Recurring occurrence not found.');
+      throw new RecurringActionError('occurrence_not_found', getMessages().recurring.occurrenceNotFound);
     }
     if (occurrence.status !== 'pending') {
-      throw new RecurringActionError('occurrence_not_pending', 'This recurring occurrence was already handled.');
+      throw new RecurringActionError('occurrence_not_pending', getMessages().recurring.alreadyHandled);
     }
     return occurrence;
   }
@@ -433,9 +435,9 @@ export class RecurringTransactionService {
   private async throwOccurrenceWriteFailure(id: string): Promise<never> {
     const occurrence = await this.repository.findOccurrence(id);
     if (!occurrence) {
-      throw new RecurringActionError('occurrence_not_found', 'Recurring occurrence not found.');
+      throw new RecurringActionError('occurrence_not_found', getMessages().recurring.occurrenceNotFound);
     }
-    throw new RecurringActionError('occurrence_not_pending', 'This recurring occurrence was already handled.');
+    throw new RecurringActionError('occurrence_not_pending', getMessages().recurring.alreadyHandled);
   }
 }
 

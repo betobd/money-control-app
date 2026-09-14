@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { toUserMessage } from '@/errors/user-error';
 import { subscribeToFinancialDataChanges } from '@/features/transactions/financial-data-events';
+import { getMessages } from '@/i18n/messages';
 import { subscribeToRecurringDataChanges } from './recurring-data-events';
 import { recurringTransactionService } from './recurring-transactions';
 import type {
@@ -35,7 +36,7 @@ export function useRecurringTransactions() {
       setLimited(generation.limitedRules > 0);
       setHasLoaded(true);
     } catch (cause) {
-      setError(toUserMessage(cause, 'Unable to load recurring transactions.'));
+      setError(toUserMessage(cause, getMessages().recurring.loadError));
     } finally {
       setLoading(false);
     }

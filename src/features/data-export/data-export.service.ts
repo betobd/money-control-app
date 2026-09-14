@@ -15,6 +15,7 @@ import {
   normalizeTransactionListQuery,
 } from '@/features/transactions/transaction.service';
 import type { TransactionFilterOptions } from '@/features/transactions/transaction.types';
+import { getMessages, type Messages, getIntlLocale } from '@/i18n/messages';
 import { CsvSerializer, type CsvColumn, type CsvScalar } from './csv-serializer';
 import type { DataExportRepository } from './data-export.repository';
 import type {
@@ -75,6 +76,8 @@ export class DataExportError extends Error {
     super(message);
   }
 }
+
+type NoDataKind = keyof Messages['dataExport']['noData'];
 
 type AccountCsvRow = AccountExportSource & {
   status: 'active' | 'archived';
@@ -360,7 +363,7 @@ export class DataExportService {
     const rows = (await this.recurring.listRules())
       .sort(compareAuditRows)
       .map((rule): RecurringCsvRow => ({ ...rule, lifecycleStatus: lifecycleStatus(rule) }));
-    this.requireRows('recurring rules', rows.length, exportLimits.otherRows);
+    this.requireRows('recurringRules', rows.length, exportLimits.otherRows);
     const columns: CsvColumn<RecurringCsvRow>[] = [
       { header: 'recurring_rule_id', value: (row) => row.id },
       { header: 'type', value: (row) => row.type },
@@ -401,7 +404,7 @@ export class DataExportService {
         view: calculateCreditCardStatementView(source.statement, source.payments, today),
       }),
     );
-    this.requireRows('credit-card statements', rows.length, exportLimits.otherRows);
+    this.requireRows('creditCardStatements', rows.length, exportLimits.otherRows);
     const columns: CsvColumn<StatementCsvRow>[] = [
       { header: 'statement_id', value: (row) => row.statement.id },
       { header: 'card_account_id', value: (row) => row.statement.accountId },
@@ -499,7 +502,7 @@ export class DataExportService {
       }
       return left.valuationDate < right.valuationDate ? -1 : left.valuationDate > right.valuationDate ? 1 : 0;
     });
-    this.requireRows('investment valuations', rows.length, exportLimits.investmentValuationRows);
+    this.requireRows('investmentValuations', rows.length, exportLimits.investmentValuationRows);
     const columns: CsvColumn<InvestmentValuationCsvRow>[] = [
       { header: 'valuation_id', value: (row) => row.id },
       { header: 'investment_account_id', value: (row) => row.investmentAccountId },
@@ -515,14 +518,14 @@ export class DataExportService {
     return this.write('investment-valuations', `money-control-investment-valuations-${this.today()}.csv`, rows.length, columns, rows);
   }
 
-  private requireRows(label: string, count: number, maximum: number): void {
+  private requireRows(kind: NoDataKind, count: number, maximum: number): void {
     if (count === 0) {
-      throw new DataExportError('no_data', `No ${label} match the selected options.`);
+      throw new DataExportError('no_data', getMessages().dataExport.noData[kind]);
     }
     if (count > maximum) {
       throw new DataExportError(
         'row_limit_exceeded',
-        `This export contains ${count.toLocaleString('en-US')} rows, above the ${maximum.toLocaleString('en-US')} row safety limit. Narrow the selected period or filters and try again.`,
+        getMessages().dataExport.rowLimitExceeded(count.toLocaleString(getIntlLocale()), maximum.toLocaleString(getIntlLocale())),
       );
     }
   }

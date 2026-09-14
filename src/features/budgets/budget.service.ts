@@ -2,6 +2,7 @@ import { budgetColorKeys } from '@/constants/theme';
 import type { CategoryRepository } from '@/features/categories/category.repository';
 import type { Category } from '@/features/categories/category.types';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
+import { getMessages } from '@/i18n/messages';
 import type { FinancialDataChange } from '@/features/transactions/financial-data-events';
 import { isValidBudgetMonth } from './budget-month';
 import type { BudgetRepository } from './budget.repository';
@@ -64,14 +65,15 @@ function createFallbackId(): string {
 }
 
 export function validateBudgetInput(input: BudgetInput): BudgetValidationErrors {
+  const t = getMessages().budgets;
   const errors: BudgetValidationErrors = {};
-  if (!input.categoryId.trim()) errors.categoryId = 'Select an expense category.';
-  if (!isValidBudgetMonth(input.month)) errors.month = 'Enter a valid month in YYYY-MM format.';
+  if (!input.categoryId.trim()) errors.categoryId = t.errorSelectExpenseCategory;
+  if (!isValidBudgetMonth(input.month)) errors.month = t.errorInvalidMonth;
   if (!Number.isSafeInteger(input.limitAmount) || input.limitAmount <= 0) {
-    errors.limitAmount = 'Enter a positive limit within the supported range.';
+    errors.limitAmount = t.errorLimitRange;
   }
   if (input.color != null && !budgetColorKeys.includes(input.color)) {
-    errors.color = 'Select a valid budget color.';
+    errors.color = t.errorInvalidColor;
   }
   return errors;
 }
@@ -150,10 +152,11 @@ export function calculateMonthlyBudget(
 }
 
 export function validateMonthlyBudgetInput(input: MonthlyBudgetInput): MonthlyBudgetValidationErrors {
+  const t = getMessages().budgets;
   const errors: MonthlyBudgetValidationErrors = {};
-  if (!isValidBudgetMonth(input.month)) errors.month = 'Enter a valid month in YYYY-MM format.';
+  if (!isValidBudgetMonth(input.month)) errors.month = t.errorInvalidMonth;
   if (!Number.isSafeInteger(input.limitAmount) || input.limitAmount <= 0) {
-    errors.limitAmount = 'Enter a positive whole limit.';
+    errors.limitAmount = t.errorCeilingLimit;
   }
   return errors;
 }
@@ -239,7 +242,7 @@ export class BudgetService {
 
   async listMonth(month: string): Promise<BudgetMonthView> {
     if (!isValidBudgetMonth(month)) {
-      throw new BudgetValidationError({ month: 'Enter a valid month in YYYY-MM format.' });
+      throw new BudgetValidationError({ month: getMessages().budgets.errorInvalidMonth });
     }
     const rules = await this.rules.listActiveForMonth(month);
     await this.materialize(month, rules);
@@ -311,7 +314,7 @@ export class BudgetService {
    */
   async removeCeiling(month: string): Promise<void> {
     if (!isValidBudgetMonth(month)) {
-      throw new MonthlyBudgetValidationError({ month: 'Enter a valid month in YYYY-MM format.' });
+      throw new MonthlyBudgetValidationError({ month: getMessages().budgets.errorInvalidMonth });
     }
     const existing = await this.monthly.findEffective(month);
     if (!existing) return;
@@ -355,7 +358,7 @@ export class BudgetService {
     let ruleId: string | null = null;
     if (options.recurring) {
       const existing = await this.rules.findActiveByCategory(normalized.categoryId);
-      if (existing) throw new BudgetValidationError({ categoryId: 'This category already has a recurring budget.' });
+      if (existing) throw new BudgetValidationError({ categoryId: getMessages().budgets.errorRecurringExists });
       const rule = this.buildRule(normalized, normalized.month, timestamp);
       await this.rules.create(rule);
       ruleId = rule.id;
@@ -459,16 +462,17 @@ export class BudgetService {
       limitAmount: input.limitAmount,
       color: input.color ?? null,
     };
+    const t = getMessages().budgets;
     const errors = validateBudgetInput(normalized);
     let category: Category | null = null;
     if (!errors.categoryId) {
       category = await this.categories.findById(normalized.categoryId);
       if (!category) {
-        errors.categoryId = 'Select an existing expense category.';
+        errors.categoryId = t.errorSelectExistingCategory;
       } else if (category.type !== 'expense') {
-        errors.categoryId = 'Select an expense category.';
+        errors.categoryId = t.errorSelectExpenseCategory;
       } else if (category.isArchived && normalized.categoryId !== current?.categoryId) {
-        errors.categoryId = 'Select an active expense category.';
+        errors.categoryId = t.errorSelectActiveCategory;
       }
     }
     if (!errors.categoryId && !errors.month) {
@@ -477,7 +481,7 @@ export class BudgetService {
         normalized.month,
         current?.id,
       );
-      if (duplicate) errors.categoryId = 'This category already has a budget for the selected month.';
+      if (duplicate) errors.categoryId = t.errorDuplicate;
     }
     if (Object.keys(errors).length > 0) throw new BudgetValidationError(errors);
     return normalized;
@@ -485,7 +489,7 @@ export class BudgetService {
 
   private async requireBudget(id: string): Promise<BudgetRecord> {
     const budget = await this.repository.findById(id);
-    if (!budget) throw new BudgetActionError('not_found', 'Budget not found.');
+    if (!budget) throw new BudgetActionError('not_found', getMessages().budgets.notFound);
     return budget;
   }
 }

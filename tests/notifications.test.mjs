@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 
 import { ANDROID_NOTIFICATION_CHANNELS } from '../src/features/notifications/android-notification-channels.ts';
@@ -16,8 +17,14 @@ import { NotificationNavigationService, parseTarget } from '../src/features/noti
 import { NotificationPermissionService } from '../src/features/notifications/notification-permission.service.ts';
 import { NotificationScheduler } from '../src/features/notifications/notification-scheduler.ts';
 import { RecurringReminderCoordinator, RECURRING_REMINDER_HORIZON_DAYS } from '../src/features/notifications/recurring-reminder.coordinator.ts';
+import { NotificationCoordinator } from '../src/features/notifications/notification.coordinator.ts';
 
 const NOW = '2026-07-18T13:00:00.000Z';
+
+// The TypeScript sources load `@/i18n/messages` through tsx's CommonJS loader; an
+// ESM import here would get a separate module instance whose language the
+// sources never see.
+const { setActiveLanguage } = createRequire(import.meta.url)('../src/i18n/messages.ts');
 
 class Adapter {
   supported = true;
@@ -315,4 +322,58 @@ test('credit-card notification taps validate the card before routing', async () 
   assert.equal(parseTarget({ version: 1, target: 'credit-card' }), null);
   assert.deepEqual(await service.resolve({ responseId: 'card-one', data: { version: 1, target: 'credit-card', cardId: 'card' } }), { pathname: '/accounts/[id]', params: { id: 'card' } });
   assert.equal(await service.resolve({ responseId: 'card-missing', data: { version: 1, target: 'credit-card', cardId: 'missing' } }), '/');
+});
+
+test('a language change re-creates channels and re-schedules pending text without re-firing delivered or budget alerts', async () => {
+  const adapter = new Adapter();
+  let channelCreations = 0;
+  adapter.ensureAndroidChannels = async () => { channelCreations += 1; };
+  const repository = new SchedulingRepository();
+  let schedulerClock = new Date(2026, 6, 18, 10).toISOString();
+  let nextId = 0;
+  const scheduler = new NotificationScheduler(repository, adapter, () => `record-${++nextId}`, () => schedulerClock);
+  const settings = new SettingsRepository();
+  const permission = new Permission();
+  const recurring = { async listRules() { return [{ ...rule, endDate: '2026-07-18' }]; }, async listPendingThrough() { return []; } };
+  const states = new StateRepository();
+  await states.save({ budgetId: 'food-budget', month: '2026-07', threshold80Notified: true, threshold100Notified: false, updatedAt: NOW });
+  const budgets = { async baselineIfEmpty() {}, async baseline() { throw new Error('baseline must not run'); } };
+  const coordinator = new NotificationCoordinator(
+    adapter,
+    settings,
+    scheduler,
+    states,
+    new RecurringReminderCoordinator(recurring, settings, permission, scheduler, () => new Date(2026, 6, 18, 10), () => '2026-07-18'),
+    new DailyReminderCoordinator(settings, permission, scheduler),
+    budgets,
+    new CreditCardReminderCoordinator({ async listDetails() { return []; } }, settings, permission, scheduler, () => new Date(2026, 6, 18, 10), () => '2026-07-18'),
+    () => NOW,
+  );
+
+  try {
+    await coordinator.start();
+    assert.equal(channelCreations, 1);
+    assert.equal(adapter.scheduled.length, 2);
+    const recurringNative = adapter.scheduled.find((item) => item.content.data.target === 'recurring').id;
+    const dailyNative = adapter.scheduled.find((item) => item.content.data.target === 'home').id;
+
+    // The missed recurring reminder was a catch-up that has now been delivered.
+    schedulerClock = new Date(2026, 6, 18, 11).toISOString();
+    setActiveLanguage('es');
+    await coordinator.languageChanged();
+
+    assert.equal(channelCreations, 2);
+    assert.equal(ANDROID_NOTIFICATION_CHANNELS[0].name, 'Recordatorios recurrentes');
+    assert.deepEqual(adapter.canceled, [dailyNative]);
+    assert.ok(!adapter.canceled.includes(recurringNative));
+    assert.equal(adapter.scheduled.length, 3);
+    assert.equal(adapter.scheduled[2].content.data.target, 'home');
+    assert.equal(adapter.scheduled[2].content.body, 'Tómate un momento para revisar tus finanzas.');
+    assert.equal(repository.records.length, 2);
+    assert.equal(states.values.length, 1);
+    assert.equal(states.values[0].threshold80Notified, true);
+    assert.equal(settings.value.lastErrorCode, null);
+  } finally {
+    setActiveLanguage('en');
+  }
 });

@@ -4,8 +4,9 @@ import { getBaseCurrency } from '@/features/settings/settings';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { getTypeTone } from '@/features/add-transaction/components/transaction-type-selector';
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
-import { formatMoneyEntry, getCurrency, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
+import { currencyName, formatMoneyEntry, getCurrency, sanitizeMoneyEntry, type CurrencyCode } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type AmountInputProps = {
   autoFocus?: boolean;
@@ -33,19 +34,20 @@ function formatAmountEntry(value: string, currency: CurrencyCode): string {
   return formatMoneyEntry(value, currency) || '0';
 }
 
-export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigitsChange, type, currency = getBaseCurrency(), error }: AmountInputProps) {
+export function AmountInput({ autoFocus = true, digits, label, onDigitsChange, type, currency = getBaseCurrency(), error }: AmountInputProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const tone = getTypeTone(type, theme);
   const definition = getCurrency(currency);
   const formattedAmount = formatAmountEntry(digits, currency);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }]}>
-      <Text style={[styles.label, { color: theme.secondaryText }]}>{label}</Text>
+      <Text style={[styles.label, { color: theme.secondaryText }]}>{label ?? t.addTransaction.amount}</Text>
       <View style={styles.inputRow}>
         <Text style={[styles.symbol, { color: tone }]}>{definition.symbol}</Text>
         <TextInput
-          accessibilityLabel={`Amount in ${definition.name}`}
+          accessibilityLabel={t.addTransaction.amountIn(currencyName(currency))}
           autoFocus={autoFocus}
           keyboardType={definition.fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
           maxLength={24}
@@ -57,7 +59,7 @@ export function AmountInput({ autoFocus = true, digits, label = 'Amount', onDigi
         <Text style={[styles.currency, { color: theme.mutedText }]}>{currency}</Text>
       </View>
       <Text style={[styles.hint, { color: theme.mutedText }]}>
-        {definition.fractionDigits > 0 ? 'Up to 2 decimals' : 'Whole pesos only'}
+        {definition.fractionDigits > 0 ? t.addTransaction.upToTwoDecimals : t.addTransaction.wholeUnitsOnly}
       </Text>
       {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
     </View>

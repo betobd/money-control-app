@@ -3,6 +3,7 @@ import type {
   BiometricAvailability,
   BiometricType,
 } from './app-lock.types';
+import { getMessages } from '@/i18n/messages';
 
 export type NativeBiometricResult =
   | { success: true }
@@ -73,13 +74,14 @@ export class BiometricService {
 
   private async performAuthentication(): Promise<BiometricAuthenticationResult> {
     let result: NativeBiometricResult;
+    const prompt = getMessages().security.biometricPrompt;
     try {
       result = await this.api.authenticateAsync({
-        promptMessage: 'Unlock Money Control',
-        promptSubtitle: 'Confirm your identity to continue',
-        cancelLabel: 'Use PIN',
+        promptMessage: prompt.title,
+        promptSubtitle: prompt.subtitle,
+        cancelLabel: prompt.usePin,
         disableDeviceFallback: true,
-        fallbackLabel: 'Use PIN',
+        fallbackLabel: prompt.usePin,
         requireConfirmation: true,
         biometricsSecurityLevel: 'strong',
       });

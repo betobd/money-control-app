@@ -23,6 +23,9 @@ import type { MonthlyBudgetValidationErrors } from '@/features/budgets/monthly-b
 import { getBaseCurrency } from '@/features/settings/settings';
 import { parseMoney } from '@/features/currency/currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { intlLocaleFor } from '@/i18n/languages';
+import { getMessages } from '@/i18n/messages';
+import { useLanguage, useMessages } from '@/i18n/use-messages';
 import { ScreenHeader } from '@/components/screen-header';
 import { FixedFooter } from '@/components/fixed-footer';
 
@@ -37,6 +40,8 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const monthLabel = budgetMonthLabel(month, intlLocaleFor(useLanguage()));
   const currency = getBaseCurrency();
   const [digits, setDigits] = useState('');
   const [existed, setExisted] = useState(false);
@@ -58,7 +63,7 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
       },
       (cause: unknown) => {
         if (cancelled) return;
-        setGeneralError(toUserMessage(cause, 'Unable to load the monthly ceiling.'));
+        setGeneralError(toUserMessage(cause, getMessages().budgets.ceilingLoadError));
         setLoading(false);
       },
     );
@@ -68,7 +73,7 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
   async function save() {
     const parsed = parseMoney(digits, currency);
     if (!parsed.ok) {
-      setErrors({ limitAmount: 'Enter a positive amount.' });
+      setErrors({ limitAmount: t.budgets.ceilingEnterPositive });
       return;
     }
     setSaving(true);
@@ -79,7 +84,7 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
       router.back();
     } catch (cause) {
       if (cause instanceof MonthlyBudgetValidationError) setErrors(cause.fields);
-      else setGeneralError(toUserMessage(cause, 'Unable to save the monthly ceiling.'));
+      else setGeneralError(toUserMessage(cause, t.budgets.ceilingSaveError));
     } finally {
       setSaving(false);
     }
@@ -87,15 +92,15 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
 
   function confirmRemove() {
     dialog.confirm({
-      title: 'Remove the monthly ceiling?',
-      message: `No ceiling will apply from ${budgetMonthLabel(month)} onward. Earlier months keep theirs, and no category budget is affected.`,
-      confirmLabel: 'Remove',
+      title: t.budgets.removeCeilingTitle,
+      message: t.budgets.removeCeilingMessage(monthLabel),
+      confirmLabel: t.budgets.remove,
       tone: 'destructive',
       onConfirm: () => {
         setSaving(true);
         void budgetService.removeCeiling(month)
           .then(() => router.back())
-          .catch((cause: unknown) => setGeneralError(toUserMessage(cause, 'Unable to remove the monthly ceiling.')))
+          .catch((cause: unknown) => setGeneralError(toUserMessage(cause, t.budgets.ceilingRemoveError)))
           .finally(() => setSaving(false));
       },
     });
@@ -113,7 +118,7 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.flex, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Close monthly ceiling form" title="Monthly ceiling" />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={t.budgets.closeCeilingForm} title={t.budgets.monthlyCeiling} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {generalError ? (
@@ -124,24 +129,22 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
           currency={currency}
           digits={digits}
           error={errors.limitAmount}
-          label={`Ceiling for ${budgetMonthLabel(month)}`}
+          label={t.budgets.ceilingFor(monthLabel)}
           onDigitsChange={setDigits}
           type="expense"
         />
 
         <Text style={[styles.help, { color: theme.secondaryText }]}>
-          Every posted expense counts against this, minus refunds — including spending no category
-          budget covers. Transfers and investment contributions do not count.
+          {t.budgets.ceilingHelpCounts}
         </Text>
         <Text style={[styles.help, { color: theme.mutedText }]}>
-          It applies from {budgetMonthLabel(month)} onward until you change it. A later month you
-          set explicitly keeps its own ceiling.
+          {t.budgets.ceilingHelpApplies(monthLabel)}
         </Text>
 
         {existed ? (
           <Button
             fullWidth
-            label="Remove ceiling"
+            label={t.budgets.removeCeiling}
             onPress={confirmRemove}
             size="md"
             variant="destructive"
@@ -153,7 +156,7 @@ export function MonthlyCeilingForm({ month }: { month: string }) {
         <Button
           busy={saving}
           fullWidth
-          label={existed ? 'Save ceiling' : 'Set ceiling'}
+          label={existed ? t.budgets.saveCeiling : t.budgets.setCeiling}
           onPress={() => void save()}
           size="lg"
           variant="primary"

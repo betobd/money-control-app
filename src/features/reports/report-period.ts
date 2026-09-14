@@ -1,4 +1,5 @@
 import { bogotaToday, isValidCalendarDate } from '@/features/transactions/transaction-date';
+import { getIntlLocale, getMessages } from '@/i18n/messages';
 import type {
   ReportGrouping,
   ReportPeriod,
@@ -15,7 +16,7 @@ export function resolveReportPeriod(
   today = bogotaToday(),
 ): ReportPeriod {
   if (!isValidCalendarDate(today)) {
-    throw new ReportPeriodValidationError('Unable to determine a valid Bogotá-local date.');
+    throw new ReportPeriodValidationError(getMessages().reports.invalidToday);
   }
 
   if (selection.preset === 'custom') {
@@ -138,10 +139,10 @@ function createPeriod(
 
 function validateCustomRange(dateFrom: string, dateTo: string): void {
   if (!isValidCalendarDate(dateFrom) || !isValidCalendarDate(dateTo)) {
-    throw new ReportPeriodValidationError('Enter valid start and end dates in YYYY-MM-DD format.');
+    throw new ReportPeriodValidationError(getMessages().reports.invalidCustomDates);
   }
   if (dateTo < dateFrom) {
-    throw new ReportPeriodValidationError('End date cannot be earlier than start date.');
+    throw new ReportPeriodValidationError(getMessages().reports.endBeforeStart);
   }
 }
 
@@ -182,5 +183,5 @@ function formatDate(
   value: string,
   options: Intl.DateTimeFormatOptions,
 ): string {
-  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(toUtcDate(value));
+  return new Intl.DateTimeFormat(getIntlLocale(), { ...options, timeZone: 'UTC' }).format(toUtcDate(value));
 }

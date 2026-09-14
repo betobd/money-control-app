@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import {
+  currencyName,
   formatMoneyEntry,
   formatMoneyWithSymbol,
   getCurrency,
@@ -27,6 +28,7 @@ import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { sanitizeAmountEntry } from '@/features/add-transaction/components/amount-input';
 import { bogotaToday } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 import { RefundActionError, RefundValidationError } from '../refund.service';
 import { refundService } from '../refunds';
 import { useRefundSummary } from '../use-refund-summary';
@@ -38,6 +40,8 @@ import { Button } from '@/components/button';
 export function RefundFormScreen({ originalTransactionId }: { originalTransactionId: string }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const tr = t.refunds;
   const { summary, error } = useRefundSummary(originalTransactionId);
   const [amountDigits, setAmountDigits] = useState('');
   const [transactionDate, setTransactionDate] = useState(bogotaToday());
@@ -57,7 +61,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
     try {
       const parsed = parseMoney(amountDigits || '0', refundCurrency);
       if (!parsed.ok) {
-        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setErrors({ amount: t.transactions.errors.invalidAmount });
         setSaving(false);
         return;
       }
@@ -66,7 +70,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
         const rates = await loadValuationRates();
         exchangeRate = rates.snapshotInputFor(refundCurrency);
         if (!exchangeRate) {
-          setErrors({ exchangeRate: `Add a ${refundCurrency}/${baseCurrency} exchange rate before saving this refund.` });
+          setErrors({ exchangeRate: tr.errors.missingRate(refundCurrency, baseCurrency) });
           setSaving(false);
           return;
         }
@@ -85,7 +89,7 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
       } else if (cause instanceof RefundActionError) {
         setGeneralError(cause.message);
       } else {
-        setGeneralError(toUserMessage(cause, 'Unable to save the refund.'));
+        setGeneralError(toUserMessage(cause, tr.errors.unableToSave));
       }
       setSaving(false);
     }
@@ -95,16 +99,16 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
     return (
       <View style={[styles.centered, { backgroundColor: theme.appBackground }]}>
         <ActivityIndicator color={theme.primaryAction} />
-        <Text style={[styles.body, { color: theme.secondaryText }]}>Loading expense…</Text>
+        <Text style={[styles.body, { color: theme.secondaryText }]}>{tr.loadingExpense}</Text>
       </View>
     );
   }
   if (!summary || error) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.appBackground }]}>
-        <Text style={[styles.body, { color: theme.destructive }]}>{error ?? 'Expense not found.'}</Text>
+        <Text style={[styles.body, { color: theme.destructive }]}>{error ?? tr.expenseNotFound}</Text>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backAction}>
-          <Text style={[styles.body, { color: theme.primaryAction }]}>Go back</Text>
+          <Text style={[styles.body, { color: theme.primaryAction }]}>{t.transactions.details.goBack}</Text>
         </Pressable>
       </View>
     );
@@ -114,36 +118,36 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
-      <ScreenHeader leading="close" leadingAccessibilityLabel="Cancel refund" title="Add refund" />
+      <ScreenHeader leading="close" leadingAccessibilityLabel={tr.cancel} title={tr.title} />
 
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
         <View style={[styles.contextCard, { backgroundColor: theme.surface }]}>
-          <Text style={[styles.overline, { color: theme.mutedText }]}>Original expense</Text>
+          <Text style={[styles.overline, { color: theme.mutedText }]}>{tr.originalExpense}</Text>
           <Text style={[styles.contextTitle, { color: theme.primaryText }]}>
-            {summary.original.note ?? summary.original.categoryName ?? 'Expense'}
+            {summary.original.note ?? summary.original.categoryName ?? tr.expenseFallback}
           </Text>
           <Text style={[styles.body, { color: theme.secondaryText }]}>
             {summary.original.accountName} · {summary.original.transactionDate}
           </Text>
           <View style={styles.amountRow}>
-            <Metric label="Gross" value={formatMoneyWithSymbol(summary.grossAmount, refundCurrency)} />
-            <Metric label="Refunded" value={formatMoneyWithSymbol(summary.refundedAmount, refundCurrency)} />
-            <Metric label="Remaining" value={formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)} />
+            <Metric label={tr.gross} value={formatMoneyWithSymbol(summary.grossAmount, refundCurrency)} />
+            <Metric label={tr.refunded} value={formatMoneyWithSymbol(summary.refundedAmount, refundCurrency)} />
+            <Metric label={tr.remaining} value={formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)} />
           </View>
         </View>
 
         <View style={[styles.infoCard, { backgroundColor: theme.tintPrimary }]}>
           <Text style={[styles.body, { color: theme.primaryText }]}>
-            A refund reduces expenses and returns money to {summary.original.accountName}. It is not income.
+            {tr.explanation(summary.original.accountName)}
           </Text>
         </View>
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.secondaryText }]}>Refund amount ({refundCurrency})</Text>
+          <Text style={[styles.label, { color: theme.secondaryText }]}>{tr.amountLabel(refundCurrency)}</Text>
           <TextInput
-            accessibilityLabel={`Refund amount in ${getCurrency(refundCurrency).name}`}
+            accessibilityLabel={tr.amountA11y(currencyName(refundCurrency))}
             autoFocus
             keyboardType={getCurrency(refundCurrency).fractionDigits > 0 ? 'decimal-pad' : 'number-pad'}
             maxLength={20}
@@ -164,12 +168,12 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
             value={formatMoneyEntry(amountDigits, refundCurrency)}
           />
           <Text style={[styles.helper, { color: theme.mutedText }]}>
-            Maximum refundable: {formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)}
+            {tr.maximumRefundable(formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency))}
           </Text>
           {errors.amount ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.amount}</Text> : null}
           {refundCurrency !== baseCurrency ? (
             <Text style={[styles.helper, { color: theme.mutedText }]}>
-              {`A ${refundCurrency} refund uses the current saved ${refundCurrency}/${baseCurrency} reference rate. Your bank may use a different rate.`}
+              {tr.foreignRateNote(refundCurrency, baseCurrency)}
             </Text>
           ) : null}
           {errors.exchangeRate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.exchangeRate}</Text> : null}
@@ -177,19 +181,19 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
 
         <DateField
           error={errors.transactionDate}
-          label="Refund date"
+          label={tr.date}
           onChange={setTransactionDate}
           value={transactionDate}
         />
 
         <View style={styles.field}>
-          <Text style={[styles.label, { color: theme.secondaryText }]}>Note (optional)</Text>
+          <Text style={[styles.label, { color: theme.secondaryText }]}>{tr.noteOptional}</Text>
           <TextInput
-            accessibilityLabel="Refund note, optional"
+            accessibilityLabel={tr.noteA11y}
             maxLength={200}
             multiline
             onChangeText={setNote}
-            placeholder="Merchant refund, correction…"
+            placeholder={tr.notePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[
               styles.noteInput,
@@ -214,11 +218,11 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
 
       <FixedFooter bottomInset={insets.bottom}>
         <Button
-          accessibilityLabel="Save refund"
+          accessibilityLabel={tr.save}
           busy={saving}
           fullWidth
           icon={{ ios: 'checkmark', android: 'check', web: 'check' }}
-          label="Save refund"
+          label={tr.save}
           onPress={() => void save()}
           size="lg"
           variant="primary"

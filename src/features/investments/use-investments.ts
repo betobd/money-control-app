@@ -4,6 +4,7 @@ import { toUserMessage } from '@/errors/user-error';
 import { exchangeRateService, loadValuationRates } from '@/features/exchange-rates/exchange-rates';
 import { getBaseCurrency } from '@/features/settings/settings';
 import { useFinancialDataRefresh } from '@/hooks/use-financial-data-refresh';
+import { getMessages } from '@/i18n/messages';
 import { investmentPortfolioService, investmentValuationService } from './investments';
 import type { InvestmentAccountView, InvestmentPortfolioSummary, InvestmentValuation } from './investment.types';
 
@@ -39,7 +40,7 @@ export function useInvestments() {
         void exchangeRateService.ensureFreshRates(currencies);
       }
     } catch (cause) {
-      setError(toUserMessage(cause, 'Unable to load investments right now.'));
+      setError(toUserMessage(cause, getMessages().investments.loadListError));
     } finally {
       setLoading(false);
     }
@@ -72,7 +73,7 @@ export function useInvestmentDetails(accountId: string) {
         void exchangeRateService.ensureFreshRates([loadedView.account.currency]);
       }
     } catch (cause) {
-      setError(toUserMessage(cause, 'Unable to load this investment right now.'));
+      setError(toUserMessage(cause, getMessages().investments.loadDetailError));
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,9 @@ import { borderRadii, budgetSwatches, fonts, spacing, typography } from '@/const
 import { formatBase } from '@/features/accounts/account-format';
 import { getCategoryIcon } from '@/features/categories/category-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
+import { weekdayName } from '../report-insights';
 import type {
   BudgetPerformance,
   CashFlowBucket,
@@ -34,6 +37,7 @@ const sliceKeys = ['blue', 'teal', 'amber', 'coral', 'purple', 'indigo', 'pink',
  */
 export function CashFlowChart({ buckets }: { buckets: CashFlowBucket[] }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const [selectedKey, setSelectedKey] = useState<string>();
   const selected = buckets.find((bucket) => bucket.key === selectedKey);
   const totals = useMemo(
@@ -46,24 +50,24 @@ export function CashFlowChart({ buckets }: { buckets: CashFlowBucket[] }) {
     ),
     [buckets],
   );
-  const shown = selected ?? { label: 'Whole period', income: totals.income, expenses: totals.expenses, net: totals.income - totals.expenses };
+  const shown = selected ?? { label: t.reports.wholePeriod, income: totals.income, expenses: totals.expenses, net: totals.income - totals.expenses };
 
   return (
     <View style={styles.block}>
       <View style={styles.readout}>
         <Text style={[styles.readoutLabel, { color: theme.mutedText }]}>{shown.label}</Text>
         <View style={styles.readoutRow}>
-          <ReadoutValue color={theme.income} label="Income" value={formatBase(shown.income)} />
-          <ReadoutValue color={theme.expense} label="Expenses" value={formatBase(shown.expenses)} />
+          <ReadoutValue color={theme.income} label={t.reports.income} value={formatBase(shown.income)} />
+          <ReadoutValue color={theme.expense} label={t.reports.expenses} value={formatBase(shown.expenses)} />
           <ReadoutValue
             color={shown.net >= 0 ? theme.income : theme.expense}
-            label="Net"
+            label={t.reports.net}
             value={`${shown.net < 0 ? '-' : ''}${formatBase(Math.abs(shown.net))}`}
           />
         </View>
       </View>
       <DivergingBarChart
-        accessibilityLabel={`Cash flow chart. Total income ${formatBase(totals.income)}. Total expenses ${formatBase(totals.expenses)}.`}
+        accessibilityLabel={t.reports.cashFlowChartLabel(formatBase(totals.income), formatBase(totals.expenses))}
         buckets={buckets.map((bucket) => ({
           key: bucket.key,
           label: bucket.label,
@@ -76,7 +80,7 @@ export function CashFlowChart({ buckets }: { buckets: CashFlowBucket[] }) {
         selectedKey={selectedKey}
       />
       <Text style={[styles.hint, { color: theme.mutedText }]}>
-        {selected ? 'Tap the column again to see the whole period.' : 'Tap a column for that day’s detail.'}
+        {selected ? t.reports.cashFlowHintSelected : t.reports.cashFlowHint}
       </Text>
     </View>
   );
@@ -99,6 +103,7 @@ function ReadoutValue({ label, value, color }: { label: string; value: string; c
 /** Composition ring plus a tappable legend that highlights one slice at a time. */
 export function CategoryDonut({ categories }: { categories: CategoryExpenseSummary[] }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const isDark = theme.appBackground === '#060E1E';
   const [selectedKey, setSelectedKey] = useState<string>();
 
@@ -117,21 +122,21 @@ export function CategoryDonut({ categories }: { categories: CategoryExpenseSumma
     if (restTotal > 0) {
       entries.push({
         key: '__other__',
-        label: `Other (${rest.length})`,
+        label: t.reports.otherCategories(rest.length),
         value: restTotal,
         color: budgetSwatches[sliceKeys[sliceKeys.length - 1]][isDark ? 'dark' : 'light'],
       });
     }
     return { slices: entries, total: sum };
-  }, [categories, isDark]);
+  }, [categories, isDark, t]);
 
   const selected = slices.find((slice) => slice.key === selectedKey);
 
   return (
     <View style={styles.donutBlock}>
       <DonutChart
-        accessibilityLabel={`Expenses by category. Total ${formatBase(total)}.`}
-        centerLabel={selected ? selected.label : 'Total expenses'}
+        accessibilityLabel={t.reports.donutLabel(formatBase(total))}
+        centerLabel={selected ? selected.label : t.reports.totalExpenses}
         centerValue={formatBase(selected ? selected.value : total)}
         selectedKey={selectedKey}
         slices={slices}
@@ -159,6 +164,7 @@ export function CategoryDonut({ categories }: { categories: CategoryExpenseSumma
 
 export function CategoryExpenseList({ categories }: { categories: CategoryExpenseSummary[] }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const [expanded, setExpanded] = useState<readonly string[]>([]);
   const maximum = Math.max(0, ...categories.map((category) => category.total));
 
@@ -169,7 +175,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
   }
 
   return (
-    <View accessibilityLabel="Expenses ranked by category" style={styles.categoryList}>
+    <View accessibilityLabel={t.reports.expensesRanked} style={styles.categoryList}>
       {categories.map((category) => {
         const breakdown = category.subcategories;
         const isOpen = expanded.includes(category.categoryId);
@@ -187,9 +193,8 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
                 <View style={[styles.fill, { backgroundColor: theme.expense, width: percentageWidth(category.total, maximum) }]} />
               </View>
               <Text style={[styles.categoryMeta, { color: theme.secondaryText }]}>
-                {formatBasisPoints(category.percentageBasisPoints)} · {category.transactionCount}{' '}
-                {category.transactionCount === 1 ? 'transaction' : 'transactions'}
-                {breakdown.length > 0 ? ` · ${breakdown.length} in detail` : ''}
+                {formatBasisPoints(category.percentageBasisPoints)} · {t.reports.transactionCount(category.transactionCount)}
+                {breakdown.length > 0 ? ` · ${t.reports.inDetail(breakdown.length)}` : ''}
               </Text>
             </View>
             {breakdown.length > 0 ? (
@@ -208,7 +213,7 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
           <View key={category.categoryId}>
             {breakdown.length > 0 ? (
               <PressableScale
-                accessibilityHint={isOpen ? 'Hides the subcategory breakdown' : 'Shows the subcategory breakdown'}
+                accessibilityHint={isOpen ? t.reports.hideBreakdownHint : t.reports.showBreakdownHint}
                 accessibilityLabel={`${category.categoryName}, ${formatBase(category.total)}`}
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isOpen }}
@@ -253,9 +258,8 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
                       />
                     </View>
                     <Text style={[styles.breakdownMeta, { color: theme.mutedText }]}>
-                      {formatBasisPoints(subcategory.percentageBasisPoints)} of {category.categoryName} ·{' '}
-                      {subcategory.transactionCount}{' '}
-                      {subcategory.transactionCount === 1 ? 'transaction' : 'transactions'}
+                      {t.reports.shareOfCategory(formatBasisPoints(subcategory.percentageBasisPoints), category.categoryName)} ·{' '}
+                      {t.reports.transactionCount(subcategory.transactionCount)}
                     </Text>
                   </View>
                 ))}
@@ -274,8 +278,9 @@ export function CategoryExpenseList({ categories }: { categories: CategoryExpens
 
 export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
   const theme = useAppTheme();
+  const t = useMessages();
   if (points.length === 0) {
-    return <Text style={[styles.hint, { color: theme.secondaryText }]}>No net-worth history for this period.</Text>;
+    return <Text style={[styles.hint, { color: theme.secondaryText }]}>{t.reports.noNetWorthHistory}</Text>;
   }
   const values = points.map((point) => point.netWorth);
   const start = values[0];
@@ -287,7 +292,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
     <View style={styles.block}>
       <View style={styles.netWorthHeader}>
         <View>
-          <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>Ending net worth</Text>
+          <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>{t.reports.endingNetWorth}</Text>
           <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatBase(end)}</Text>
         </View>
         <View style={[styles.deltaChip, { backgroundColor: theme.elevatedSurface }]}>
@@ -304,7 +309,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
         </View>
       </View>
       <AreaLineChart
-        accessibilityLabel={`Net worth evolution. Starts at ${formatBase(start)}, ends at ${formatBase(end)}.`}
+        accessibilityLabel={t.reports.netWorthChartLabel(formatBase(start), formatBase(end))}
         endLabel={points[points.length - 1].label}
         series={[{ key: 'net-worth', values, color: theme.primaryAction, fill: true }]}
         startLabel={points[0].label}
@@ -320,6 +325,7 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
 /** Which days of the week the money actually leaves. */
 export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const peak = Math.max(0, ...weekdays.map((entry) => entry.average));
   const busiest = weekdays.reduce<WeekdaySpending | null>(
     (top, entry) => (top === null || entry.average > top.average ? entry : top),
@@ -333,7 +339,7 @@ export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
           const isBusiest = busiest !== null && entry.average === busiest.average && busiest.average > 0;
           return (
             <View
-              accessibilityLabel={`${entry.label}, average ${formatBase(entry.average)} across ${entry.dayCount} days`}
+              accessibilityLabel={t.reports.weekdayColumnLabel(entry.label, weekdayName(entry.weekday, 'long'), formatBase(entry.average), entry.dayCount)}
               key={entry.weekday}
               style={styles.weekdayColumn}>
               <View style={styles.weekdayBarArea}>
@@ -356,10 +362,10 @@ export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
       </View>
       {busiest && busiest.average > 0 ? (
         <Text style={[styles.hint, { color: theme.secondaryText }]}>
-          {busiest.label} is your heaviest day — {formatBase(busiest.average)} on average.
+          {t.reports.heaviestDay(busiest.label, weekdayName(busiest.weekday, 'long'), busiest.weekday, formatBase(busiest.average))}
         </Text>
       ) : (
-        <Text style={[styles.hint, { color: theme.secondaryText }]}>No expenses to compare across weekdays.</Text>
+        <Text style={[styles.hint, { color: theme.secondaryText }]}>{t.reports.noWeekdayExpenses}</Text>
       )}
     </View>
   );
@@ -368,6 +374,7 @@ export function WeekdayChart({ weekdays }: { weekdays: WeekdaySpending[] }) {
 /** Cumulative spending against the same point of the previous period. */
 export function PaceChart({ pace, previousLabel }: { pace: PacePoint[]; previousLabel: string }) {
   const theme = useAppTheme();
+  const t = useMessages();
   const current = pace.map((point) => point.current ?? 0);
   const previous = pace.filter((point) => point.previous !== null).map((point) => point.previous as number);
   const spentSoFar = current[current.length - 1] ?? 0;
@@ -380,19 +387,19 @@ export function PaceChart({ pace, previousLabel }: { pace: PacePoint[]; previous
     <View style={styles.block}>
       <View style={styles.netWorthHeader}>
         <View>
-          <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>Spent so far</Text>
+          <Text style={[styles.readoutValueLabel, { color: theme.mutedText }]}>{t.reports.spentSoFar}</Text>
           <Text style={[styles.netWorthValue, { color: theme.primaryText }]}>{formatBase(spentSoFar)}</Text>
         </View>
         {previous.length > 0 ? (
           <View style={[styles.deltaChip, { backgroundColor: theme.elevatedSurface }]}>
             <Text style={[styles.deltaText, { color: toneColor }]}>
-              {ahead ? '+' : '-'}{formatBase(Math.abs(difference))} vs last
+              {t.reports.versusLast(`${ahead ? '+' : '-'}${formatBase(Math.abs(difference))}`)}
             </Text>
           </View>
         ) : null}
       </View>
       <AreaLineChart
-        accessibilityLabel={`Cumulative spending. ${formatBase(spentSoFar)} so far, against ${formatBase(previousAtSamePoint)} at the same point of ${previousLabel}.`}
+        accessibilityLabel={t.reports.paceChartLabel(formatBase(spentSoFar), formatBase(previousAtSamePoint), previousLabel)}
         endLabel={pace[pace.length - 1]?.label}
         series={[
           ...(previous.length > 0
@@ -403,7 +410,7 @@ export function PaceChart({ pace, previousLabel }: { pace: PacePoint[]; previous
         startLabel={pace[0]?.label}
       />
       <View style={styles.legendInline}>
-        <LegendKey color={theme.expense} label="This period" />
+        <LegendKey color={theme.expense} label={t.reports.thisPeriod} />
         {previous.length > 0 ? <LegendKey color={theme.mutedText} dashed label={previousLabel} /> : null}
       </View>
     </View>
@@ -426,11 +433,12 @@ function LegendKey({ label, color, dashed = false }: { label: string; color: str
 
 export function BudgetPerformanceList({ budgets, monthCount }: { budgets: BudgetPerformance[]; monthCount: number }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={styles.block}>
       {monthCount > 1 ? (
         <Text style={[styles.hint, { color: theme.mutedText }]}>
-          Limits are the sum of {monthCount} monthly budgets; budgets are never prorated.
+          {t.reports.budgetSumHint(monthCount)}
         </Text>
       ) : null}
       {budgets.map((budget) => {
@@ -441,7 +449,7 @@ export function BudgetPerformanceList({ budgets, monthCount }: { budgets: Budget
             : theme.progressFill;
         return (
           <View
-            accessibilityLabel={`${budget.categoryName}, ${formatBase(budget.spent)} spent of ${formatBase(budget.limit)}, ${budget.percentageUsed}% used`}
+            accessibilityLabel={t.reports.budgetRowLabel(budget.categoryName, formatBase(budget.spent), formatBase(budget.limit), budget.percentageUsed)}
             key={budget.categoryId}
             style={styles.budgetRow}>
             <View style={styles.budgetHeader}>
@@ -454,10 +462,10 @@ export function BudgetPerformanceList({ budgets, monthCount }: { budgets: Budget
               <View style={[styles.fill, { backgroundColor: color, width: percentageWidth(Math.min(budget.spent, budget.limit), budget.limit) }]} />
             </View>
             <Text style={[styles.categoryMeta, { color: theme.secondaryText }]}>
-              {formatBase(budget.spent)} of {formatBase(budget.limit)} ·{' '}
+              {t.reports.spentOfLimit(formatBase(budget.spent), formatBase(budget.limit))} ·{' '}
               {budget.remaining >= 0
-                ? `${formatBase(budget.remaining)} remaining`
-                : `${formatBase(Math.abs(budget.remaining))} over`}
+                ? t.reports.remaining(formatBase(budget.remaining))
+                : t.reports.over(formatBase(Math.abs(budget.remaining)))}
             </Text>
           </View>
         );
@@ -472,7 +480,7 @@ function percentageWidth(value: number, maximum: number): DimensionValue {
 }
 
 function formatBasisPoints(value: number): string {
-  return `${(value / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
+  return `${(value / 100).toLocaleString(getIntlLocale(), { maximumFractionDigits: 2 })}%`;
 }
 
 const styles = StyleSheet.create({

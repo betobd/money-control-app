@@ -7,6 +7,7 @@ import { formatMoneyWithSymbol } from '@/features/currency/currency';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type AccountPickerProps = {
   visible: boolean;
@@ -19,18 +20,19 @@ type AccountPickerProps = {
 
 export function AccountPicker({
   visible,
-  title = 'Select account',
+  title,
   accounts,
   selectedId,
   onSelect,
   onClose,
 }: AccountPickerProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const insets = useSafeAreaInsets();
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={visible}>
-      <Pressable accessibilityLabel="Close account picker" onPress={onClose} style={[styles.backdrop, { backgroundColor: theme.overlay }]} />
+      <Pressable accessibilityLabel={t.addTransaction.accountPicker.close} onPress={onClose} style={[styles.backdrop, { backgroundColor: theme.overlay }]} />
       <View
         style={[
           styles.sheet,
@@ -39,23 +41,23 @@ export function AccountPicker({
         <View style={[styles.grabber, { backgroundColor: theme.border }]} />
         <View style={styles.heading}>
           <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
-            {title}
+            {title ?? t.addTransaction.selectAccount}
           </Text>
           <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-            <Text style={{ color: theme.primaryAction }}>Close</Text>
+            <Text style={{ color: theme.primaryAction }}>{t.common.close}</Text>
           </Pressable>
         </View>
         <ScrollView accessibilityRole="radiogroup" keyboardShouldPersistTaps="handled">
           {accounts.length === 0 ? (
             <Text style={[styles.empty, { color: theme.secondaryText }]}>
-              No active accounts yet. Add an account first, then choose it here.
+              {t.addTransaction.accountPicker.empty}
             </Text>
           ) : null}
           {accounts.map((account) => {
             const selected = account.id === selectedId;
             return (
               <Pressable
-                accessibilityLabel={`${account.name}, ${accountTypeLabels[account.type]}, balance ${formatMoneyWithSymbol(account.balance, account.currency)} ${account.currency}`}
+                accessibilityLabel={t.addTransaction.accountPicker.accountA11y(account.name, accountTypeLabels[account.type], `${formatMoneyWithSymbol(account.balance, account.currency)} ${account.currency}`)}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
                 key={account.id}

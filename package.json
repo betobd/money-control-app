@@ -75,6 +75,7 @@
     "test:reports": "node --import tsx --test tests/reports.test.mjs tests/report-insights.test.mjs && python tests/reports_database_test.py && python tests/investments_reports_database_test.py",
     "test:notifications": "node --import tsx --test tests/notifications.test.mjs && python tests/notifications_database_test.py",
     "test:credit-cards": "node --import tsx --test tests/credit-cards.test.mjs && python tests/credit_cards_database_test.py",
+    "test:i18n": "node --import tsx --test tests/i18n.test.mjs",
     "test:onboarding": "node --import tsx --test tests/onboarding.test.mjs && python tests/onboarding_migration_database_test.py",
     "test:data-export": "node --import tsx --test tests/data-export.test.mjs && python tests/data_export_database_test.py"
   },

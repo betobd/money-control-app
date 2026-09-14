@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type ScreenShellProps = {
   title: string;
@@ -14,6 +15,7 @@ type ScreenShellProps = {
 export function ScreenShell({ title, description, children }: ScreenShellProps) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <View
@@ -24,7 +26,7 @@ export function ScreenShell({ title, description, children }: ScreenShellProps) 
           paddingTop: insets.top + spacing.lg,
         },
       ]}>
-      <Text style={[styles.brand, { color: theme.primaryAction }]}>Money Control</Text>
+      <Text style={[styles.brand, { color: theme.primaryAction }]}>{t.common.appName}</Text>
       <View style={styles.heading}>
         <Text accessibilityRole="header" style={[styles.title, { color: theme.primaryText }]}>
           {title}
@@ -32,7 +34,7 @@ export function ScreenShell({ title, description, children }: ScreenShellProps) 
         <Text style={[styles.description, { color: theme.secondaryText }]}>{description}</Text>
       </View>
       <View style={[styles.placeholder, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.placeholderText, { color: theme.mutedText }]}>Coming soon</Text>
+        <Text style={[styles.placeholderText, { color: theme.mutedText }]}>{t.common.comingSoon}</Text>
       </View>
       {children}
     </View>

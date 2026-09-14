@@ -12,6 +12,8 @@ import { SegmentedControl } from '@/components/segmented-control';
 import { borderRadii, borderWidths, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import type { Messages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { getCategoryIcon } from '../category-icons';
 import { CategoryActionError, type CategoryDeletionBlocker } from '../category.service';
 import { categoryService } from '../categories';
@@ -27,18 +29,14 @@ import { ScreenHeader } from '@/components/screen-header';
  * as wrong. The count says where to look.
  */
 function deletionReason(
+  messages: Messages['categories'],
   blocker: CategoryDeletionBlocker,
   subcategories: { active: number; archived: number },
 ): string | undefined {
   if (blocker === null) return undefined;
-  if (blocker === 'history') {
-    return 'Used by transactions, budgets or recurring rules. Financial history is never deleted.';
-  }
+  if (blocker === 'history') return messages.deletionBlockedByHistory;
   const total = subcategories.active + subcategories.archived;
-  const archivedNote = subcategories.archived > 0
-    ? ` (${subcategories.archived} archived, listed under Archived below)`
-    : '';
-  return `Delete or move its ${total} ${total === 1 ? 'subcategory' : 'subcategories'} first${archivedNote}.`;
+  return messages.deletionBlockedBySubcategories(total, subcategories.archived);
 }
 
 /** What the data-dependent rows need. `null` until the two queries answer. */
@@ -53,7 +51,7 @@ type SheetTarget = {
 };
 
 export function CategoriesScreen({ initialType = 'expense' }: { initialType?: CategoryType }) {
-  const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme(); const [type, setType] = useState<CategoryType>(initialType); const [showArchived, setShowArchived] = useState(false); const [actionError, setActionError] = useState<string>(); const [busyId, setBusyId] = useState<string | null>(null); const busy = busyId !== null;
+  const router = useRouter(); const insets = useSafeAreaInsets(); const theme = useAppTheme(); const t = useMessages(); const [type, setType] = useState<CategoryType>(initialType); const [showArchived, setShowArchived] = useState(false); const [actionError, setActionError] = useState<string>(); const [busyId, setBusyId] = useState<string | null>(null); const busy = busyId !== null;
   const dialog = useDialog();
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
   const { categories, loading, error, reload } = useCategories(type, true);
@@ -89,7 +87,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
       },
       (cause: unknown) => {
         setSheet(null);
-        setActionError(toUserMessage(cause, 'Unable to load category actions.'));
+        setActionError(toUserMessage(cause, t.categories.loadActionsFailed));
       },
     );
   }
@@ -98,29 +96,29 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   function sheetActions(category: Category, details: CategoryActionDetails | null): SheetAction[] {
     const isSubcategory = category.parentCategoryId !== null;
     const options: SheetAction[] = [
-      { label: 'Edit', icon: actionIcons.edit, onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
+      { label: t.common.edit, icon: actionIcons.edit, onPress: () => router.push({ pathname: '/category-form', params: { id: category.id } }) },
     ];
     if (!isSubcategory && !category.isArchived) {
       options.push({
-        label: 'Add subcategory',
-        description: 'Adds a second level inside this category.',
+        label: t.categories.addSubcategory,
+        description: t.categories.addSubcategoryDescription,
         icon: { ios: 'plus', android: 'add', web: 'add' },
         onPress: () => router.push({ pathname: '/category-form', params: { parentId: category.id, type } }),
       });
     }
     if (category.isArchived) {
-      options.push({ label: 'Restore', icon: actionIcons.restore, onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
+      options.push({ label: t.categories.restore, icon: actionIcons.restore, onPress: () => void run(() => categoryService.restore(category.id), 'restore', category.id) });
     } else {
       const active = details?.subcategories.active ?? 0;
       options.push({
-        label: 'Archive',
+        label: t.categories.archive,
         // Stays tappable while the count loads: archiving is the common action,
         // and the count only decides whether a confirmation is needed.
         description: details === null
-          ? 'Keeps history, hides it from new transactions.'
+          ? t.categories.archiveDescription
           : active > 0
-            ? `Also archives ${active} ${active === 1 ? 'subcategory' : 'subcategories'}.`
-            : 'Keeps history, hides it from new transactions.',
+            ? t.categories.archiveAlsoSubcategories(active)
+            : t.categories.archiveDescription,
         icon: actionIcons.archive,
         onPress: () => void confirmArchive(category, details?.subcategories.active),
       });
@@ -128,10 +126,10 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
     // The row is always present. Hiding it left no way to tell "this cannot be
     // deleted" apart from "this app has no delete".
     options.push({
-      label: 'Delete permanently',
+      label: t.categories.deletePermanently,
       description: details === null
-        ? 'Checking whether this can be deleted…'
-        : deletionReason(details.blocker, details.subcategories),
+        ? t.categories.checkingDeletion
+        : deletionReason(t.categories, details.blocker, details.subcategories),
       disabled: details === null || details.blocker !== null,
       icon: actionIcons.delete,
       tone: 'destructive',
@@ -140,7 +138,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
     return options;
   }
 
-  async function run(operation: () => Promise<void>, label: string, id: string) { if (busy) return; setBusyId(id); try { await operation(); await reload(); } catch (cause) { if (cause instanceof CategoryActionError) dialog.notice({ title: `Unable to ${label} category`, message: cause.message }); else setActionError(toUserMessage(cause, `Unable to ${label} category.`)); } finally { setBusyId(null); } }
+  async function run(operation: () => Promise<void>, label: keyof Messages['categories']['actionFailed'], id: string) { if (busy) return; setBusyId(id); try { await operation(); await reload(); } catch (cause) { if (cause instanceof CategoryActionError) dialog.notice({ title: t.categories.actionFailed[label], message: cause.message }); else setActionError(toUserMessage(cause, `${t.categories.actionFailed[label]}.`)); } finally { setBusyId(null); } }
 
   // Archiving one row needs no confirmation: it is reversible and reversible in
   // one tap. Archiving a parent is different, because it silently takes its
@@ -154,15 +152,15 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
       try {
         subcategoryCount = (await categoryService.countSubcategories(category.id)).active;
       } catch (cause) {
-        setActionError(toUserMessage(cause, 'Unable to load category actions.'));
+        setActionError(toUserMessage(cause, t.categories.loadActionsFailed));
         return;
       }
     }
     if (subcategoryCount === 0) { archive(); return; }
     dialog.confirm({
-      title: 'Archive this category?',
-      message: `${category.name} has ${subcategoryCount} active ${subcategoryCount === 1 ? 'subcategory' : 'subcategories'}, which will be archived too. Restoring the category later does not bring them back automatically.`,
-      confirmLabel: 'Archive all',
+      title: t.categories.archiveConfirmTitle,
+      message: t.categories.archiveConfirmMessage(category.name, subcategoryCount),
+      confirmLabel: t.categories.archiveAll,
       onConfirm: archive,
     });
   }
@@ -170,9 +168,9 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   function confirmDelete(category: Category) {
     if (busy) return;
     dialog.confirm({
-      title: 'Delete category permanently?',
-      message: `${category.name} will be permanently deleted. This cannot be undone.`,
-      confirmLabel: 'Delete permanently',
+      title: t.categories.deleteConfirmTitle,
+      message: t.categories.deleteConfirmMessage(category.name),
+      confirmLabel: t.categories.deletePermanently,
       tone: 'destructive',
       onConfirm: () => void run(() => categoryService.permanentlyDelete(category.id), 'delete', category.id),
     });
@@ -183,19 +181,19 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
       <ScreenHeader
-        action={{ kind: 'add', accessibilityLabel: 'Add category', onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
+        action={{ kind: 'add', accessibilityLabel: t.categories.add, onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
         leading="close"
-        leadingAccessibilityLabel="Close categories"
-        title="Categories"
+        leadingAccessibilityLabel={t.categories.close}
+        title={t.categories.title}
       />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
         <SegmentedControl
-          accessibilityLabel="Category type"
+          accessibilityLabel={t.categories.typeLabel}
           onChange={setType}
           segments={[
-            { value: 'expense', label: 'Expense' },
-            { value: 'income', label: 'Income' },
+            { value: 'expense', label: t.categories.expense },
+            { value: 'income', label: t.categories.income },
           ]}
           value={type}
         />
@@ -205,18 +203,18 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
         {error ? <Text style={[styles.error, { color: theme.destructive }]}>{error}</Text> : null}
         {!loading && !error && tree.length === 0 ? (
           <EmptyState
-            action={{ label: 'Add category', onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
-            body={`Group your ${type === 'income' ? 'income' : 'spending'} so Reports and Budgets can break it down.`}
+            action={{ label: t.categories.add, onPress: () => router.push({ pathname: '/category-form', params: { type } }) }}
+            body={type === 'income' ? t.categories.emptyBodyIncome : t.categories.emptyBodyExpense}
             icon={{ ios: 'square.grid.2x2.fill', android: 'category', web: 'category' }}
-            title={`No active ${type} categories`}
+            title={type === 'income' ? t.categories.emptyTitleIncome : t.categories.emptyTitleExpense}
           />
         ) : null}
 
         {tree.map((category) => (
           <View key={category.id} style={[styles.card, { backgroundColor: theme.surface, opacity: dimmed(category.id) }]}>
             <PressableScale
-              accessibilityHint="Opens category actions"
-              accessibilityLabel={`${category.name}, ${category.subcategories.length} subcategories`}
+              accessibilityHint={t.categories.categoryRowHint}
+              accessibilityLabel={t.categories.categoryRowLabel(category.name, category.subcategories.length)}
               accessibilityRole="button"
               accessibilityState={{ disabled: busy, busy: busyId === category.id }}
               disabled={busy}
@@ -227,8 +225,8 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
                 <Text numberOfLines={1} style={[styles.name, { color: theme.primaryText }]}>{category.name}</Text>
                 <Text style={[styles.status, { color: theme.secondaryText }]}>
                   {category.subcategories.length === 0
-                    ? (type === 'income' ? 'Income' : 'Expense')
-                    : `${category.subcategories.length} ${category.subcategories.length === 1 ? 'subcategory' : 'subcategories'}`}
+                    ? (type === 'income' ? t.categories.income : t.categories.expense)
+                    : t.categories.subcategoryCount(category.subcategories.length)}
                 </Text>
               </View>
               <SymbolView name={{ ios: 'ellipsis', android: 'more_vert', web: 'more_vert' }} size={22} tintColor={theme.secondaryText} />
@@ -238,8 +236,8 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
               <View style={[styles.subcategories, { borderTopColor: theme.hairline }]}>
                 {category.subcategories.map((subcategory) => (
                   <PressableScale
-                    accessibilityHint="Opens subcategory actions"
-                    accessibilityLabel={`${subcategory.name}, subcategory of ${category.name}`}
+                    accessibilityHint={t.categories.subcategoryRowHint}
+                    accessibilityLabel={t.categories.subcategoryRowLabel(subcategory.name, category.name)}
                     accessibilityRole="button"
                     accessibilityState={{ disabled: busy, busy: busyId === subcategory.id }}
                     disabled={busy}
@@ -255,13 +253,13 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
             ) : null}
 
             <Pressable
-              accessibilityLabel={`Add a subcategory to ${category.name}`}
+              accessibilityLabel={t.categories.addSubcategoryTo(category.name)}
               accessibilityRole="button"
               disabled={busy}
               onPress={() => router.push({ pathname: '/category-form', params: { parentId: category.id, type } })}
               style={[styles.addSubcategory, { borderTopColor: theme.hairline }]}>
               <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={14} tintColor={theme.primaryAction} />
-              <Text style={[styles.addSubcategoryLabel, { color: theme.primaryAction }]}>Add subcategory</Text>
+              <Text style={[styles.addSubcategoryLabel, { color: theme.primaryAction }]}>{t.categories.addSubcategory}</Text>
             </Pressable>
           </View>
         ))}
@@ -269,15 +267,15 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
         {archived.length ? (
           <>
             <Pressable onPress={() => setShowArchived((value) => !value)} style={styles.archivedToggle}>
-              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Archived ({archived.length})</Text>
-              <Text style={{ color: theme.primaryAction }}>{showArchived ? 'Hide' : 'Show'}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.categories.archivedSection(archived.length)}</Text>
+              <Text style={{ color: theme.primaryAction }}>{showArchived ? t.categories.hide : t.categories.show}</Text>
             </Pressable>
             {showArchived ? archived.map((category) => {
               const parentName = category.parentCategoryId ? parentNames.get(category.parentCategoryId) : undefined;
               return (
                 <PressableScale
-                  accessibilityHint="Opens category actions"
-                  accessibilityLabel={`${category.name}, archived${parentName ? `, subcategory of ${parentName}` : ''}`}
+                  accessibilityHint={t.categories.categoryRowHint}
+                  accessibilityLabel={t.categories.archivedRowLabel(category.name, parentName)}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: busy, busy: busyId === category.id }}
                   disabled={busy}
@@ -287,7 +285,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
                   <SymbolView name={getCategoryIcon(category.icon)} size={20} tintColor={theme.mutedText} />
                   <View style={styles.identity}>
                     <Text numberOfLines={1} style={[styles.name, { color: theme.secondaryText }]}>{category.name}</Text>
-                    <Text style={[styles.status, { color: theme.mutedText }]}>{parentName ? `Archived · in ${parentName}` : 'Archived'}</Text>
+                    <Text style={[styles.status, { color: theme.mutedText }]}>{parentName ? t.categories.archivedIn(parentName) : t.categories.archived}</Text>
                   </View>
                   <SymbolView name={{ ios: 'ellipsis', android: 'more_vert', web: 'more_vert' }} size={20} tintColor={theme.mutedText} />
                 </PressableScale>
@@ -299,7 +297,7 @@ export function CategoriesScreen({ initialType = 'expense' }: { initialType?: Ca
 
       <ActionSheet
         actions={sheet ? sheetActions(sheet.category, sheet.details) : []}
-        description={sheet?.category.parentCategoryId ? 'Choose a subcategory action.' : 'Choose a category action.'}
+        description={sheet?.category.parentCategoryId ? t.categories.chooseSubcategoryAction : t.categories.chooseCategoryAction}
         onClose={() => setSheet(null)}
         title={sheet?.category.name ?? ''}
         visible={sheet !== null}

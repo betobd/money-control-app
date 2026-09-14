@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getMessages } from '@/i18n/messages';
 import { AppLockActionError } from './app-lock.service';
 import { AppLockTiming } from './app-lock-timing';
 import type {
@@ -44,7 +45,7 @@ function monotonicNow(): number | null {
 }
 
 function safeConfigurationMessage(): string {
-  return 'Money Control could not read its secure App Lock configuration. Protected financial content remains hidden. Retry, or use Forgot PIN help if the problem persists.';
+  return getMessages().security.configurationError;
 }
 
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
@@ -102,7 +103,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
         if (state.status !== 'disabled') {
           const enabled = await privacyProtectionService.enable();
           if (!cancelled) {
-            setPrivacyError(enabled ? null : 'Screen-capture protection is unavailable on this device.');
+            setPrivacyError(enabled ? null : getMessages().security.screenCaptureUnavailable);
           }
         } else {
           await privacyProtectionService.disable();
@@ -110,7 +111,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         if (!cancelled) {
-          setPrivacyError('Screen-capture protection could not be applied. App Lock remains enabled.');
+          setPrivacyError(getMessages().security.screenCaptureFailed);
         }
       }
     };
@@ -189,7 +190,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       } else if (result.status === 'incorrect') {
         setState({
           status: 'locked',
-          message: `Incorrect PIN. ${result.attemptsRemaining} attempt${result.attemptsRemaining === 1 ? '' : 's'} remaining before a temporary delay.`,
+          message: getMessages().security.incorrectPin(result.attemptsRemaining),
         });
       } else {
         setState({ status: 'temporarilyLocked', untilEpochMs: result.untilEpochMs });
@@ -214,16 +215,16 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
       } else if (result.status === 'cancelled') {
         setState({ status: 'locked' });
       } else if (result.status === 'temporarilyLocked') {
-        setState({ status: 'locked', message: 'Device biometrics are temporarily locked. Use your Money Control PIN.' });
+        setState({ status: 'locked', message: getMessages().security.biometricsLockedOut });
       } else if (result.status === 'unavailable') {
         const loaded = await appLockService.load();
         if (loaded.status === 'enabled') setConfig(loaded.config);
-        setState({ status: 'locked', message: 'Biometric unlock is unavailable. Use your Money Control PIN.' });
+        setState({ status: 'locked', message: getMessages().security.biometricsUnavailableUsePin });
       } else {
-        setState({ status: 'locked', message: 'Biometric authentication was not successful. Use your PIN or try again.' });
+        setState({ status: 'locked', message: getMessages().security.biometricsNotSuccessfulUsePin });
       }
     } catch {
-      setState({ status: 'locked', message: 'Biometric authentication could not be started. Use your PIN.' });
+      setState({ status: 'locked', message: getMessages().security.biometricsCouldNotStart });
     }
   }, [setConfig, setState]);
 

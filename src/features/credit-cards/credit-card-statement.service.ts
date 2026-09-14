@@ -1,5 +1,6 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
+import { getMessages } from '@/i18n/messages';
 import { notifyCreditCardDataChanged } from './credit-card-data-events';
 import { CreditCardCycleService, dueDateAfterClosing } from './credit-card-cycle.service';
 import type { CreditCardPaymentRecord, CreditCardRepository } from './credit-card.repository';
@@ -98,7 +99,7 @@ export class CreditCardStatementService {
   async defaults(accountId: string, today: string): Promise<CreditCardStatementDefaults> {
     const account = await this.requireCard(accountId);
     if (account.statementClosingDay === null || account.paymentDueDay === null) {
-      throw new Error('Complete the card closing and due-day setup first.');
+      throw new Error(getMessages().creditCards.errors.setupIncomplete);
     }
     const cycle = this.cycleService.resolve(account.statementClosingDay, account.paymentDueDay, today);
     return {
@@ -156,32 +157,33 @@ export class CreditCardStatementService {
 
   private validateInput(input: CreditCardStatementInput): CreditCardStatementErrors {
     const errors: CreditCardStatementErrors = {};
+    const messages = getMessages().creditCards.validation;
     if (!Number.isSafeInteger(input.statementBalance) || input.statementBalance < 0) {
-      errors.statementBalance = 'Statement balance must be zero or a positive amount within the supported range.';
+      errors.statementBalance = messages.statementBalanceInvalid;
     }
     if (!Number.isSafeInteger(input.minimumPayment) || input.minimumPayment < 0) {
-      errors.minimumPayment = 'Minimum payment must be zero or a positive amount within the supported range.';
+      errors.minimumPayment = messages.minimumPaymentInvalid;
     } else if (Number.isSafeInteger(input.statementBalance) && input.minimumPayment > input.statementBalance) {
-      errors.minimumPayment = 'Minimum payment cannot exceed the statement balance.';
+      errors.minimumPayment = messages.minimumExceedsBalance;
     }
     for (const field of ['periodStart', 'periodEnd', 'closingDate', 'dueDate'] as const) {
-      if (!isValidCalendarDate(input[field])) errors[field] = 'Enter a valid date in YYYY-MM-DD format.';
+      if (!isValidCalendarDate(input[field])) errors[field] = messages.dateInvalid;
     }
     if (!errors.periodStart && !errors.periodEnd && input.periodStart > input.periodEnd) {
-      errors.periodEnd = 'Statement period end cannot be before its start.';
+      errors.periodEnd = messages.periodEndBeforeStart;
     }
     if (!errors.periodEnd && !errors.closingDate && input.closingDate < input.periodEnd) {
-      errors.closingDate = 'Closing date cannot be before the statement period ends.';
+      errors.closingDate = messages.closingBeforePeriodEnd;
     }
     if (!errors.closingDate && !errors.dueDate && input.dueDate < input.closingDate) {
-      errors.dueDate = 'Due date cannot be before the statement closes.';
+      errors.dueDate = messages.dueBeforeClosing;
     }
     return errors;
   }
 
   private async requireCard(accountId: string) {
     const account = await this.accounts.findById(accountId);
-    if (!account || account.type !== 'credit_card') throw new Error('Credit card not found.');
+    if (!account || account.type !== 'credit_card') throw new Error(getMessages().creditCards.errors.cardNotFound);
     return account;
   }
 }

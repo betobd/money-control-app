@@ -3,37 +3,28 @@ import { Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 import { Overline } from '@/components/overline';
 import { borderRadii, budgetColorKeys, budgetSwatches, spacing, type BudgetColorKey } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 type BudgetColorPickerProps = {
   value: BudgetColorKey;
   onChange: (color: BudgetColorKey) => void;
 };
 
-const SWATCH_LABELS: Record<BudgetColorKey, string> = {
-  blue: 'Blue',
-  teal: 'Teal',
-  green: 'Green',
-  amber: 'Amber',
-  coral: 'Coral',
-  pink: 'Pink',
-  purple: 'Purple',
-  indigo: 'Indigo',
-};
-
 export function BudgetColorPicker({ value, onChange }: BudgetColorPickerProps) {
   const theme = useAppTheme();
+  const t = useMessages();
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
 
   return (
     <View style={styles.field}>
-      <Overline color={theme.mutedText}>Budget color</Overline>
+      <Overline color={theme.mutedText}>{t.budgets.budgetColor}</Overline>
       <View accessibilityRole="radiogroup" style={styles.swatches}>
         {budgetColorKeys.map((key) => {
           const selected = key === value;
           const color = budgetSwatches[key][scheme];
           return (
             <Pressable
-              accessibilityLabel={SWATCH_LABELS[key]}
+              accessibilityLabel={t.budgets.colors[key]}
               accessibilityRole="radio"
               accessibilityState={{ selected }}
               hitSlop={6}

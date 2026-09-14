@@ -9,6 +9,7 @@ import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { formatMoney, formatMoneyNumber } from '@/features/currency/currency';
 import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 import { formatEstimatedReturn, investmentTypeLabels } from '../investment-format';
 import { investmentTypes, type InvestmentAllocationSlice, type InvestmentType } from '../investment.types';
 import { useInvestments } from '../use-investments';
@@ -25,6 +26,7 @@ function allocationTypeLabel(key: string): string {
 export function InvestmentsScreen() {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
   const router = useRouter();
   const { portfolio, loading, error, reload } = useInvestments();
   const baseCurrency = useBaseCurrency();
@@ -40,28 +42,28 @@ export function InvestmentsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
       <ScreenHeader
-        action={{ kind: 'add', accessibilityLabel: 'Add investment', onPress: () => router.push('/investment-form') }}
+        action={{ kind: 'add', accessibilityLabel: t.investments.addInvestment, onPress: () => router.push('/investment-form') }}
         leading="back"
-        title="Investments"
+        title={t.investments.title}
       />
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         {loading ? (
-          <View accessibilityLabel="Loading investments" style={styles.center}>
+          <View accessibilityLabel={t.investments.loadingInvestments} style={styles.center}>
             <ActivityIndicator color={theme.primaryAction} size="large" />
           </View>
         ) : error ? (
           <View style={[styles.stateCard, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.stateTitle, { color: theme.primaryText }]}>Unable to load investments</Text>
+            <Text style={[styles.stateTitle, { color: theme.primaryText }]}>{t.investments.loadInvestmentsError}</Text>
             <Text style={[styles.body, { color: theme.secondaryText }]}>{error}</Text>
-            <Button label="Retry" onPress={() => void reload()} variant="primary" />
+            <Button label={t.common.retry} onPress={() => void reload()} variant="primary" />
           </View>
         ) : (
           <>
             <Card style={styles.summary} variant="raised">
-              <Overline color={theme.secondaryText}>Total investment value</Overline>
+              <Overline color={theme.secondaryText}>{t.investments.totalValue}</Overline>
               {portfolio.incomplete || portfolio.totalCurrentValueBaseMinor === null ? (
-                <Text style={[styles.amount, { color: theme.warning }]}>Estimated — incomplete</Text>
+                <Text style={[styles.amount, { color: theme.warning }]}>{t.investments.estimatedIncomplete}</Text>
               ) : (
                 <View style={styles.amountRow}>
                   <Text
@@ -76,40 +78,40 @@ export function InvestmentsScreen() {
               )}
               <Text style={[styles.caption, { color: theme.mutedText }]}>
                 {portfolio.incomplete
-                  ? `Investments in other currencies are excluded because no exchange rate to ${baseCurrency} is available.`
-                  : `Consolidated in ${baseCurrency} using the latest saved reference rate where needed.`}
+                  ? t.investments.excludedCaption(baseCurrency)
+                  : t.investments.consolidatedCaption(baseCurrency)}
               </Text>
 
               <View style={styles.summaryRows}>
                 <SummaryRow
-                  label="Net contributions"
-                  value={portfolio.netContributionsBaseMinor === null ? 'Estimated — incomplete' : formatMoney(portfolio.netContributionsBaseMinor, baseCurrency)}
+                  label={t.investments.netContributions}
+                  value={portfolio.netContributionsBaseMinor === null ? t.investments.estimatedIncomplete : formatMoney(portfolio.netContributionsBaseMinor, baseCurrency)}
                 />
                 <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>Estimated gain/loss</Text>
+                  <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>{t.investments.estimatedGainLoss}</Text>
                   <Text style={[styles.summaryValue, { color: gainColor }]}>
                     {gainBase === null
-                      ? 'Estimated — incomplete'
+                      ? t.investments.estimatedIncomplete
                       : `${gainBase > 0 ? '+' : ''}${formatMoney(gainBase, baseCurrency)} · ${formatEstimatedReturn(portfolio.estimatedReturn)}`}
                   </Text>
                 </View>
-                <SummaryRow label="Investment accounts" value={String(portfolio.investmentAccountCount)} />
+                <SummaryRow label={t.investments.investmentAccounts} value={String(portfolio.investmentAccountCount)} />
                 <SummaryRow
-                  label="Locked or restricted"
-                  value={portfolio.lockedOrRestrictedValueBaseMinor === null ? 'Estimated — incomplete' : formatMoney(portfolio.lockedOrRestrictedValueBaseMinor, baseCurrency)}
+                  label={t.investments.lockedOrRestricted}
+                  value={portfolio.lockedOrRestrictedValueBaseMinor === null ? t.investments.estimatedIncomplete : formatMoney(portfolio.lockedOrRestrictedValueBaseMinor, baseCurrency)}
                 />
               </View>
 
               {!portfolio.incomplete && portfolio.allocationByType.length > 0 ? (
                 <AllocationBlock
-                  title="Allocation by type"
+                  title={t.investments.allocationByType}
                   slices={portfolio.allocationByType}
                   labelFor={allocationTypeLabel}
                 />
               ) : null}
               {!portfolio.incomplete && portfolio.allocationByCurrency.length > 0 ? (
                 <AllocationBlock
-                  title="Allocation by currency"
+                  title={t.investments.allocationByCurrency}
                   slices={portfolio.allocationByCurrency}
                   labelFor={(key) => key}
                 />
@@ -118,10 +120,10 @@ export function InvestmentsScreen() {
 
             {portfolio.accounts.length === 0 ? (
               <EmptyState
-                action={{ label: 'Add investment', onPress: () => router.push('/investment-form'), accessibilityLabel: 'Add your first investment' }}
-                body="Track brokerage accounts, deposits, funds, and pensions. Add one to start following its value and estimated return."
+                action={{ label: t.investments.addInvestment, onPress: () => router.push('/investment-form'), accessibilityLabel: t.investments.addFirstInvestment }}
+                body={t.investments.emptyBody}
                 icon={{ ios: 'chart.line.uptrend.xyaxis', android: 'trending_up', web: 'trending_up' }}
-                title="No investments yet"
+                title={t.investments.emptyTitle}
               />
             ) : (
               <View style={styles.list}>

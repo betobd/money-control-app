@@ -8,10 +8,13 @@ import { RecurringTransactionEditor } from '@/features/recurring-transactions/co
 import { recurringTransactionService } from '@/features/recurring-transactions/recurring-transactions';
 import type { RecurringRuleListItem } from '@/features/recurring-transactions/recurring-transaction.types';
 import { bogotaToday } from '@/features/transactions/transaction-date';
+import { getMessages } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 
 export default function RecurringFormRoute() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const theme = useAppTheme();
+  const t = useMessages();
   const [rule, setRule] = useState<RecurringRuleListItem | null | undefined>(id ? undefined : null);
   const [error, setError] = useState<string>();
 
@@ -19,10 +22,10 @@ export default function RecurringFormRoute() {
     if (!id) return;
     recurringTransactionService.getRule(id)
       .then((value) => {
-        if (!value) throw new Error('Recurring transaction not found.');
+        if (!value) throw new Error(getMessages().recurring.ruleNotFound);
         setRule(value);
       })
-      .catch((cause) => setError(toUserMessage(cause, 'Unable to load recurring transaction.')));
+      .catch((cause) => setError(toUserMessage(cause, getMessages().recurring.ruleLoadError)));
   }, [id]);
 
   if (error) return <View style={[styles.center, { backgroundColor: theme.appBackground }]}><Text style={{ color: theme.destructive }}>{error}</Text></View>;
@@ -63,7 +66,7 @@ export default function RecurringFormRoute() {
       onSave={(input) => id
         ? recurringTransactionService.updateRule(id, input).then(() => undefined)
         : recurringTransactionService.createRule(input).then(() => undefined)}
-      title={id ? 'Edit Future Rule' : 'Create Recurring Transaction'}
+      title={id ? t.recurring.editRuleTitle : t.recurring.createTitle}
     />
   );
 }

@@ -21,6 +21,7 @@ import { withInvestmentCurrentValues } from '@/features/investments/investment-p
 import { useInvestments } from '@/features/investments/use-investments';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useMessages } from '@/i18n/use-messages';
 
 type AccountMenu = { account: AccountWithBalance; canDelete: boolean };
 
@@ -28,6 +29,7 @@ export default function AccountsScreen() {
   const dialog = useDialog();
   const router = useRouter();
   const theme = useAppTheme();
+  const t = useMessages();
   const [showArchived, setShowArchived] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const [menu, setMenu] = useState<AccountMenu | null>(null);
@@ -60,7 +62,7 @@ export default function AccountsScreen() {
     try {
       setMenu({ account, canDelete: await accountService.canPermanentlyDelete(account.id) });
     } catch (cause) {
-      setActionError(toUserMessage(cause, 'Unable to load account actions.'));
+      setActionError(toUserMessage(cause, t.accounts.errors.loadActions));
     }
   }
 
@@ -68,23 +70,23 @@ export default function AccountsScreen() {
     const actions: SheetAction[] = [
       {
         icon: actionIcons.edit,
-        label: 'Edit',
-        description: 'Change the name, type, or details',
+        label: t.common.edit,
+        description: t.accounts.list.editDescription,
         onPress: () => router.push({ pathname: '/account-form', params: { id: account.id } }),
       },
     ];
     if (account.isArchived) {
       actions.push({
         icon: actionIcons.restore,
-        label: 'Restore account',
-        description: 'Make it available for new transactions again',
+        label: t.accounts.list.restoreAccount,
+        description: t.accounts.list.restoreDescription,
         onPress: () => void restoreAccount(account),
       });
     } else {
       actions.push({
         icon: actionIcons.archive,
-        label: 'Archive',
-        description: 'Keeps history and balance, blocks new transactions',
+        label: t.accounts.list.archive,
+        description: t.accounts.list.archiveDescription,
         onPress: () => confirmArchive(account),
         tone: 'destructive',
       });
@@ -92,8 +94,8 @@ export default function AccountsScreen() {
     if (canDelete) {
       actions.push({
         icon: actionIcons.delete,
-        label: 'Delete permanently',
-        description: 'Only possible because it has no financial history',
+        label: t.accounts.list.deletePermanently,
+        description: t.accounts.list.deleteDescription,
         onPress: () => confirmPermanentDelete(account),
         tone: 'destructive',
       });
@@ -107,16 +109,16 @@ export default function AccountsScreen() {
       await accountService.restore(account.id);
       await reload();
     } catch (cause) {
-      if (cause instanceof AccountActionError) dialog.notice({ title: 'Unable to restore account', message: cause.message });
-      else setActionError(toUserMessage(cause, 'Unable to restore account.'));
+      if (cause instanceof AccountActionError) dialog.notice({ title: t.accounts.errors.restoreTitle, message: cause.message });
+      else setActionError(toUserMessage(cause, t.accounts.errors.restore));
     }
   }
 
   function confirmPermanentDelete(account: AccountWithBalance) {
     dialog.confirm({
-      title: 'Delete account permanently?',
-      message: `${account.name} will be permanently deleted. This cannot be undone.`,
-      confirmLabel: 'Delete permanently',
+      title: t.accounts.list.deleteTitle,
+      message: t.accounts.list.deleteMessage(account.name),
+      confirmLabel: t.accounts.list.deletePermanently,
       tone: 'destructive',
       onConfirm: () => void deletePermanently(account),
     });
@@ -128,16 +130,16 @@ export default function AccountsScreen() {
       await accountService.permanentlyDelete(account.id);
       await reload();
     } catch (cause) {
-      if (cause instanceof AccountActionError) dialog.notice({ title: 'Unable to delete account', message: cause.message });
-      else setActionError(toUserMessage(cause, 'Unable to delete account.'));
+      if (cause instanceof AccountActionError) dialog.notice({ title: t.accounts.errors.deleteTitle, message: cause.message });
+      else setActionError(toUserMessage(cause, t.accounts.errors.delete));
     }
   }
 
   function confirmArchive(account: AccountWithBalance) {
     dialog.confirm({
-      title: 'Archive account?',
-      message: `${account.name} will remain in history and net worth while it has a balance. It cannot be used for new transactions.`,
-      confirmLabel: 'Archive',
+      title: t.accounts.list.archiveTitle,
+      message: t.accounts.list.archiveMessage(account.name),
+      confirmLabel: t.accounts.list.archive,
       tone: 'destructive',
       onConfirm: () => void accountService.archive(account.id).then(reload),
     });
@@ -145,7 +147,7 @@ export default function AccountsScreen() {
 
   return (
     <ScreenContainer contentStyle={styles.content} {...pullToRefresh}>
-      <PrimaryScreenHeader onAdd={{ accessibilityLabel: 'Add account', onPress: () => router.push('/account-form') }} title="Accounts" />
+      <PrimaryScreenHeader onAdd={{ accessibilityLabel: t.accounts.list.addAccount, onPress: () => router.push('/account-form') }} title={t.common.tabs.accounts} />
 
       {actionError ? (
         <Text accessibilityLiveRegion="assertive" style={[styles.actionError, { color: theme.destructive }]}>
@@ -164,14 +166,14 @@ export default function AccountsScreen() {
       ) : null}
 
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Active accounts</Text>
+        <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.accounts.list.activeAccounts}</Text>
         {archivedAccounts.length > 0 ? (
           <Pressable
-            accessibilityLabel={showArchived ? 'Hide archived accounts' : 'Show archived accounts'}
+            accessibilityLabel={showArchived ? t.accounts.list.hideArchivedAccounts : t.accounts.list.showArchivedAccounts}
             accessibilityRole="button"
             onPress={() => setShowArchived((value) => !value)}
             style={[styles.filter, { backgroundColor: showArchived ? theme.tintPrimary : theme.elevatedSurface }]}>
-            <Text style={[styles.filterText, { color: showArchived ? theme.primaryAction : theme.secondaryText }]}>{showArchived ? 'Hide archived' : `Archived (${archivedAccounts.length})`}</Text>
+            <Text style={[styles.filterText, { color: showArchived ? theme.primaryAction : theme.secondaryText }]}>{showArchived ? t.accounts.list.hideArchived : t.accounts.list.archivedCount(archivedAccounts.length)}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -180,7 +182,7 @@ export default function AccountsScreen() {
       {!loading && error ? <AccountsErrorState message={error} onRetry={() => void reload()} /> : null}
       {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState onCreate={() => router.push('/account-form')} /> : null}
       {!loading && !error && activeAccounts.length > 0 ? (
-        <View accessibilityLabel="Active accounts" style={styles.accounts}>
+        <View accessibilityLabel={t.accounts.list.activeAccounts} style={styles.accounts}>
           {activeAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
         </View>
       ) : null}
@@ -188,16 +190,16 @@ export default function AccountsScreen() {
       {!loading && !error && activeInvestments.length > 0 ? (
         <View style={styles.archivedSection}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Investments</Text>
+            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.accounts.list.investments}</Text>
             <Pressable
-              accessibilityLabel="View all investments"
+              accessibilityLabel={t.accounts.list.viewAllInvestments}
               accessibilityRole="button"
               onPress={() => router.push('/investments')}
               style={[styles.filter, { backgroundColor: theme.elevatedSurface }]}>
-              <Text style={[styles.filterText, { color: theme.primaryAction }]}>View all</Text>
+              <Text style={[styles.filterText, { color: theme.primaryAction }]}>{t.accounts.list.viewAll}</Text>
             </Pressable>
           </View>
-          <View accessibilityLabel="Investments" style={styles.accounts}>
+          <View accessibilityLabel={t.accounts.list.investments} style={styles.accounts}>
             {activeInvestments.map((view) => (
               <InvestmentCard
                 key={view.account.id}
@@ -211,8 +213,8 @@ export default function AccountsScreen() {
 
       {showArchived && archivedAccounts.length > 0 ? (
         <View style={styles.archivedSection}>
-          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>Archived accounts</Text>
-          <View accessibilityLabel="Archived accounts" style={styles.accounts}>
+          <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.accounts.list.archivedAccounts}</Text>
+          <View accessibilityLabel={t.accounts.list.archivedAccounts} style={styles.accounts}>
             {archivedAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
           </View>
         </View>
@@ -221,7 +223,7 @@ export default function AccountsScreen() {
 
       <ActionSheet
         actions={menu ? menuActions(menu) : []}
-        description={menu?.account.isArchived ? 'This account is archived.' : 'Choose an account action.'}
+        description={menu?.account.isArchived ? t.accounts.list.archivedMenuDescription : t.accounts.list.menuDescription}
         onClose={() => setMenu(null)}
         title={menu?.account.name ?? ''}
         visible={menu !== null}

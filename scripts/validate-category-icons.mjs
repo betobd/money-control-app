@@ -53,9 +53,9 @@ function androidSymbols() {
 function catalogEntries() {
   const source = readFileSync(join(root, 'src/features/categories/category-icons.ts'), 'utf8');
   const entries = [];
-  const pattern = /^\s*'?([a-z0-9-]+)'?: \{ label: '([^']*)'.*?ios: '([^']+)', android: '([^']+)'/gm;
+  const pattern = /^\s*'?([a-z0-9-]+)'?: \{ group: '([^']*)'.*?ios: '([^']+)', android: '([^']+)'/gm;
   for (const match of source.matchAll(pattern)) {
-    entries.push({ key: match[1], label: match[2], ios: match[3], android: match[4] });
+    entries.push({ key: match[1], group: match[2], ios: match[3], android: match[4] });
   }
   return entries;
 }
@@ -66,6 +66,8 @@ const sf = sfSymbolVersions();
 const android = androidSymbols();
 const entries = catalogEntries();
 const problems = [];
+// A catalog format change that the pattern no longer matches must fail, not pass vacuously.
+if (entries.length === 0) problems.push('no icons parsed from category-icons.ts; update the pattern in catalogEntries()');
 const seen = new Set();
 
 for (const entry of entries) {

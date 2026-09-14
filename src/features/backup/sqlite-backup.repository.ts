@@ -2,6 +2,7 @@ import type { SQLiteBindParams, SQLiteDatabase } from 'expo-sqlite';
 import { isSupportedCurrency } from '@/features/currency/currency';
 
 import { sqlite } from '@/database/client';
+import { getMessages } from '@/i18n/messages';
 import { createBackupOverview } from './backup-serializer';
 import {
   BackupRestoreError,
@@ -396,14 +397,14 @@ async function runPostRestoreChecks(
   const expected = createBackupOverview(data);
   for (const key of Object.keys(expected.summary) as (keyof typeof expected.summary)[]) {
     if (actual.summary[key] !== expected.summary[key]) {
-      throw new BackupRestoreError('count_mismatch', `Restored ${key} count does not match the backup.`);
+      throw new BackupRestoreError('count_mismatch', getMessages().backup.restoredCountMismatch(key));
     }
   }
   if (
     actual.transactionDateRange.oldest !== expected.transactionDateRange.oldest
     || actual.transactionDateRange.newest !== expected.transactionDateRange.newest
   ) {
-    throw new BackupRestoreError('domain_integrity_failed', 'Restored transaction date range does not match the backup.');
+    throw new BackupRestoreError('domain_integrity_failed', getMessages().backup.restoredDateRangeMismatch);
   }
 
   const domain = await database.getFirstAsync<{ violations: number }>(`
@@ -442,7 +443,7 @@ async function runPostRestoreChecks(
       AS violations
   `);
   if (Number(domain?.violations ?? 0) !== 0) {
-    throw new BackupRestoreError('domain_integrity_failed', 'Restored financial category relationships are invalid.');
+    throw new BackupRestoreError('domain_integrity_failed', getMessages().backup.restoredCategoryRelationships);
   }
 
   const foreignKeyIssues = await database.getAllAsync<{
@@ -452,12 +453,12 @@ async function runPostRestoreChecks(
     fkid: number;
   }>('PRAGMA foreign_key_check');
   if (foreignKeyIssues.length) {
-    throw new BackupRestoreError('foreign_key_check_failed', 'Restored data failed the foreign-key integrity check.');
+    throw new BackupRestoreError('foreign_key_check_failed', getMessages().backup.restoredForeignKeyCheck);
   }
 
   const integrity = await database.getFirstAsync<{ integrity_check: string }>('PRAGMA integrity_check');
   if (integrity?.integrity_check !== 'ok') {
-    throw new BackupRestoreError('integrity_check_failed', 'Restored data failed the SQLite integrity check.');
+    throw new BackupRestoreError('integrity_check_failed', getMessages().backup.restoredIntegrityCheck);
   }
   return actual;
 }

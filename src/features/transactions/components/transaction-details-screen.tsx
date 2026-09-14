@@ -49,6 +49,8 @@ import type {
 } from '@/features/transactions/transaction.types';
 import { useTransactionDetails } from '@/features/transactions/use-transaction-details';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { getIntlLocale } from '@/i18n/messages';
+import { useMessages } from '@/i18n/use-messages';
 import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 
@@ -58,6 +60,8 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const td = t.transactions.details;
   const { transaction, loading, error, reload } = useTransactionDetails(transactionId);
   const originalExpenseId = transaction?.type === 'refund'
     ? transaction.originalTransactionId
@@ -83,18 +87,16 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   // An unavailable action stays visible and says why, instead of disappearing
   // and leaving the reason to be guessed.
   const actionHints: string[] = [];
-  if (lockedByRefunds) actionHints.push('Void all posted refunds before editing or voiding this expense.');
-  else if (isRefund) actionHints.push('A refund cannot be edited. Void it and add a new one instead.');
+  if (lockedByRefunds) actionHints.push(td.lockedByRefundsHint);
+  else if (isRefund) actionHints.push(td.refundNotEditableHint);
 
   function confirmVoid() {
     if (!transaction || transaction.status === 'voided' || voiding) return;
     const isRefund = transaction.type === 'refund';
     dialog.confirm({
-      title: isRefund ? 'Void refund?' : 'Void transaction?',
-      message: isRefund
-        ? 'This restores the refundable amount and removes the refund from balances, budgets, and reports.'
-        : 'This removes the transaction from balances and reports while preserving it in history.',
-      confirmLabel: isRefund ? 'Void refund' : 'Void transaction',
+      title: isRefund ? td.voidRefundTitle : td.voidTransactionTitle,
+      message: isRefund ? td.voidRefundMessage : td.voidTransactionMessage,
+      confirmLabel: isRefund ? td.voidRefund : td.voidTransaction,
       tone: 'destructive',
       onConfirm: () => {
         setVoiding(true);
@@ -107,7 +109,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             await Promise.all([reload(), reloadRefunds()]);
           })
           .catch((cause: unknown) => {
-            setActionError(actionErrorMessage(cause, 'Unable to void transaction.'));
+            setActionError(actionErrorMessage(cause, t.transactions.errors.unableToVoid));
           })
           .finally(() => setVoiding(false));
       },
@@ -115,18 +117,18 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
   }
 
   if (loading && transaction === undefined) {
-    return <CenteredState label="Loading transaction…" loading />;
+    return <CenteredState label={td.loading} loading />;
   }
   if (error) return <CenteredState label={error} />;
-  if (!transaction) return <CenteredState label="Transaction not found." />;
+  if (!transaction) return <CenteredState label={t.transactions.errors.notFound} />;
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.appBackground, paddingTop: insets.top }]}>
       <ScreenHeader
         leading={editing ? 'close' : 'back'}
-        leadingAccessibilityLabel={editing ? 'Cancel editing' : 'Close transaction details'}
+        leadingAccessibilityLabel={editing ? td.cancelEditing : td.close}
         onLeadingPress={() => editing ? setEditing(false) : router.back()}
-        title={editing ? 'Edit Transaction' : 'Transaction Details'}
+        title={editing ? td.editTitle : td.title}
       />
 
       {editing && transaction.type !== 'refund' ? (
@@ -141,7 +143,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
       ) : (
         <ScrollView contentContainerStyle={[styles.detailsContent, { paddingBottom: insets.bottom + spacing.xl }]}>
           <View
-            accessibilityLabel={`Status, ${transaction.status === 'voided' ? 'Voided' : 'Posted'}`}
+            accessibilityLabel={td.statusA11y(t.transactions.status[transaction.status])}
             style={[
               styles.statusBadge,
               { backgroundColor: transaction.status === 'voided' ? theme.disabledSurface : theme.tintPrimary },
@@ -154,12 +156,12 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
               tintColor={transaction.status === 'voided' ? theme.mutedText : theme.primaryAction}
             />
             <Text style={[styles.statusText, { color: transaction.status === 'voided' ? theme.mutedText : theme.primaryAction }]}>
-              {transaction.status === 'voided' ? 'Voided' : 'Posted'}
+              {t.transactions.status[transaction.status]}
             </Text>
           </View>
 
           <View style={[styles.amountCard, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.detailLabel, { color: theme.mutedText }]}>Amount</Text>
+            <Text style={[styles.detailLabel, { color: theme.mutedText }]}>{td.amount}</Text>
             <Text
               style={[
                 styles.detailAmount,
@@ -170,7 +172,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             </Text>
             {transaction.type !== 'transfer' && transaction.baseCurrencyCode !== null && transaction.currency !== transaction.baseCurrencyCode && transaction.baseAmountMinor !== null ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
-                {formatMoney(transaction.baseAmountMinor, transaction.baseCurrencyCode)} at the rate saved when recorded
+                {td.atSavedRate(formatMoney(transaction.baseAmountMinor, transaction.baseCurrencyCode))}
                 {transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateBaseCode && transaction.exchangeRateQuoteCode
                   ? ` (${describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode })})`
                   : ''}
@@ -181,13 +183,13 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
                 → {formatMoneyWithSymbol(transaction.destinationAmountMinor, transaction.destinationCurrencyCode)}
                 {transaction.exchangeRateScaled && transaction.exchangeRateScale && transaction.exchangeRateBaseCode && transaction.exchangeRateQuoteCode
-                  ? ` · effective ${describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode })}`
+                  ? ` · ${td.effectiveRate(describeRate({ rateScaled: transaction.exchangeRateScaled, rateScale: transaction.exchangeRateScale, baseCurrencyCode: transaction.exchangeRateBaseCode, quoteCurrencyCode: transaction.exchangeRateQuoteCode }))}`
                   : ''}
               </Text>
             ) : null}
             {transaction.status === 'voided' ? (
               <Text style={[styles.voidedExplanation, { color: theme.secondaryText }]}>
-                Excluded from balances and reports
+                {td.excluded}
               </Text>
             ) : null}
           </View>
@@ -196,24 +198,24 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             <View style={[styles.detailCard, { backgroundColor: theme.surface }]}>
               <Text style={[styles.refundHeading, { color: theme.primaryText }]}>
                 {refundSummary.refundStatus === 'full'
-                  ? 'Fully refunded'
+                  ? td.fullyRefunded
                   : refundSummary.refundStatus === 'partial'
-                    ? 'Partially refunded'
-                    : 'Refund status'}
+                    ? td.partiallyRefunded
+                    : td.refundStatus}
               </Text>
-              <DetailRow label="Gross amount" value={formatMoneyWithSymbol(refundSummary.grossAmount, transaction.currency)} />
-              <DetailRow label="Refunded" value={formatMoneyWithSymbol(refundSummary.refundedAmount, transaction.currency)} />
-              <DetailRow label="Net expense" value={formatMoneyWithSymbol(refundSummary.netExpense, transaction.currency)} />
-              <DetailRow label="Refundable remaining" value={formatMoneyWithSymbol(refundSummary.refundableRemaining, transaction.currency)} />
+              <DetailRow label={td.grossAmount} value={formatMoneyWithSymbol(refundSummary.grossAmount, transaction.currency)} />
+              <DetailRow label={td.refunded} value={formatMoneyWithSymbol(refundSummary.refundedAmount, transaction.currency)} />
+              <DetailRow label={td.netExpense} value={formatMoneyWithSymbol(refundSummary.netExpense, transaction.currency)} />
+              <DetailRow label={td.refundableRemaining} value={formatMoneyWithSymbol(refundSummary.refundableRemaining, transaction.currency)} />
               {refundSummary.refunds.map((refund) => (
                 <Pressable
-                  accessibilityHint="Opens refund details"
+                  accessibilityHint={td.openRefundHint}
                   accessibilityRole="button"
                   key={refund.id}
                   onPress={() => router.push({ pathname: '/transactions/[id]', params: { id: refund.id } })}
                   style={[styles.refundLink, { borderTopColor: theme.hairline }]}>
                   <Text style={[styles.refundLinkText, { color: theme.primaryAction }]}>
-                    {refund.status === 'voided' ? 'Voided refund' : 'Refund'} · {formatTransactionDate(refund.transactionDate)}
+                    {refund.status === 'voided' ? td.voidedRefund : t.transactions.types.refund} · {formatTransactionDate(refund.transactionDate)}
                   </Text>
                   <Text style={[styles.refundLinkAmount, { color: refund.status === 'voided' ? theme.mutedText : theme.primaryAction }]}>
                     +{formatMoneyWithSymbol(refund.amount, refund.currency)}
@@ -224,48 +226,48 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
           ) : null}
 
           <View style={[styles.detailCard, { backgroundColor: theme.surface }]}>
-            <DetailRow label="Type" value={transactionTypeLabel(transaction)} />
+            <DetailRow label={td.type} value={transactionTypeLabel(transaction)} />
             {transaction.type === 'transfer' ? (
               <>
-                <DetailRow label="From account" value={transaction.accountName} />
-                <DetailRow label="To account" value={transaction.destinationAccountName ?? 'Unknown account'} />
+                <DetailRow label={td.fromAccount} value={transaction.accountName} />
+                <DetailRow label={td.toAccount} value={transaction.destinationAccountName ?? t.transactions.unknownAccount} />
               </>
             ) : transaction.type === 'refund' ? (
               <>
-                <DetailRow label="Returned to account" value={transaction.accountName} />
+                <DetailRow label={td.returnedToAccount} value={transaction.accountName} />
                 <DetailRow
-                  label="Inherited category"
-                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Unknown category'}
+                  label={td.inheritedCategory}
+                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? t.transactions.unknownCategory}
                 />
               </>
             ) : (
               <>
-                <DetailRow label={transaction.type === 'income' ? 'Destination account' : 'Source account'} value={transaction.accountName} />
+                <DetailRow label={transaction.type === 'income' ? td.destinationAccount : td.sourceAccount} value={transaction.accountName} />
                 <DetailRow
-                  label="Category"
-                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? 'Unknown category'}
+                  label={td.category}
+                  value={categoryPathLabel(transaction.categoryName, transaction.subcategoryName) ?? t.transactions.unknownCategory}
                 />
               </>
             )}
-            <DetailRow label="Transaction date" value={formatTransactionDate(transaction.transactionDate)} />
-            <DetailRow label="Note" value={transaction.note ?? 'No note'} />
-            <DetailRow label="Created" value={formatAuditTimestamp(transaction.createdAt)} />
-            <DetailRow label="Updated" value={formatAuditTimestamp(transaction.updatedAt)} />
+            <DetailRow label={td.transactionDate} value={formatTransactionDate(transaction.transactionDate)} />
+            <DetailRow label={td.note} value={transaction.note ?? td.noNote} />
+            <DetailRow label={td.created} value={formatAuditTimestamp(transaction.createdAt)} />
+            <DetailRow label={td.updated} value={formatAuditTimestamp(transaction.updatedAt)} />
           </View>
 
           {transaction.type === 'refund' ? (
             <View style={[styles.refundExplanation, { backgroundColor: theme.tintPrimary }]}>
               <Text style={[styles.refundExplanationText, { color: theme.primaryText }]}>
-                This refund reduces expenses and returns money to the original account. It is not income.
+                {td.refundExplanation}
               </Text>
               <Pressable
-                accessibilityLabel="View original expense"
+                accessibilityLabel={td.viewOriginalExpense}
                 accessibilityRole="button"
                 onPress={() => router.replace({
                   pathname: '/transactions/[id]',
                   params: { id: transaction.originalTransactionId },
                 })}>
-                <Text style={[styles.originalLink, { color: theme.primaryAction }]}>View original expense</Text>
+                <Text style={[styles.originalLink, { color: theme.primaryAction }]}>{td.viewOriginalExpense}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -280,7 +282,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
             <ActionTileRow
               actions={[
                 ...(isExpense ? [{
-                  label: 'Refund',
+                  label: td.refundAction,
                   icon: { ios: 'arrow.uturn.backward', android: 'undo', web: 'undo' } as const,
                   disabled: !canAddRefund,
                   onPress: () => router.push({
@@ -289,7 +291,7 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                   }),
                 }] : []),
                 {
-                  label: 'Edit',
+                  label: t.common.edit,
                   icon: { ios: 'pencil', android: 'edit', web: 'edit' },
                   disabled: !canEdit,
                   onPress: () => {
@@ -298,8 +300,8 @@ export function TransactionDetailsScreen({ transactionId }: { transactionId: str
                   },
                 },
                 {
-                  label: 'Void',
-                  accessibilityLabel: voiding ? 'Voiding' : isRefund ? 'Void refund' : 'Void transaction',
+                  label: td.voidAction,
+                  accessibilityLabel: voiding ? td.voiding : isRefund ? td.voidRefund : td.voidTransaction,
                   icon: { ios: 'slash.circle', android: 'block', web: 'block' },
                   busy: voiding,
                   disabled: !canVoid,
@@ -327,6 +329,8 @@ function TransactionEditForm({
 }) {
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const t = useMessages();
+  const ta = t.addTransaction;
   const type = transaction.type as TransactionFormType;
   const editCurrency: CurrencyCode = transaction.currency;
   const [amountDigits, setAmountDigits] = useState(editStringFromMinor(transaction.amount, editCurrency));
@@ -374,7 +378,7 @@ function TransactionEditForm({
     try {
       const parsedAmount = parseMoney(amountDigits || '0', editCurrency);
       if (!parsedAmount.ok) {
-        setErrors({ amount: 'Enter a valid amount greater than zero.' });
+        setErrors({ amount: t.transactions.errors.invalidAmount });
         setSaving(false);
         return;
       }
@@ -428,21 +432,21 @@ function TransactionEditForm({
       if (cause instanceof TransactionValidationError) {
         setErrors(cause.fields);
       } else {
-        setGeneralError(actionErrorMessage(cause, 'Unable to edit transaction.'));
+        setGeneralError(actionErrorMessage(cause, t.transactions.errors.unableToEdit));
       }
       setSaving(false);
     }
   }
 
   const pickerTitle = pickerField === 'source'
-    ? 'Select source account'
+    ? ta.selectSourceAccount
     : pickerField === 'destination'
-      ? 'Select destination account'
-      : 'Select account';
+      ? ta.selectDestinationAccount
+      : ta.selectAccount;
   const pickerSelectedId = pickerField === 'destination' ? destinationAccountId : selectedAccountId;
   const categoryPath = [selectedCategory?.name, selectedSubcategory?.name].filter(Boolean).join(' › ');
   const historicalCategory = selectedCategory?.isArchived || selectedSubcategory?.isArchived
-    ? `${categoryPath} (archived historical value)`
+    ? t.transactions.details.archivedHistorical(categoryPath)
     : undefined;
 
   return (
@@ -456,7 +460,7 @@ function TransactionEditForm({
           type={type}
         />
         <View style={[styles.lockedType, { backgroundColor: theme.elevatedSurface }]}>
-          <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>Transaction type</Text>
+          <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>{t.transactions.details.transactionType}</Text>
           <Text style={[styles.lockedTypeValue, { color: theme.primaryText }]}>{transactionTypeLabel(transaction)}</Text>
         </View>
 
@@ -468,12 +472,12 @@ function TransactionEditForm({
 
         {transaction.type === 'transfer' ? (
           <TransferAccountFields
-            destination={destinationAccount?.name ?? 'Select account'}
+            destination={destinationAccount?.name ?? ta.selectAccount}
             destinationError={errors.destinationAccountId}
-            helperText={destinationAccount?.type === 'credit_card' ? 'This transfer reduces the card’s current debt.' : undefined}
+            helperText={destinationAccount?.type === 'credit_card' ? ta.transferReducesDebt : undefined}
             onSelectDestination={() => setPickerField('destination')}
             onSelectSource={() => setPickerField('source')}
-            source={selectedAccount?.name ?? 'Select account'}
+            source={selectedAccount?.name ?? ta.selectAccount}
             sourceError={errors.accountId}
           />
         ) : (
@@ -496,36 +500,38 @@ function TransactionEditForm({
               onManage={() => router.push({ pathname: '/categories', params: { type: transaction.type } })}
               onSelect={selectCategory}
               selection={selection}
-              title={transaction.type === 'income' ? 'Select income category' : 'Select expense category'}
+              title={transaction.type === 'income' ? ta.selectIncomeCategory : ta.selectExpenseCategory}
               visible={categoryPickerVisible}
             />
             <FormFieldButton
               error={errors.accountId}
               icon={{ ios: 'wallet.bifold.fill', android: 'account_balance_wallet', web: 'account_balance_wallet' }}
-              label={transaction.type === 'income' ? 'Destination account' : 'Source account'}
+              label={transaction.type === 'income' ? ta.destinationAccount : ta.sourceAccount}
               onPress={() => setPickerField('account')}
               value={selectedAccount
-                ? `${selectedAccount.name}${selectedAccount.isArchived ? ' (archived historical value)' : ''}`
-                : 'Select account'}
+                ? selectedAccount.isArchived
+                  ? t.transactions.details.archivedHistorical(selectedAccount.name)
+                  : selectedAccount.name
+                : ta.selectAccount}
             />
           </>
         )}
 
         <DateField
           error={errors.transactionDate}
-          label="Transaction date"
+          label={ta.transactionDate}
           onChange={setTransactionDate}
           value={transactionDate}
         />
 
         <View style={styles.field}>
-          <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>Note (optional)</Text>
+          <Text style={[styles.detailLabel, { color: theme.secondaryText }]}>{ta.noteOptional}</Text>
           <TextInput
-            accessibilityLabel="Transaction note, optional"
+            accessibilityLabel={ta.noteA11y}
             maxLength={200}
             multiline
             onChangeText={setNote}
-            placeholder="Add a description…"
+            placeholder={ta.notePlaceholder}
             placeholderTextColor={theme.mutedText}
             style={[
               styles.noteInput,
@@ -576,13 +582,14 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function CenteredState({ label, loading = false }: { label: string; loading?: boolean }) {
   const theme = useAppTheme();
+  const t = useMessages();
   return (
     <View style={[styles.centeredState, { backgroundColor: theme.appBackground }]}>
       {loading ? <ActivityIndicator color={theme.primaryAction} /> : null}
       <Text style={[styles.centeredLabel, { color: theme.secondaryText }]}>{label}</Text>
       {!loading ? (
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.centeredBack}>
-          <Text style={{ color: theme.primaryAction }}>Go back</Text>
+          <Text style={{ color: theme.primaryAction }}>{t.transactions.details.goBack}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -601,7 +608,7 @@ function editStringFromMinor(minor: number, currency: CurrencyCode): string {
 
 function formatAuditTimestamp(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-CO', { timeZone: 'America/Bogota' });
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(getIntlLocale(), { timeZone: 'America/Bogota' });
 }
 
 function actionErrorMessage(cause: unknown, fallback: string): string {

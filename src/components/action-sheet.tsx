@@ -7,6 +7,7 @@ import { IconChip } from '@/components/icon-chip';
 import { PressableScale } from '@/components/pressable-scale';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useMessages } from '@/i18n/use-messages';
 
 export type SheetAction = {
   label: string;
@@ -42,6 +43,7 @@ type ActionSheetProps = {
  */
 export function ActionSheet({ visible, onClose, title, description, actions }: ActionSheetProps) {
   const theme = useAppTheme();
+  const t = useMessages();
 
   return (
     <BottomSheet description={description} onClose={onClose} title={title} visible={visible}>
@@ -88,11 +90,11 @@ export function ActionSheet({ visible, onClose, title, description, actions }: A
       </View>
 
       <PressableScale
-        accessibilityLabel="Cancel"
+        accessibilityLabel={t.common.cancel}
         accessibilityRole="button"
         onPress={onClose}
         style={StyleSheet.flatten([styles.cancel, { backgroundColor: theme.elevatedSurface }])}>
-        <Text style={[styles.cancelLabel, { color: theme.secondaryText }]}>Cancel</Text>
+        <Text style={[styles.cancelLabel, { color: theme.secondaryText }]}>{t.common.cancel}</Text>
       </PressableScale>
     </BottomSheet>
   );
