@@ -14,7 +14,7 @@ This document describes product behavior. Financial invariants are normative in 
 - The primary user is one person managing their own finances.
 - The initial target is Android.
 - The application is local-first: core functionality must work without a network connection.
-- The initial currency is Colombian pesos (COP).
+- The user chooses a base currency on first launch, suggested from the device locale; accounts can hold any supported currency.
 - MVP data is persisted locally on the device.
 
 ### MVP capabilities

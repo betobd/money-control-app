@@ -6,6 +6,8 @@ export interface SettingsRepository {
   /** The settings row, or null on a database that predates it. */
   find(): Promise<AppSettings | null>;
   setBaseCurrency(code: CurrencyCode, timestamp: string): Promise<void>;
+  /** Stamp the welcome flow as finished. Keeps the first stamp if already set. */
+  completeOnboarding(timestamp: string): Promise<void>;
   /** Counts that decide whether the base currency is still changeable. */
   countBaseCurrencyDependents(): Promise<{ transactions: number; budgets: number }>;
 }

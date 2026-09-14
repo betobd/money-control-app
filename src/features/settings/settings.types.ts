@@ -6,6 +6,8 @@ export const APP_SETTINGS_ID = 'device';
 export type AppSettings = {
   id: string;
   baseCurrencyCode: CurrencyCode;
+  /** When the first-run welcome flow was finished; null until then. */
+  onboardingCompletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

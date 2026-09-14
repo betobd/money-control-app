@@ -1,5 +1,5 @@
 /**
- * Application settings, currently the device's base currency.
+ * Application settings: the device's base currency and first-run onboarding.
  *
  * The base currency is what every consolidated total, budget limit and
  * `base_amount_minor` snapshot is denominated in. It is freely changeable while
@@ -9,6 +9,7 @@
 import { isSupportedCurrency, type CurrencyCode } from '@/features/currency/currency';
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { primeBaseCurrency } from './base-currency';
+import { primeOnboardingStatus } from './onboarding-status';
 import type { SettingsRepository } from './settings.repository';
 import type { AppSettings, BaseCurrencyLock, BaseCurrencyLockReason } from './settings.types';
 
@@ -35,16 +36,27 @@ export function isSettingsError(value: unknown): value is SettingsError {
 
 type SettingsServiceOptions = {
   now?: () => string;
+  /**
+   * The synchronous caches this service keeps current. Injectable because `tsx`
+   * can load a module under more than one specifier, so a test priming or reading
+   * the global cache is not guaranteed to share the instance this service imported.
+   */
+  primeBaseCurrency?: (code: CurrencyCode) => void;
+  primeOnboardingStatus?: (completed: boolean) => void;
 };
 
 export class SettingsService {
   private readonly now: () => string;
+  private readonly primeBaseCurrency: (code: CurrencyCode) => void;
+  private readonly primeOnboardingStatus: (completed: boolean) => void;
 
   constructor(
     private readonly repository: SettingsRepository,
     options: SettingsServiceOptions = {},
   ) {
     this.now = options.now ?? (() => new Date().toISOString());
+    this.primeBaseCurrency = options.primeBaseCurrency ?? primeBaseCurrency;
+    this.primeOnboardingStatus = options.primeOnboardingStatus ?? primeOnboardingStatus;
   }
 
   async get(): Promise<AppSettings> {
@@ -56,13 +68,28 @@ export class SettingsService {
   }
 
   /**
-   * Load the base currency and prime the synchronous cache. Called once during
-   * database initialization, before any screen renders.
+   * Load the settings row and prime the synchronous caches. Called during database
+   * initialization, before any screen renders, and again after a restore replaces
+   * the row.
    */
-  async loadBaseCurrency(): Promise<CurrencyCode> {
-    const { baseCurrencyCode } = await this.get();
-    primeBaseCurrency(baseCurrencyCode);
-    return baseCurrencyCode;
+  async load(): Promise<AppSettings> {
+    const settings = await this.get();
+    this.primeBaseCurrency(settings.baseCurrencyCode);
+    this.primeOnboardingStatus(settings.onboardingCompletedAt !== null);
+    return settings;
+  }
+
+  /**
+   * Finish the welcome flow with the base currency the user chose.
+   *
+   * The currency is saved first, so a lock (which only a restore during the flow
+   * could create) fails the whole step instead of marking onboarding done with a
+   * currency the user did not pick.
+   */
+  async completeOnboarding(baseCurrencyCode: string): Promise<void> {
+    await this.setBaseCurrency(baseCurrencyCode);
+    await this.repository.completeOnboarding(this.now());
+    this.primeOnboardingStatus(true);
   }
 
   /**
@@ -100,7 +127,7 @@ export class SettingsService {
     }
 
     await this.repository.setBaseCurrency(code, this.now());
-    primeBaseCurrency(code);
+    this.primeBaseCurrency(code);
     notifyFinancialDataChanged({ kind: 'exchange-rate', operation: 'update' });
     return code;
   }

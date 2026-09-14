@@ -18,6 +18,7 @@
     "expo-image": "~57.0.1",
     "expo-linking": "~57.0.4",
     "expo-local-authentication": "~57.0.2",
+    "expo-localization": "~57.0.2",
     "expo-notifications": "~57.0.7",
     "expo-router": "~57.0.8",
     "expo-screen-capture": "~57.0.1",
@@ -74,6 +75,7 @@
     "test:reports": "node --import tsx --test tests/reports.test.mjs tests/report-insights.test.mjs && python tests/reports_database_test.py && python tests/investments_reports_database_test.py",
     "test:notifications": "node --import tsx --test tests/notifications.test.mjs && python tests/notifications_database_test.py",
     "test:credit-cards": "node --import tsx --test tests/credit-cards.test.mjs && python tests/credit_cards_database_test.py",
+    "test:onboarding": "node --import tsx --test tests/onboarding.test.mjs && python tests/onboarding_migration_database_test.py",
     "test:data-export": "node --import tsx --test tests/data-export.test.mjs && python tests/data_export_database_test.py"
   },
   "private": true

@@ -115,6 +115,7 @@ export default function RootLayout() {
             <NotificationRuntime>
               <Stack screenOptions={{ contentStyle: { backgroundColor: theme.appBackground }, headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="onboarding" options={{ animation: 'fade', gestureEnabled: false }} />
                 <Stack.Screen name="add-transaction" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="transactions/[id]" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="refund-form" options={{ presentation: 'fullScreenModal' }} />

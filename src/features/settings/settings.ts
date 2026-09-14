@@ -8,6 +8,7 @@ import { SQLiteSettingsRepository } from './sqlite-settings.repository';
 export const settingsService = new SettingsService(new SQLiteSettingsRepository());
 
 export * from './base-currency';
+export * from './onboarding-status';
 export * from './settings.types';
 export {
   SettingsError,

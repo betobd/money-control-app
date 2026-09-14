@@ -80,9 +80,10 @@ async function initialize(): Promise<void> {
   await sqlite.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   await runMigrations();
   await categoryService.seedDefaults();
-  // Prime the synchronous base-currency cache before any screen can render. Every
-  // "is this amount already in the base currency?" decision reads it during render.
-  await settingsService.loadBaseCurrency();
+  // Prime the synchronous settings caches before any screen can render. Every
+  // "is this amount already in the base currency?" decision reads the base during
+  // render, and the root route guard reads whether onboarding is complete.
+  await settingsService.load();
 
   const health = await checkDatabaseHealth(sqlite);
   if (!health.foreignKeysEnabled || health.integrity !== 'ok') {

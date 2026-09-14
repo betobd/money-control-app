@@ -1,4 +1,4 @@
-import { count, eq } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 
 import { database } from '@/database/client';
 import { appSettings, budgets, transactions } from '@/database/schema';
@@ -21,6 +21,7 @@ export class SQLiteSettingsRepository implements SettingsRepository {
     return {
       id: row.id,
       baseCurrencyCode: row.baseCurrencyCode,
+      onboardingCompletedAt: row.onboardingCompletedAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -39,6 +40,13 @@ export class SQLiteSettingsRepository implements SettingsRepository {
         target: appSettings.id,
         set: { baseCurrencyCode: code, updatedAt: timestamp },
       });
+  }
+
+  async completeOnboarding(timestamp: string): Promise<void> {
+    await database
+      .update(appSettings)
+      .set({ onboardingCompletedAt: sql`coalesce(${appSettings.onboardingCompletedAt}, ${timestamp})`, updatedAt: timestamp })
+      .where(eq(appSettings.id, APP_SETTINGS_ID));
   }
 
   async countBaseCurrencyDependents(): Promise<{ transactions: number; budgets: number }> {

@@ -376,11 +376,14 @@ async function insertSnapshot(database: SQLiteDatabase, data: BackupDataV7): Pro
   // The settings row always exists (migration 0014 seeds it), so this is an
   // update rather than an insert: restoring a backup adopts the base currency the
   // backup was written with, which is the only currency its stored
-  // `base_amount_minor` snapshots make sense in.
+  // `base_amount_minor` snapshots make sense in. A restore also finishes first-run
+  // onboarding: the currency choice that flow exists for has just been made.
+  const restoredAt = new Date().toISOString();
   await database.runAsync(
-    'UPDATE app_settings SET base_currency_code = ?, updated_at = ? WHERE id = ?',
+    'UPDATE app_settings SET base_currency_code = ?, onboarding_completed_at = coalesce(onboarding_completed_at, ?), updated_at = ? WHERE id = ?',
     data.baseCurrencyCode,
-    new Date().toISOString(),
+    restoredAt,
+    restoredAt,
     'device',
   );
 }

@@ -606,12 +606,14 @@ export const scheduledNotifications = sqliteTable(
 
 // Device-level application settings. A singleton row: there is exactly one base
 // currency per install, and it is what every base_amount_minor snapshot is
-// denominated in. Added by migration 0014.
+// denominated in. Added by migration 0014; onboarding_completed_at by 0016 (NULL
+// until the first-run welcome flow is finished).
 export const appSettings = sqliteTable(
   'app_settings',
   {
     id: text('id').primaryKey(),
     baseCurrencyCode: text('base_currency_code').notNull(),
+    onboardingCompletedAt: text('onboarding_completed_at'),
     ...auditColumns,
   },
   (table) => [
@@ -619,6 +621,10 @@ export const appSettings = sqliteTable(
     check('app_settings_base_currency_valid', sql`${table.baseCurrencyCode} GLOB ${CURRENCY_CODE_GLOB}`),
     check('app_settings_created_at_utc', sql`${table.createdAt} GLOB '????-??-??T??:??:??*Z'`),
     check('app_settings_updated_at_utc', sql`${table.updatedAt} GLOB '????-??-??T??:??:??*Z'`),
+    check(
+      'app_settings_onboarding_completed_at_utc',
+      sql`${table.onboardingCompletedAt} IS NULL OR ${table.onboardingCompletedAt} GLOB '????-??-??T??:??:??*Z'`,
+    ),
   ],
 );
 

@@ -3,6 +3,7 @@ import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 
 import { notifyFinancialDataChanged } from '@/features/transactions/financial-data-events';
 import { notificationCoordinator } from '@/features/notifications/notifications';
+import { settingsService } from '@/features/settings/settings';
 import { BackupChecksumService } from './backup-checksum.service';
 import { BackupFormatMigrator } from './backup-format-migrator';
 import { BackupSerializer } from './backup-serializer';
@@ -26,6 +27,11 @@ export const backupService = new BackupService(
     appVersion: Constants.expoConfig?.version ?? 'unknown',
     schemaVersion: CURRENT_DATABASE_SCHEMA_VERSION,
     notifyRestored: () => notifyFinancialDataChanged({ kind: 'restore' }),
-    afterRestore: () => notificationCoordinator.afterRestore(),
+    afterRestore: async () => {
+      // The restore replaced the settings row, so the synchronous caches (base
+      // currency, onboarding) must be re-read before any screen renders with them.
+      await settingsService.load();
+      await notificationCoordinator.afterRestore();
+    },
   },
 );

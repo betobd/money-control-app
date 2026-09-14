@@ -9,6 +9,11 @@ representation and transfer model it builds on.
 - The **base currency is a per-install setting** (`app_settings.base_currency_code`,
   migration 0014). All consolidated values — estimated net worth, Home period
   summaries, Reports, Budgets, and report CSV exports — are in it.
+- A fresh install **chooses it in the first-run welcome flow** (`/onboarding`),
+  preselected from the device locale's currency (`expo-localization`) and falling
+  back to USD. The flow runs before the tabs, so no transaction or budget can lock
+  the seeded default first. Restoring a backup from the welcome flow adopts the
+  backup's base instead.
 - It can be changed **freely until the install has a transaction or a budget**, and
   is fixed after that. **More → Currency & Rates** always shows why: *"Every one of
   your N transactions stores its value in the current base currency. Changing it

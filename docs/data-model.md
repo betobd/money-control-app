@@ -126,6 +126,14 @@ install that already has accounts was COP and stays COP; an empty one gets a
 neutral default — and is changeable only while no transaction or budget exists.
 See [ADR 0008](decisions/0008-configurable-base-currency.md).
 
+Migration `0016` adds the nullable `onboarding_completed_at` (UTC, or NULL). NULL
+means the first-run welcome flow has not been finished, and the tab layout
+redirects to `/onboarding`, where the base currency is chosen before anything can
+lock it. Installs that already hold accounts, transactions, budgets or a monthly
+ceiling, or whose base is not the seeded `USD`, are backfilled as completed. A
+restore also stamps it, keeping the first stamp. It is device state, not part of
+the logical backup.
+
 ### `exchange_rates`
 
 Migration `0009` adds `exchange_rates`, one row per ordered currency pair holding the

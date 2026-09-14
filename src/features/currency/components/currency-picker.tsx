@@ -21,6 +21,8 @@ type CurrencyPickerProps = {
    * is the difference between a picker and an obstacle.
    */
   suggested?: readonly CurrencyCode[];
+  /** Heading over the suggested codes. */
+  suggestedLabel?: string;
   /** Codes that cannot be chosen, with the reason shown on the row. */
   disabledCodes?: Readonly<Partial<Record<CurrencyCode, string>>>;
 };
@@ -45,6 +47,7 @@ export function CurrencyPicker({
   onSelect,
   onClose,
   suggested = [],
+  suggestedLabel = 'In use',
   disabledCodes,
 }: CurrencyPickerProps) {
   const theme = useAppTheme();
@@ -62,7 +65,7 @@ export function CurrencyPicker({
 
     const result: Row[] = [];
     if (top.length > 0) {
-      result.push({ kind: 'heading', key: 'heading-suggested', label: 'In use' });
+      result.push({ kind: 'heading', key: 'heading-suggested', label: suggestedLabel });
       for (const item of top) result.push({ kind: 'currency', key: `s-${item.code}`, definition: item });
     }
     if (rest.length > 0) {
@@ -70,7 +73,7 @@ export function CurrencyPicker({
       for (const item of rest) result.push({ kind: 'currency', key: item.code, definition: item });
     }
     return result;
-  }, [query, suggested]);
+  }, [query, suggested, suggestedLabel]);
 
   function close() {
     setQuery('');
