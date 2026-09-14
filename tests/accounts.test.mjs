@@ -340,3 +340,19 @@ test('currency cannot be changed when the account has a nonzero opening balance'
   const fields = await validationFields(() => service.update(account.id, { ...validInput, currency: 'USD' }));
   assert.match(fields.currency, /cannot be changed/i);
 });
+
+test('overview groups active cash and bank accounts apart from credit cards, without investments', async () => {
+  const { groupActiveAccounts } = await import('../src/features/accounts/account-groups.ts');
+  const account = (id, type, isArchived = false) => ({ id, type, isArchived, balance: 0 });
+  const groups = groupActiveAccounts([
+    account('checking', 'checking'),
+    account('visa', 'credit_card'),
+    account('wallet', 'cash'),
+    account('fund', 'investment'),
+    account('old-card', 'credit_card', true),
+    account('savings', 'savings'),
+    account('legacy', 'other'),
+  ]);
+  assert.deepEqual(groups.banks.map((item) => item.id), ['checking', 'wallet', 'savings', 'legacy']);
+  assert.deepEqual(groups.creditCards.map((item) => item.id), ['visa']);
+});

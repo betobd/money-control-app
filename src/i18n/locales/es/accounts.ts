@@ -59,7 +59,12 @@ export const accounts: typeof en = {
     archiveTitle: '¿Archivar la cuenta?',
     archiveMessage: (name) =>
       `${name} seguirá en el historial y en el patrimonio neto mientras tenga saldo. No se podrá usar para nuevos movimientos.`,
-    activeAccounts: 'Cuentas activas',
+    sectionBanks: 'Efectivo y bancos',
+    sectionCreditCards: 'Tarjetas de crédito',
+    summaryTotal: 'Total',
+    summaryDebt: 'Deuda',
+    summaryValue: 'Valor',
+    summaryIncomplete: 'Estimado — incompleto',
     archivedAccounts: 'Cuentas archivadas',
     hideArchivedAccounts: 'Ocultar cuentas archivadas',
     showArchivedAccounts: 'Mostrar cuentas archivadas',

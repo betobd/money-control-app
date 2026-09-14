@@ -54,7 +54,12 @@ export const accounts = {
     archiveTitle: 'Archive account?',
     archiveMessage: (name: string) =>
       `${name} will remain in history and net worth while it has a balance. It cannot be used for new transactions.`,
-    activeAccounts: 'Active accounts',
+    sectionBanks: 'Cash & bank accounts',
+    sectionCreditCards: 'Credit cards',
+    summaryTotal: 'Total',
+    summaryDebt: 'Debt',
+    summaryValue: 'Value',
+    summaryIncomplete: 'Estimated — incomplete',
     archivedAccounts: 'Archived accounts',
     hideArchivedAccounts: 'Hide archived accounts',
     showArchivedAccounts: 'Show archived accounts',

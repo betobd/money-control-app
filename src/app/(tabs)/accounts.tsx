@@ -10,14 +10,16 @@ import { PrimaryScreenHeader } from '@/components/primary-screen-header';
 import { borderRadii, spacing, typography } from '@/constants/theme';
 import { AccountActionError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
-import { formatMoneyNumber } from '@/features/currency/currency';
+import { formatMoney, formatMoneyNumber } from '@/features/currency/currency';
+import { groupActiveAccounts } from '@/features/accounts/account-groups';
 import type { AccountWithBalance } from '@/features/accounts/account.types';
 import { AccountCard } from '@/features/accounts/components/account-card';
+import { AccountSection, type AccountSectionSummary } from '@/features/accounts/components/account-section';
 import { AccountsErrorState, EmptyAccountsState, LoadingAccountCard } from '@/features/accounts/components/account-states';
 import { NetWorthSummary } from '@/features/accounts/components/net-worth-summary';
 import { useAccounts } from '@/features/accounts/use-accounts';
 import { InvestmentCard } from '@/features/investments/components/investment-card';
-import { withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
+import { summarizePortfolio, withInvestmentCurrentValues } from '@/features/investments/investment-portfolio.service';
 import { useInvestments } from '@/features/investments/use-investments';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -38,10 +40,7 @@ export default function AccountsScreen() {
   const pullToRefresh = usePullToRefresh(() => Promise.all([reload(), reloadInvestments()]));
   // Investment accounts live in their own section (and screen); exclude them from the
   // cash/credit lists so their misleading ledger balance is never shown as spendable.
-  const activeAccounts = useMemo(
-    () => accounts.filter((account) => !account.isArchived && account.type !== 'investment'),
-    [accounts],
-  );
+  const groups = useMemo(() => groupActiveAccounts(accounts), [accounts]);
   const archivedAccounts = useMemo(
     () => accounts.filter((account) => account.isArchived && account.type !== 'investment'),
     [accounts],
@@ -56,6 +55,28 @@ export default function AccountsScreen() {
     () => accountService.estimateNetWorth(withInvestmentCurrentValues(accounts, portfolio.accounts), rates),
     [accounts, portfolio, rates],
   );
+  // Each section's figure uses the same conversion as net worth, so the sections
+  // add up to the headline (and are marked incomplete under the same condition).
+  const banksTotal = useMemo(() => accountService.estimateNetWorth(groups.banks, rates), [groups, rates]);
+  const cardsTotal = useMemo(() => accountService.estimateNetWorth(groups.creditCards, rates), [groups, rates]);
+  const investmentsTotal = useMemo(
+    () => summarizePortfolio(activeInvestments, rates).totalCurrentValueBaseMinor,
+    [activeInvestments, rates],
+  );
+  const hasActiveAccounts = groups.banks.length + groups.creditCards.length + activeInvestments.length > 0;
+
+  function money(minor: number | null): string | null {
+    return minor === null ? null : formatMoney(minor, rates.baseCurrency);
+  }
+
+  function cardsSummary(): AccountSectionSummary {
+    const total = cardsTotal.totalBaseMinor;
+    if (total !== null && total > 0) {
+      return { label: t.accounts.card.creditBalance, value: money(total), tone: 'credit' };
+    }
+    if (total === 0) return { label: t.accounts.card.noDebt, value: '' };
+    return { label: t.accounts.list.summaryDebt, value: money(total === null ? null : Math.abs(total)), tone: 'debt' };
+  }
 
   async function openActions(account: AccountWithBalance) {
     setActionError(undefined);
@@ -165,50 +186,52 @@ export default function AccountsScreen() {
         />
       ) : null}
 
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.accounts.list.activeAccounts}</Text>
-        {archivedAccounts.length > 0 ? (
-          <Pressable
-            accessibilityLabel={showArchived ? t.accounts.list.hideArchivedAccounts : t.accounts.list.showArchivedAccounts}
-            accessibilityRole="button"
-            onPress={() => setShowArchived((value) => !value)}
-            style={[styles.filter, { backgroundColor: showArchived ? theme.tintPrimary : theme.elevatedSurface }]}>
-            <Text style={[styles.filterText, { color: showArchived ? theme.primaryAction : theme.secondaryText }]}>{showArchived ? t.accounts.list.hideArchived : t.accounts.list.archivedCount(archivedAccounts.length)}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-
       {loading ? <View style={styles.accounts}><LoadingAccountCard /><LoadingAccountCard /></View> : null}
       {!loading && error ? <AccountsErrorState message={error} onRetry={() => void reload()} /> : null}
-      {!loading && !error && activeAccounts.length === 0 ? <EmptyAccountsState onCreate={() => router.push('/account-form')} /> : null}
-      {!loading && !error && activeAccounts.length > 0 ? (
-        <View accessibilityLabel={t.accounts.list.activeAccounts} style={styles.accounts}>
-          {activeAccounts.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
-        </View>
+      {!loading && !error && !hasActiveAccounts ? <EmptyAccountsState onCreate={() => router.push('/account-form')} /> : null}
+
+      {!loading && !error && groups.banks.length > 0 ? (
+        <AccountSection
+          incompleteLabel={t.accounts.list.summaryIncomplete}
+          summary={{ label: t.accounts.list.summaryTotal, value: money(banksTotal.totalBaseMinor) }}
+          title={t.accounts.list.sectionBanks}>
+          {groups.banks.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+        </AccountSection>
+      ) : null}
+
+      {!loading && !error && groups.creditCards.length > 0 ? (
+        <AccountSection
+          incompleteLabel={t.accounts.list.summaryIncomplete}
+          summary={cardsSummary()}
+          title={t.accounts.list.sectionCreditCards}>
+          {groups.creditCards.map((account) => <AccountCard account={account} key={account.id} rates={rates} onActions={(selected) => void openActions(selected)} onOpen={account.type === 'credit_card' ? (selected) => router.push({ pathname: '/accounts/[id]', params: { id: selected.id } }) : undefined} />)}
+        </AccountSection>
       ) : null}
 
       {!loading && !error && activeInvestments.length > 0 ? (
-        <View style={styles.archivedSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.primaryText }]}>{t.accounts.list.investments}</Text>
-            <Pressable
-              accessibilityLabel={t.accounts.list.viewAllInvestments}
-              accessibilityRole="button"
-              onPress={() => router.push('/investments')}
-              style={[styles.filter, { backgroundColor: theme.elevatedSurface }]}>
-              <Text style={[styles.filterText, { color: theme.primaryAction }]}>{t.accounts.list.viewAll}</Text>
-            </Pressable>
-          </View>
-          <View accessibilityLabel={t.accounts.list.investments} style={styles.accounts}>
-            {activeInvestments.map((view) => (
-              <InvestmentCard
-                key={view.account.id}
-                view={view}
-                onPress={() => router.push({ pathname: '/investments/[id]', params: { id: view.account.id } })}
-              />
-            ))}
-          </View>
-        </View>
+        <AccountSection
+          action={{ label: t.accounts.list.viewAll, accessibilityLabel: t.accounts.list.viewAllInvestments, onPress: () => router.push('/investments') }}
+          incompleteLabel={t.accounts.list.summaryIncomplete}
+          summary={{ label: t.accounts.list.summaryValue, value: money(investmentsTotal) }}
+          title={t.accounts.list.investments}>
+          {activeInvestments.map((view) => (
+            <InvestmentCard
+              key={view.account.id}
+              view={view}
+              onPress={() => router.push({ pathname: '/investments/[id]', params: { id: view.account.id } })}
+            />
+          ))}
+        </AccountSection>
+      ) : null}
+
+      {!loading && !error && archivedAccounts.length > 0 ? (
+        <Pressable
+          accessibilityLabel={showArchived ? t.accounts.list.hideArchivedAccounts : t.accounts.list.showArchivedAccounts}
+          accessibilityRole="button"
+          onPress={() => setShowArchived((value) => !value)}
+          style={[styles.filter, { backgroundColor: showArchived ? theme.tintPrimary : theme.elevatedSurface }]}>
+          <Text style={[styles.filterText, { color: showArchived ? theme.primaryAction : theme.secondaryText }]}>{showArchived ? t.accounts.list.hideArchived : t.accounts.list.archivedCount(archivedAccounts.length)}</Text>
+        </Pressable>
       ) : null}
 
       {showArchived && archivedAccounts.length > 0 ? (
@@ -236,9 +259,8 @@ export default function AccountsScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.md },
   actionError: { ...typography.caption },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between' },
   sectionTitle: { ...typography.sectionTitle, fontSize: 15, lineHeight: 20 },
-  filter: { alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 34, paddingHorizontal: spacing.sm + spacing.xs },
+  filter: { alignSelf: 'flex-start', alignItems: 'center', borderRadius: borderRadii.full, justifyContent: 'center', minHeight: 34, paddingHorizontal: spacing.sm + spacing.xs },
   filterText: { ...typography.label },
   accounts: { gap: spacing.sm + spacing.xs },
   archivedSection: { gap: spacing.sm + spacing.xs },

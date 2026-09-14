@@ -59,7 +59,12 @@ export const accounts: typeof en = {
     archiveTitle: 'Konto archivieren?',
     archiveMessage: (name) =>
       `${name} bleibt im Verlauf und im Nettovermögen, solange es einen Saldo hat. Es kann nicht mehr für neue Buchungen verwendet werden.`,
-    activeAccounts: 'Aktive Konten',
+    sectionBanks: 'Bargeld & Banken',
+    sectionCreditCards: 'Kreditkarten',
+    summaryTotal: 'Gesamt',
+    summaryDebt: 'Schulden',
+    summaryValue: 'Wert',
+    summaryIncomplete: 'Schätzung unvollständig',
     archivedAccounts: 'Archivierte Konten',
     hideArchivedAccounts: 'Archivierte Konten ausblenden',
     showArchivedAccounts: 'Archivierte Konten einblenden',

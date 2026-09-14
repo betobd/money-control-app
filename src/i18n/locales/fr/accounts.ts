@@ -59,7 +59,12 @@ export const accounts: typeof en = {
     archiveTitle: 'Archiver le compte ?',
     archiveMessage: (name) =>
       `${name} restera dans l’historique et le patrimoine net tant qu’il a un solde. Il ne pourra plus être utilisé pour de nouvelles transactions.`,
-    activeAccounts: 'Comptes actifs',
+    sectionBanks: 'Espèces et banques',
+    sectionCreditCards: 'Cartes de crédit',
+    summaryTotal: 'Total',
+    summaryDebt: 'Dette',
+    summaryValue: 'Valeur',
+    summaryIncomplete: 'Estimation incomplète',
     archivedAccounts: 'Comptes archivés',
     hideArchivedAccounts: 'Masquer les comptes archivés',
     showArchivedAccounts: 'Afficher les comptes archivés',
