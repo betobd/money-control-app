@@ -38,12 +38,30 @@ test('allows type changes before historical use', async () => { const { service 
 test('excludes archived categories from new-transaction selection but preserves historical lookup', async () => { const { service } = setup(); const category = await service.create(expense); await service.archive(category.id); assert.equal((await service.listSelectable('expense')).length, 0); assert.equal((await service.get(category.id)).id, category.id); });
 test('filters Add Transaction choices by expense and income type', async () => { const { service } = setup(); await service.create(expense); await service.create({ name: 'Salary', type: 'income', icon: 'salary' }); assert.deepEqual((await service.listSelectable('expense')).map((item) => item.name), ['Food']); assert.deepEqual((await service.listSelectable('income')).map((item) => item.name), ['Salary']); });
 test('keeps legacy icon identifiers and a stable unknown-icon fallback', () => { for (const id of ['food', 'bills', 'transport', 'shopping', 'entertainment', 'health', 'education', 'salary', 'freelance', 'gift', 'refund', 'other']) assert.equal(isCategoryIcon(id), true); assert.equal(fallbackCategoryIcon, 'other'); assert.deepEqual(getCategoryIcon('unknown-saved-value'), getCategoryIcon('other')); });
-test('offers a curated searchable icon catalog', () => { assert.ok(categoryIconKeys.length >= 100 && categoryIconKeys.length <= 200); assert.ok(searchCategoryIcons('coffee').includes('coffee')); assert.ok(searchCategoryIcons('pets').includes('pets')); assert.ok(searchCategoryIcons('airline').includes('flight')); assert.ok(searchCategoryIcons('barber').includes('haircut')); });
+test('offers a curated searchable icon catalog', () => { assert.ok(categoryIconKeys.length >= 200 && categoryIconKeys.length <= 400); assert.ok(searchCategoryIcons('coffee').includes('coffee')); assert.ok(searchCategoryIcons('pets').includes('pets')); assert.ok(searchCategoryIcons('airline').includes('flight')); assert.ok(searchCategoryIcons('barber').includes('haircut')); assert.ok(searchCategoryIcons('mecato').includes('snacks')); assert.ok(searchCategoryIcons('administracion').includes('condo-fees')); });
 
 // Icon keys are stored on `categories.icon`, so removing or renaming one turns
 // every category that used it into the fallback. The catalog only ever grows.
 test('keeps every previously shipped icon key', () => {
-  const shipped = ['food', 'groceries', 'restaurant', 'coffee', 'bills', 'home', 'rent', 'electricity', 'water', 'internet', 'phone', 'transport', 'bus', 'bike', 'fuel', 'parking', 'shopping', 'cart', 'clothing', 'health', 'pharmacy', 'fitness', 'dental', 'education', 'books', 'entertainment', 'movies', 'music', 'sports', 'travel', 'flight', 'hotel', 'luggage', 'bank', 'credit-card', 'savings', 'investment', 'refund', 'salary', 'freelance', 'bonus', 'family', 'childcare', 'pets', 'gift', 'charity', 'other'];
+  // Every key in a build that reached a device: 48 originals plus the 68 added
+  // with the first expansion. Append here whenever a build ships new keys.
+  const shipped = [
+    'food', 'groceries', 'restaurant', 'coffee', 'bar', 'dessert', 'food-delivery', 'bills',
+    'home', 'rent', 'mortgage', 'electricity', 'water', 'gas', 'internet', 'phone', 'furniture',
+    'appliances', 'maintenance', 'cleaning', 'garden', 'waste', 'home-security', 'transport',
+    'bus', 'train', 'taxi', 'bike', 'ferry', 'fuel', 'ev-charging', 'parking', 'toll',
+    'car-service', 'shopping', 'cart', 'clothing', 'electronics', 'online-shopping', 'mall',
+    'jewelry', 'health', 'doctor', 'pharmacy', 'lab', 'dental', 'vision', 'therapy', 'fitness',
+    'haircut', 'beauty', 'spa', 'laundry', 'education', 'tuition', 'books', 'courses',
+    'school-supplies', 'entertainment', 'movies', 'streaming', 'subscriptions', 'tv', 'music',
+    'concerts', 'theater', 'nightlife', 'hobbies', 'photography', 'news', 'sports', 'travel',
+    'flight', 'hotel', 'car-rental', 'luggage', 'beach', 'camping', 'hiking', 'sightseeing',
+    'bank', 'credit-card', 'savings', 'investment', 'crypto', 'dividends', 'loan', 'fees', 'taxes',
+    'insurance', 'atm', 'wallet', 'exchange', 'refund', 'salary', 'freelance', 'business',
+    'office', 'bonus', 'tips', 'rental-income', 'pension', 'family', 'friends', 'childcare',
+    'baby', 'toys', 'pets', 'vet', 'gift', 'celebration', 'wedding', 'charity', 'tag',
+    'uncategorized', 'other'
+  ];
   for (const key of shipped) assert.ok(isCategoryIcon(key), `icon key ${key} was removed`);
 });
 

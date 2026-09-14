@@ -65,7 +65,7 @@
     "test:investments": "node --import tsx --test tests/investments.test.mjs tests/investment-portfolio.test.mjs tests/investment-net-worth.test.mjs && python tests/investments_migration_database_test.py",
     "test:backup": "node --import tsx --test tests/backup.test.mjs && python tests/backup_restore_database_test.py",
     "test:accounts": "node --import tsx --test tests/accounts.test.mjs && python tests/accounts_database_test.py",
-    "test:categories": "node --import tsx --test tests/categories.test.mjs tests/category-search.test.mjs && python tests/categories_database_test.py && python tests/category_subcategories_migration_database_test.py",
+    "test:categories": "node scripts/validate-category-icons.mjs && node --import tsx --test tests/categories.test.mjs tests/category-search.test.mjs && python tests/categories_database_test.py && python tests/category_subcategories_migration_database_test.py",
     "test:transactions": "node --import tsx --test tests/transactions.test.mjs && python tests/transactions_database_test.py",
     "test:refunds": "node --import tsx --test tests/refunds.test.mjs && python tests/refunds_database_test.py && python tests/refunds_migration_database_test.py",
     "test:budgets-schema": "python tests/budgets_schema_database_test.py",
