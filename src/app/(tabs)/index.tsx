@@ -140,7 +140,7 @@ export default function HomeScreen() {
         style={styles.hero}
         variant="hero">
         <Overline color={theme.mutedText}>
-          {dashboard.netWorth.includesForeign ? 'Estimated net worth · COP' : 'Total balance · COP'}
+          {`${dashboard.netWorth.includesForeign ? 'Estimated net worth' : 'Total balance'} · ${dashboard.netWorth.baseCurrency}`}
         </Overline>
         {dashboard.netWorth.totalBaseMinor === null ? (
           <Text numberOfLines={1} style={[styles.heroBalance, { color: theme.warning }]}>Estimated — incomplete</Text>
@@ -176,7 +176,7 @@ export default function HomeScreen() {
           onPress={() => router.push('/investments')}>
           <Card variant="raised">
             <View style={styles.investmentHeader}>
-              <Overline color={theme.mutedText}>Investments · COP</Overline>
+              <Overline color={theme.mutedText}>{`Investments · ${investments.baseCurrency}`}</Overline>
               <View style={styles.viewAll}>
                 <Text style={[styles.viewAllText, { color: theme.primaryAction }]}>View investments</Text>
                 <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={16} tintColor={theme.primaryAction} />

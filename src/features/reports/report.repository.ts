@@ -16,6 +16,6 @@ export interface ReportRepository {
   netWorth(period: ReportPeriod, grouping: ReportGrouping, rates: ValuationRates): Promise<NetWorthAggregate>;
   /** All investment valuations (native unrealized adjustment), for the timeline overlay. */
   investmentValuationSeries(): Promise<InvestmentValuationSeriesRow[]>;
-  /** Realized investment income posted within the period, in COP base snapshot minor units. */
+  /** Realized investment income posted within the period, in base-currency snapshot minor units. */
   investmentIncome(period: ReportPeriod): Promise<{ baseMinor: number; count: number }>;
 }

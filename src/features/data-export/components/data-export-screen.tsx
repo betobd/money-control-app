@@ -330,7 +330,7 @@ export function DataExportScreen() {
         </ExportCard>
 
         <ExportCard
-          description="Investment accounts with current value, net contributions, estimated gain/loss and simple return, and estimated COP (blank when no USD/COP rate is available). Archived investments are included."
+          description="Investment accounts with current value, net contributions, estimated gain/loss and simple return, and estimated value in your base currency (blank when no exchange rate is available). Archived investments are included."
           kind="investments"
           operation={operation}
           recordCount={overview?.investments}

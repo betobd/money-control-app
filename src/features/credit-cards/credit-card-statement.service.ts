@@ -21,7 +21,7 @@ export class CreditCardStatementValidationError extends Error {
 function safeAdd(left: number, right: number): number {
   const result = left + right;
   if (!Number.isSafeInteger(result)) {
-    throw new Error('Statement payment total exceeds the supported safe COP range.');
+    throw new Error('Statement payment total exceeds the supported range.');
   }
   return result;
 }
@@ -157,10 +157,10 @@ export class CreditCardStatementService {
   private validateInput(input: CreditCardStatementInput): CreditCardStatementErrors {
     const errors: CreditCardStatementErrors = {};
     if (!Number.isSafeInteger(input.statementBalance) || input.statementBalance < 0) {
-      errors.statementBalance = 'Statement balance must be zero or a positive whole, safe COP amount.';
+      errors.statementBalance = 'Statement balance must be zero or a positive amount within the supported range.';
     }
     if (!Number.isSafeInteger(input.minimumPayment) || input.minimumPayment < 0) {
-      errors.minimumPayment = 'Minimum payment must be zero or a positive whole, safe COP amount.';
+      errors.minimumPayment = 'Minimum payment must be zero or a positive amount within the supported range.';
     } else if (Number.isSafeInteger(input.statementBalance) && input.minimumPayment > input.statementBalance) {
       errors.minimumPayment = 'Minimum payment cannot exceed the statement balance.';
     }

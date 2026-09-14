@@ -12,7 +12,8 @@ import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
 import { toUserMessage } from '@/errors/user-error';
 import { AccountActionError } from '@/features/accounts/account.service';
 import { accountService } from '@/features/accounts/accounts';
-import { formatMoneyNumber, formatMoneyWithSymbol } from '@/features/currency/currency';
+import { formatMoney, formatMoneyWithSymbol } from '@/features/currency/currency';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatEstimatedReturn, investmentLiquidityLabels, investmentTypeLabels } from '../investment-format';
@@ -24,6 +25,7 @@ import { DialogHost, useDialog } from '@/components/dialog';
 import { ScreenHeader } from '@/components/screen-header';
 
 export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
+  const baseCurrency = useBaseCurrency();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
@@ -94,7 +96,7 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
 
   const { account, metadata } = view;
   const currency = account.currency;
-  const isForeign = currency !== 'COP';
+  const isForeign = currency !== baseCurrency;
   const money = (value: number) => formatMoneyWithSymbol(value, currency);
   const gainColor =
     view.estimatedGainLossMinor > 0
@@ -124,8 +126,8 @@ export function InvestmentDetailsScreen({ accountId }: { accountId: string }) {
           {isForeign ? (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
               {view.estimatedValueBaseMinor === null
-                ? 'Estimated COP — rate unavailable'
-                : `≈ COP ${formatMoneyNumber(view.estimatedValueBaseMinor, 'COP')}`}
+                ? `Estimated ${baseCurrency} — rate unavailable`
+                : `≈ ${formatMoney(view.estimatedValueBaseMinor, baseCurrency)}`}
             </Text>
           ) : null}
           <View style={styles.gainRow}>

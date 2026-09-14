@@ -70,10 +70,10 @@ const menuItems: MenuItem[] = [
   },
   {
     accessibilityLabel: 'Open currency and rates',
-    accessibilityHint: 'Review the base currency and the USD/COP reference rate',
+    accessibilityHint: 'Review the base currency and exchange rates',
     icon: { ios: 'coloncurrencysign.circle.fill', android: 'currency_exchange', web: 'currency_exchange' },
     label: 'Currency & Rates',
-    description: 'Base currency and USD/COP reference rate',
+    description: 'Base currency and exchange rates',
     href: '/currency-rates' as Href,
   },
   {

@@ -6,7 +6,8 @@ import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { fonts, spacing, typography } from '@/constants/theme';
 import { AccountTypeIcon } from '@/features/accounts/components/account-type-icon';
-import { formatMoneyNumber, formatMoneyWithSymbol } from '@/features/currency/currency';
+import { formatMoney, formatMoneyWithSymbol } from '@/features/currency/currency';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { formatTransactionDate } from '@/features/transactions/transaction-date';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatEstimatedReturn, investmentLiquidityLabels, investmentTypeLabels } from '../investment-format';
@@ -20,9 +21,10 @@ type InvestmentCardProps = {
 /** Portfolio row: one investment account with its current value and estimated return. */
 export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
   const theme = useAppTheme();
+  const baseCurrency = useBaseCurrency();
   const { account, metadata } = view;
   const currency = account.currency;
-  const isForeign = currency !== 'COP';
+  const isForeign = currency !== baseCurrency;
 
   const gainColor =
     view.estimatedGainLossMinor > 0
@@ -61,8 +63,8 @@ export function InvestmentCard({ view, onPress }: InvestmentCardProps) {
           {isForeign ? (
             <Text style={[styles.caption, { color: theme.mutedText }]}>
               {view.estimatedValueBaseMinor === null
-                ? 'Estimated COP — rate unavailable'
-                : `≈ COP ${formatMoneyNumber(view.estimatedValueBaseMinor, 'COP')}`}
+                ? `Estimated ${baseCurrency} — rate unavailable`
+                : `≈ ${formatMoney(view.estimatedValueBaseMinor, baseCurrency)}`}
             </Text>
           ) : null}
         </View>

@@ -6,7 +6,8 @@ import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { Overline } from '@/components/overline';
 import { borderRadii, fonts, spacing, typography } from '@/constants/theme';
-import { formatMoneyNumber } from '@/features/currency/currency';
+import { formatMoney, formatMoneyNumber } from '@/features/currency/currency';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatEstimatedReturn, investmentTypeLabels } from '../investment-format';
 import { investmentTypes, type InvestmentAllocationSlice, type InvestmentType } from '../investment.types';
@@ -26,12 +27,13 @@ export function InvestmentsScreen() {
   const theme = useAppTheme();
   const router = useRouter();
   const { portfolio, loading, error, reload } = useInvestments();
+  const baseCurrency = useBaseCurrency();
 
-  const gainCop = portfolio.estimatedGainLossBaseMinor;
+  const gainBase = portfolio.estimatedGainLossBaseMinor;
   const gainColor =
-    gainCop === null || gainCop === 0
+    gainBase === null || gainBase === 0
       ? theme.mutedText
-      : gainCop > 0
+      : gainBase > 0
         ? theme.income
         : theme.expense;
 
@@ -67,34 +69,34 @@ export function InvestmentsScreen() {
                     minimumFontScale={0.65}
                     numberOfLines={1}
                     style={[styles.amount, { color: theme.primaryAction }]}>
-                    {formatMoneyNumber(portfolio.totalCurrentValueBaseMinor, 'COP')}
+                    {formatMoneyNumber(portfolio.totalCurrentValueBaseMinor, baseCurrency)}
                   </Text>
-                  <Text style={[styles.amountCurrency, { color: theme.mutedText }]}>COP</Text>
+                  <Text style={[styles.amountCurrency, { color: theme.mutedText }]}>{baseCurrency}</Text>
                 </View>
               )}
               <Text style={[styles.caption, { color: theme.mutedText }]}>
                 {portfolio.incomplete
-                  ? 'USD investments are excluded because no USD/COP exchange rate is available.'
-                  : 'Consolidated in COP using the latest saved reference rate where needed.'}
+                  ? `Investments in other currencies are excluded because no exchange rate to ${baseCurrency} is available.`
+                  : `Consolidated in ${baseCurrency} using the latest saved reference rate where needed.`}
               </Text>
 
               <View style={styles.summaryRows}>
                 <SummaryRow
                   label="Net contributions"
-                  value={portfolio.netContributionsBaseMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.netContributionsBaseMinor, 'COP')}`}
+                  value={portfolio.netContributionsBaseMinor === null ? 'Estimated — incomplete' : formatMoney(portfolio.netContributionsBaseMinor, baseCurrency)}
                 />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>Estimated gain/loss</Text>
                   <Text style={[styles.summaryValue, { color: gainColor }]}>
-                    {gainCop === null
+                    {gainBase === null
                       ? 'Estimated — incomplete'
-                      : `${gainCop > 0 ? '+' : ''}COP ${formatMoneyNumber(gainCop, 'COP')} · ${formatEstimatedReturn(portfolio.estimatedReturn)}`}
+                      : `${gainBase > 0 ? '+' : ''}${formatMoney(gainBase, baseCurrency)} · ${formatEstimatedReturn(portfolio.estimatedReturn)}`}
                   </Text>
                 </View>
                 <SummaryRow label="Investment accounts" value={String(portfolio.investmentAccountCount)} />
                 <SummaryRow
                   label="Locked or restricted"
-                  value={portfolio.lockedOrRestrictedValueBaseMinor === null ? 'Estimated — incomplete' : `COP ${formatMoneyNumber(portfolio.lockedOrRestrictedValueBaseMinor, 'COP')}`}
+                  value={portfolio.lockedOrRestrictedValueBaseMinor === null ? 'Estimated — incomplete' : formatMoney(portfolio.lockedOrRestrictedValueBaseMinor, baseCurrency)}
                 />
               </View>
 
@@ -161,13 +163,14 @@ function AllocationBlock({
   labelFor: (key: string) => string;
 }) {
   const theme = useAppTheme();
+  const baseCurrency = useBaseCurrency();
   return (
     <View style={styles.allocation}>
       <Overline color={theme.mutedText}>{title}</Overline>
       {slices.map((slice) => (
         <View key={slice.key} style={styles.summaryRow}>
           <Text style={[styles.summaryLabel, { color: theme.secondaryText }]}>{labelFor(slice.key)}</Text>
-          <Text style={[styles.summaryValue, { color: theme.primaryText }]}>COP {formatMoneyNumber(slice.valueBaseMinor, 'COP')}</Text>
+          <Text style={[styles.summaryValue, { color: theme.primaryText }]}>{formatMoney(slice.valueBaseMinor, baseCurrency)}</Text>
         </View>
       ))}
     </View>

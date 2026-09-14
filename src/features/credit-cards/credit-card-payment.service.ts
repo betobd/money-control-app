@@ -1,5 +1,5 @@
 import type { AccountRepository } from '@/features/accounts/account.repository';
-import { deriveEffectiveRate } from '@/features/currency/currency';
+import { deriveEffectiveRate, formatMoney } from '@/features/currency/currency';
 import { isValidCalendarDate } from '@/features/transactions/transaction-date';
 import type { TransactionService } from '@/features/transactions/transaction.service';
 import type { TransactionRecord } from '@/features/transactions/transaction.types';
@@ -15,7 +15,7 @@ export class CreditCardPaymentValidationError extends Error {}
 
 export class CreditCardOverpaymentConfirmationRequired extends Error {
   constructor(public readonly preview: CreditCardPaymentPreview) {
-    super(`This payment exceeds the current debt by COP ${preview.overpaymentAmount.toLocaleString('en-US')}. The card will have a positive balance.`);
+    super(`This payment exceeds the current debt by ${formatMoney(preview.overpaymentAmount, preview.cardCurrency)}. The card will have a positive balance.`);
   }
 }
 

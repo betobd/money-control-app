@@ -91,7 +91,7 @@ export type InvestmentContributionSummary = {
 /** Simple estimated return. Unavailable when net contributions are not positive. */
 export type EstimatedReturn = { available: true; basisPoints: number } | { available: false };
 
-/** Read model for one investment account (native values + estimated COP). */
+/** Read model for one investment account (native values + estimated base-currency value). */
 export type InvestmentAccountView = {
   account: AccountWithBalance;
   metadata: InvestmentAccountMetadata;

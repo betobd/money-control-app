@@ -167,9 +167,9 @@ export function RefundFormScreen({ originalTransactionId }: { originalTransactio
             Maximum refundable: {formatMoneyWithSymbol(summary.refundableRemaining, refundCurrency)}
           </Text>
           {errors.amount ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.amount}</Text> : null}
-          {refundCurrency !== 'COP' ? (
+          {refundCurrency !== baseCurrency ? (
             <Text style={[styles.helper, { color: theme.mutedText }]}>
-              A USD refund uses the current saved USD/COP reference rate. Your bank may use a different rate.
+              {`A ${refundCurrency} refund uses the current saved ${refundCurrency}/${baseCurrency} reference rate. Your bank may use a different rate.`}
             </Text>
           ) : null}
           {errors.exchangeRate ? <Text style={[styles.error, { color: theme.destructive }]}>{errors.exchangeRate}</Text> : null}

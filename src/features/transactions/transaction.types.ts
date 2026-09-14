@@ -40,7 +40,7 @@ type TransactionInputBase = {
   accountId: string;
   transactionDate: string;
   note: string | null;
-  /** Required when the native currency is not COP (or for cross-currency transfers). */
+  /** Required when the native currency is not the base currency (or for cross-currency transfers). */
   exchangeRate?: ExchangeRateSnapshotInput | null;
 };
 

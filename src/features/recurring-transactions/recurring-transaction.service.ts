@@ -62,7 +62,7 @@ export class RecurringTransactionService {
     private readonly createId: () => string,
     private readonly now = () => new Date().toISOString(),
     private readonly today = () => bogotaToday(),
-    /** Resolves the current USD/COP rate snapshot when posting a USD occurrence. */
+    /** Resolves the current rate snapshot when posting a foreign-currency occurrence. */
     private readonly resolveExchangeRate: (currency: CurrencyCode) => Promise<ExchangeRateSnapshotInput | null> = async () => null,
     /**
      * The device's base currency. Injected rather than read from the module cache

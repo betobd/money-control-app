@@ -28,6 +28,7 @@ import { TransactionTypeSelector } from '@/features/add-transaction/components/t
 import type { TransactionFormType } from '@/features/add-transaction/transaction-form.types';
 import { useCategoryTree } from '@/features/categories/use-categories';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useBaseCurrency } from '@/features/settings/use-base-currency';
 import { RecurringRuleValidationError } from '../recurring-transaction.service';
 import type {
   RecurringFrequency,
@@ -101,6 +102,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
+  const baseCurrency = useBaseCurrency();
   const { accounts } = useAccounts();
   const expenseTree = useCategoryTree('expense', false).tree;
   const incomeTree = useCategoryTree('income', false).tree;
@@ -126,7 +128,7 @@ export function RecurringTransactionEditor(props: RuleProps | OccurrenceProps) {
 
   const activeAccounts = accounts.filter((account) => !account.isArchived);
   const selectedAccount = accounts.find((account) => account.id === accountId);
-  const editorCurrency: CurrencyCode = selectedAccount?.currency ?? 'COP';
+  const editorCurrency: CurrencyCode = selectedAccount?.currency ?? baseCurrency;
   const selectedDestination = accounts.find((account) => account.id === destinationAccountId);
   const tree = type === 'income' ? incomeTree : expenseTree;
   // Re-resolved against the live tree so a category archived elsewhere cannot

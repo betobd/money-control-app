@@ -68,7 +68,7 @@ export function validateBudgetInput(input: BudgetInput): BudgetValidationErrors 
   if (!input.categoryId.trim()) errors.categoryId = 'Select an expense category.';
   if (!isValidBudgetMonth(input.month)) errors.month = 'Enter a valid month in YYYY-MM format.';
   if (!Number.isSafeInteger(input.limitAmount) || input.limitAmount <= 0) {
-    errors.limitAmount = 'Enter a positive whole, safe COP limit.';
+    errors.limitAmount = 'Enter a positive limit within the supported range.';
   }
   if (input.color != null && !budgetColorKeys.includes(input.color)) {
     errors.color = 'Select a valid budget color.';
@@ -77,7 +77,7 @@ export function validateBudgetInput(input: BudgetInput): BudgetValidationErrors 
 }
 
 function ensureSafeMoney(value: number, label: string): number {
-  if (!Number.isSafeInteger(value)) throw new Error(`${label} exceeds the supported safe COP range.`);
+  if (!Number.isSafeInteger(value)) throw new Error(`${label} exceeds the supported range.`);
   return value;
 }
 

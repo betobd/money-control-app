@@ -163,7 +163,7 @@ export type PreviousPeriodComparison = {
   expenseCount: ComparisonMetric;
 };
 
-/** Realized investment income posted within the report period (COP base snapshot). */
+/** Realized investment income posted within the report period (base-currency snapshot). */
 export type ReportInvestments = {
   incomeBaseMinor: number;
   incomeCount: number;
